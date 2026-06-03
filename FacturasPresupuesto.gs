@@ -47,7 +47,10 @@ function generateInvoiceFromPresupuestoPDF(params) {
   // ── Selección de método de pago ──────────────────────────────
   var metodosPago_fp = cliData ? (cliData.metodosPago || []) : [];
   var pagoSeleccionado = null;
-  if (metodosPago_fp.length === 1) {
+  if (params.metodoPago !== undefined) {
+    pagoSeleccionado = params.metodoPago;
+    Logger.log('  Método de pago (override): ' + (pagoSeleccionado ? pagoSeleccionado.tipo : 'ninguno'));
+  } else if (metodosPago_fp.length === 1) {
     pagoSeleccionado = metodosPago_fp[0];
   } else if (metodosPago_fp.length > 1) {
     var opsTxt_fp = metodosPago_fp.map(function(m, i) {

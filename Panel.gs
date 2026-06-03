@@ -8,50 +8,51 @@ var P_ = {
   FECHA_INI:         [6,  3],
   FECHA_FIN:         [7,  3],
   TIPO:              [8,  3],
-  PRECIO_HORA:       [9,  3],
-  BOTON_BUSCAR:      [39, 3],   // C39 — "Buscar trabajos" checkbox
-  JOBS_OK:           [39, 10],  // J39 — flag: trabajos cargados
-  BOTON_PREVIEW:     [74, 3],   // C74 — tras tabla trabajos (filas 40-72)
-  PREVIEW_OK:        [74, 10],  // col J — flag oculto
-  PRV_CLIENTE:       [77, 3],
-  PRV_PERIODO:       [78, 3],
-  PRV_TRABAJOS:      [79, 3],
-  PRV_HORAS:         [80, 3],
-  PRV_MATS_TRAB:     [81, 3],
-  PRV_MATS_OTROS:    [82, 3],
-  PRV_MATS_TOTAL:    [83, 3],
-  PRV_BASE:          [84, 3],
-  PRV_IVA:           [85, 3],
-  PRV_TOTAL:         [86, 3],
-  BOTON_GENERAR:     [88, 3],
-  ESTADO:            [90, 3],
-  URL:               [91, 3],
-  PRV_DETALLE:       [87, 3],   // C87 — listado detallado de trabajos (texto multilínea)
+  METODO_PAGO:       [9,  3],   // NEW — Método de pago (entre Tipo=8 y Precio=10)
+  PRECIO_HORA:       [10, 3],
+  BOTON_BUSCAR:      [40, 3],   // C40 — "Buscar trabajos" checkbox
+  JOBS_OK:           [40, 10],  // J40 — flag: trabajos cargados
+  BOTON_PREVIEW:     [75, 3],   // C75 — tras tabla trabajos (filas 41-73)
+  PREVIEW_OK:        [75, 10],  // col J — flag oculto
+  PRV_CLIENTE:       [78, 3],
+  PRV_PERIODO:       [79, 3],
+  PRV_TRABAJOS:      [80, 3],
+  PRV_HORAS:         [81, 3],
+  PRV_MATS_TRAB:     [82, 3],
+  PRV_MATS_OTROS:    [83, 3],
+  PRV_MATS_TOTAL:    [84, 3],
+  PRV_BASE:          [85, 3],
+  PRV_IVA:           [86, 3],
+  PRV_TOTAL:         [87, 3],
+  BOTON_GENERAR:     [89, 3],
+  ESTADO:            [91, 3],
+  URL:               [92, 3],
+  PRV_DETALLE:       [88, 3],   // C88 — listado detallado de trabajos (texto multilínea)
 
   // RIGHT: PRESUPUESTOS (etiqueta E=5, valor F=6 / tabla cols E-H)
   PRE_CLIENTE:       [5,  6],
   PRE_FECHA_EMI:     [6,  6],
   PRE_VALIDEZ:       [7,  6],
-  PRE_IVA:           [73, 6],   // F73 — IVA derecho (desplazado +33 por tabla trabajos)
-  BOTON_PRE_PREV:    [74, 8],   // H74 — checkbox
-  PRE_PREVIEW_OK:    [74, 11],  // col K — flag oculto
-  PRE_PRV_CLIENTE:   [77, 6],
-  PRE_PRV_LINEAS:    [78, 6],
-  PRE_PRV_SUBTOTAL:  [79, 6],
-  PRE_PRV_IVA:       [80, 6],
-  PRE_PRV_TOTAL:     [81, 6],
-  PRE_PRV_FECHA_EMI: [82, 6],
-  PRE_PRV_CADUCIDAD: [83, 6],
-  BOTON_PRE_GEN:     [88, 8],   // H88 — checkbox
-  PRE_ESTADO:        [90, 6],
-  PRE_URL:           [91, 6],
+  PRE_IVA:           [74, 6],   // F74 — IVA derecho (desplazado +34 por tabla trabajos)
+  BOTON_PRE_PREV:    [75, 8],   // H75 — checkbox
+  PRE_PREVIEW_OK:    [75, 11],  // col K — flag oculto
+  PRE_PRV_CLIENTE:   [78, 6],
+  PRE_PRV_LINEAS:    [79, 6],
+  PRE_PRV_SUBTOTAL:  [80, 6],
+  PRE_PRV_IVA:       [81, 6],
+  PRE_PRV_TOTAL:     [82, 6],
+  PRE_PRV_FECHA_EMI: [83, 6],
+  PRE_PRV_CADUCIDAD: [84, 6],
+  BOTON_PRE_GEN:     [89, 8],   // H89 — checkbox
+  PRE_ESTADO:        [91, 6],
+  PRE_URL:           [92, 6],
 };
 
-// Tabla de trabajos disponibles para facturar (filas 40-71, cols B-I)
+// Tabla de trabajos disponibles para facturar (filas 41-72, cols B-I)
 var JOB_TABLE = {
-  SEC_ROW:      40,   // fila cabecera de sección
-  HDR_ROW:      41,   // fila de encabezados de columna
-  START_ROW:    42,   // primera fila de datos
+  SEC_ROW:      41,   // fila cabecera de sección
+  HDR_ROW:      42,   // fila de encabezados de columna
+  START_ROW:    43,   // primera fila de datos
   MAX_ROWS:     30,   // filas 42-71
   COL_CHECK:    2,    // B — checkbox "Seleccionar"
   COL_INFO:     3,    // C-D merged — ID · Fecha · Operario
@@ -65,54 +66,55 @@ var JOB_TABLE = {
 
 // Tabla de líneas libres del presupuesto
 var PRE_TABLE = {
-  START_ROW:    9,
-  ROWS_VISIBLE: 10,  // visibles al inicio (filas 9-18)
-  ROWS:         30,  // total pre-allocadas (10 visibles + 20 ocultas, filas 9-38)
+  START_ROW:    10,
+  ROWS_VISIBLE: 10,  // visibles al inicio (filas 10-19)
+  ROWS:         30,  // total pre-allocadas (10 visibles + 20 ocultas, filas 10-39)
   COL_DESC:     5,
   COL_CANT:     6,
   COL_PU:       7,
   COL_IMP:      8
 };
 
-var PRE_BTN_ADD = [39, 8];  // checkbox "➕ Añadir concepto" — H39
+var PRE_BTN_ADD = [40, 8];  // checkbox "➕ Añadir concepto" — H40
 
-// Tabla de materiales adicionales (izquierdo, filas 11-18, cols B=2 y C=3)
+// Tabla de materiales adicionales (izquierdo, filas 12-19, cols B=2 y C=3)
 var MAT_TABLE = {
-  START_ROW: 11,  // primera fila de entrada
-  ROWS:       8,  // filas 11-18 (siempre visibles)
+  START_ROW: 12,  // primera fila de entrada
+  ROWS:       8,  // filas 12-19 (siempre visibles)
   COL_DESC:   2,  // col B — descripción
   COL_IMP:    3   // col C — importe €
 };
 
-// ── SECCIÓN: FACTURA DESDE PRESUPUESTO (filas 95-130) ────────────
+// ── SECCIÓN: FACTURA DESDE PRESUPUESTO (filas 96-132) ────────────
 var PF_ = {
-  CLIENTE:       [98,  3],   // C98 — dropdown clientes con presupuestos Aceptados
-  PRE_ID:        [99,  3],   // C99 — dropdown presupuestos filtrado por cliente+Aceptado
-  INFO_CLIENTE:  [98,  10],  // J98 — cliente cargado (fuera de vista, uso interno)
-  INFO_TOTAL:    [100, 3],   // C100 — total presup. read-only
-  INFO_FECHA:    [101, 3],   // C101 — fecha emisión read-only
-  BOTON_CARGAR:  [103, 8],   // H103 — checkbox
-  CARGAR_OK:     [103, 10],  // J103 — flag: ID cargado
-  BOTON_PREVIEW: [117, 8],   // H117 — checkbox
-  PREVIEW_OK:    [117, 11],  // K117 — flag (distinto de K74 que es PRE_PREVIEW_OK)
-  PRV_CLIENTE:   [120, 3],
-  PRV_LINEAS:    [121, 3],
-  PRV_IVA:       [122, 3],
-  PRV_PRE_REF:   [120, 6],
-  PRV_SUBTOTAL:  [121, 6],
-  PRV_TOTAL:     [122, 6],
-  BOTON_GENERAR:   [125, 8],   // H125 — checkbox
-  ESTADO:          [127, 3],
-  URL:             [128, 3],
-  BASE_PRESUP_RAW: [100, 10],  // J100 — subtotal bruto del presupuesto (sin IVA), fuera de vista
-  TIPO_DOC:        [102, 3],   // C102 — Tipo de documento: Factura / Proforma
+  CLIENTE:       [99,  3],   // C99 — dropdown clientes con presupuestos Aceptados
+  PRE_ID:        [100, 3],   // C100 — dropdown presupuestos filtrado por cliente+Aceptado
+  INFO_CLIENTE:  [99,  10],  // J99 — cliente cargado (fuera de vista, uso interno)
+  INFO_TOTAL:    [101, 3],   // C101 — total presup. read-only
+  INFO_FECHA:    [102, 3],   // C102 — fecha emisión read-only
+  BOTON_CARGAR:  [105, 8],   // H105 — checkbox
+  CARGAR_OK:     [105, 10],  // J105 — flag: ID cargado
+  BOTON_PREVIEW: [119, 8],   // H119 — checkbox
+  PREVIEW_OK:    [119, 11],  // K119 — flag (distinto de K75 que es PRE_PREVIEW_OK)
+  PRV_CLIENTE:   [122, 3],
+  PRV_LINEAS:    [123, 3],
+  PRV_IVA:       [124, 3],
+  PRV_PRE_REF:   [122, 6],
+  PRV_SUBTOTAL:  [123, 6],
+  PRV_TOTAL:     [124, 6],
+  BOTON_GENERAR:   [127, 8],   // H127 — checkbox
+  ESTADO:          [129, 3],
+  URL:             [130, 3],
+  BASE_PRESUP_RAW: [101, 10],  // J101 — subtotal bruto del presupuesto (sin IVA), fuera de vista
+  TIPO_DOC:        [103, 3],   // C103 — Tipo de documento: Factura / Proforma
+  METODO_PAGO:     [104, 3],   // C104 — Método de pago (nuevo)
 };
 
 var PFP_TABLE = {
-  START_ROW:  106,
+  START_ROW:  108,
   ROWS:       10,
   COL_DESC:   5, COL_CANT: 6, COL_PU: 7, COL_IMP: 8,
-  COL_ORIGEN: 9   // I73:I82 — marca de origen (PRESUPUESTO / vacío=extra), columna oculta
+  COL_ORIGEN: 9   // I108:I117 — marca de origen (PRESUPUESTO / vacío=extra), columna oculta
 };
 
 // ================================================================
@@ -135,7 +137,7 @@ function _applyPreImpFormulas_(sh) {
 
 /**
  * Aplica en batch la fórmula Importe = Cant × P.U. a la columna H
- * de la tabla de FACTURA DESDE PRESUPUESTO (filas 73-82).
+ * de la tabla de FACTURA DESDE PRESUPUESTO (filas 108-117).
  * Se llama desde panelCargarPresupuesto y desde el layout.
  * @param {Sheet} sh  hoja PANEL
  */
@@ -161,8 +163,8 @@ function repairPreImpFormulas() {
   sh.setColumnWidth(11, 2);  // col K — flags
   SpreadsheetApp.getUi().alert(
     '✅  Reparación aplicada:\n\n' +
-    '· Fórmulas Importe tabla Presupuesto (H9:H38)\n' +
-    '· Fórmulas Importe tabla Factura/Pres. (H106:H115)\n' +
+    '· Fórmulas Importe tabla Presupuesto (H10:H39)\n' +
+    '· Fórmulas Importe tabla Factura/Pres. (H108:H117)\n' +
     '· Columnas J y K ocultadas (datos auxiliares)'
   );
 }
@@ -407,14 +409,16 @@ function onPanelEdit(e) {
   var col = e.range.getColumn();
   var sh  = e.range.getSheet();
 
-  // Inputs DOCUMENTOS (col C=3, filas 5-9) → invalida preview
-  if (col === 3 && row >= 5 && row <= 9) {
+  // Inputs DOCUMENTOS (col C=3, filas 5-10) → invalida preview
+  if (col === 3 && row >= 5 && row <= 10) {
     sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).setValue('');
     // Si cambia cliente o fechas → también invalida la lista de trabajos cargados
     if (row <= 7) sh.getRange(P_.JOBS_OK[0], P_.JOBS_OK[1]).setValue('');
+    // Si cambia el cliente → refresca el dropdown de Método de pago
+    if (row === 5) _panelRefreshMetodoPago_(sh, String(e.value || '').trim());
     return;
   }
-  // Tabla materiales adicionales (filas 11-18, cols B=2 o C=3) → invalida preview
+  // Tabla materiales adicionales (filas 12-19, cols B=2 o C=3) → invalida preview
   if (row >= MAT_TABLE.START_ROW && row < MAT_TABLE.START_ROW + MAT_TABLE.ROWS &&
       (col === MAT_TABLE.COL_DESC || col === MAT_TABLE.COL_IMP)) {
     sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).setValue('');
@@ -454,6 +458,11 @@ function onPanelEdit(e) {
     _fpEstado_(sh, '', '#3c4043');
     var nuevoCliente = String(e.value || '').trim();
     _fpRefreshPresupuestoDropdown_(sh, nuevoCliente);
+    _fpRefreshMetodoPago_(sh, nuevoCliente);
+    return;
+  }
+  if (row === PF_.METODO_PAGO[0] && col === PF_.METODO_PAGO[1]) {
+    sh.getRange(PF_.PREVIEW_OK[0], PF_.PREVIEW_OK[1]).setValue('');
     return;
   }
   if (row === PF_.PRE_ID[0] && col === PF_.PRE_ID[1]) {
@@ -496,8 +505,8 @@ function onEdit(e) {
   var row = e.range.getRow();
   var col = e.range.getColumn();
 
-  // Invalidar preview cuando cambian inputs de Documentos (col C, filas 5-9)
-  if (col === 3 && row >= 5 && row <= 9) {
+  // Invalidar preview cuando cambian inputs de Documentos (col C, filas 5-10)
+  if (col === 3 && row >= 5 && row <= 10) {
     sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).setValue('');
     if (row <= 7) sh.getRange(P_.JOBS_OK[0], P_.JOBS_OK[1]).setValue('');
     return;
@@ -563,26 +572,26 @@ function setupPanel() {
   sh.setRowHeight(6, 40);
   sh.setRowHeight(7, 40);
   sh.setRowHeight(8, 34);
-  for (r = 9;  r <= 18; r++) sh.setRowHeight(r, 38);  // tabla visible
-  for (r = 19; r <= 38; r++) sh.setRowHeight(r, 2);   // tabla oculta
-  sh.setRowHeight(39, 36);  // Añadir concepto / BUSCAR TRABAJOS
-  // Filas 40-72: tabla TRABAJOS DISPONIBLES (construida por _buildJobsSection_)
-  // Filas 73-93: continuación panel tras la tabla de trabajos
-  sh.setRowHeight(73, 40);  // IVA (derecho)
-  sh.setRowHeight(74, 52);  // Vista Previa
-  sh.setRowHeight(75, 10);
-  sh.setRowHeight(76, 32);  // cabecera resumen
-  for (r = 77; r <= 86; r++) sh.setRowHeight(r, 30);
-  sh.setRowHeight(87, 30);  // detalle trabajos
-  sh.setRowHeight(88, 52);  // Generar
-  sh.setRowHeight(89, 14);
-  sh.setRowHeight(90, 36);  // Estado
-  sh.setRowHeight(91, 36);  // URL
-  sh.setRowHeight(92, 14);
-  sh.setRowHeight(93, 28);  // hint
+  for (r = 9;  r <= 19; r++) sh.setRowHeight(r, 38);  // tabla visible (filas 9-19, incl. Método de pago nueva fila 9)
+  for (r = 20; r <= 39; r++) sh.setRowHeight(r, 2);   // tabla oculta
+  sh.setRowHeight(40, 36);  // Añadir concepto / BUSCAR TRABAJOS
+  // Filas 41-73: tabla TRABAJOS DISPONIBLES (construida por _buildJobsSection_)
+  // Filas 74-94: continuación panel tras la tabla de trabajos
+  sh.setRowHeight(74, 40);  // IVA (derecho)
+  sh.setRowHeight(75, 52);  // Vista Previa
+  sh.setRowHeight(76, 10);
+  sh.setRowHeight(77, 32);  // cabecera resumen
+  for (r = 78; r <= 87; r++) sh.setRowHeight(r, 30);
+  sh.setRowHeight(88, 30);  // detalle trabajos
+  sh.setRowHeight(89, 52);  // Generar
+  sh.setRowHeight(90, 14);
+  sh.setRowHeight(91, 36);  // Estado
+  sh.setRowHeight(92, 36);  // URL
+  sh.setRowHeight(93, 14);
+  sh.setRowHeight(94, 28);  // hint
 
-  // ── Divisor central (col D, filas 2-92) ──────────────────────
-  sh.getRange(2, 4, 91, 1).setBackground('#dadce0');
+  // ── Divisor central (col D, filas 2-93) ──────────────────────
+  sh.getRange(2, 4, 92, 1).setBackground('#dadce0');
 
   // ── Títulos (fila 2) ─────────────────────────────────────────
   sh.getRange(2, 2, 1, 2).merge()
@@ -644,25 +653,30 @@ function setupPanel() {
     true, true, true, true, true, false, '#1e7e34', SpreadsheetApp.BorderStyle.SOLID
   );
 
-  // ── Fila 9: Precio/hora ───────────────────────────────────────
-  _lbl_(sh, 9, 2, '💶  Precio/hora €');
+  // ── Fila 9: Método de pago ─────────────────────────────────────
+  _lbl_(sh, 9, 2, '💳  Método de pago');
   _val_(sh, 9, 3);
+  // (dropdown es poblado dinámicamente cuando se selecciona un cliente)
 
-  // ── Fila 10: Cabecera tabla materiales adicionales ────────────
-  sh.getRange(10, 2)
+  // ── Fila 10: Precio/hora ───────────────────────────────────────
+  _lbl_(sh, 10, 2, '💶  Precio/hora €');
+  _val_(sh, 10, 3);
+
+  // ── Fila 11: Cabecera tabla materiales adicionales ────────────
+  sh.getRange(11, 2)
     .setValue('🔧  Descripción material')
     .setFontWeight('bold').setFontSize(9).setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('left').setVerticalAlignment('middle');
-  sh.getRange(10, 3)
+  sh.getRange(11, 3)
     .setValue('Importe €')
     .setFontWeight('bold').setFontSize(9).setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(10, 2, 1, 2).setBorder(
+  sh.getRange(11, 2, 1, 2).setBorder(
     true, true, true, true, true, false, '#0d47a1', SpreadsheetApp.BorderStyle.SOLID
   );
 
-  // ── Filas 11-38: vacío left (fondo base) ─────────────────────
-  for (r = 11; r <= 38; r++) {
+  // ── Filas 12-39: vacío left (fondo base) ─────────────────────
+  for (r = 12; r <= 39; r++) {
     sh.getRange(r, 2).setBackground('#f8f9fa');
     sh.getRange(r, 3).setBackground('#ffffff');
   }
@@ -699,71 +713,71 @@ function setupPanel() {
   // Fórmulas de importe en batch — garantiza que H9 (primera fila) no quede vacía
   _applyPreImpFormulas_(sh);
 
-  // ── Fila 39: "Buscar trabajos" (left) + "Añadir concepto" (right) ──
-  sh.getRange(39, 2)
+  // ── Fila 40: "Buscar trabajos" (left) + "Añadir concepto" (right) ──
+  sh.getRange(40, 2)
     .setValue('🔍  BUSCAR TRABAJOS')
     .setFontSize(11).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#f9ab00').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(39, 3).insertCheckboxes().setValue(false)
+  sh.getRange(40, 3).insertCheckboxes().setValue(false)
     .setBackground('#e37400').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(39, 2, 1, 2).setBorder(
+  sh.getRange(40, 2, 1, 2).setBorder(
     true, true, true, true, true, false, '#b06000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
-  sh.getRange(39, 5, 1, 3).merge()
+  sh.getRange(40, 5, 1, 3).merge()
     .setValue('➕  Añadir concepto al presupuesto')
     .setFontSize(11).setFontWeight('bold').setFontColor('#34a853')
     .setBackground('#e6f4ea').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(39, 8).insertCheckboxes().setValue(false)
+  sh.getRange(40, 8).insertCheckboxes().setValue(false)
     .setBackground('#c8e6c9').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(39, 5, 1, 4).setBorder(
+  sh.getRange(40, 5, 1, 4).setBorder(
     true, true, true, true, true, false, '#34a853', SpreadsheetApp.BorderStyle.SOLID
   );
 
-  // ── Fila 73: IVA right (desplazada +33 por tabla trabajos) ───
-  sh.getRange(73, 2).setBackground('#f8f9fa');
-  sh.getRange(73, 3).setBackground('#ffffff');
-  _lbl_(sh, 73, 5, '💰  IVA');
-  sh.getRange(73, 6, 1, 3).merge()
+  // ── Fila 74: IVA right (desplazada +34 por tabla trabajos) ───
+  sh.getRange(74, 2).setBackground('#f8f9fa');
+  sh.getRange(74, 3).setBackground('#ffffff');
+  _lbl_(sh, 74, 5, '💰  IVA');
+  sh.getRange(74, 6, 1, 3).merge()
     .setBackground('#ffffff').setVerticalAlignment('middle').setFontSize(11)
     .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Fila 74: Botones VISTA PREVIA ────────────────────────────
-  sh.getRange(74, 2)
+  // ── Fila 75: Botones VISTA PREVIA ────────────────────────────
+  sh.getRange(75, 2)
     .setValue('🔍  VISTA PREVIA')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(74, 3).insertCheckboxes().setValue(false)
+  sh.getRange(75, 3).insertCheckboxes().setValue(false)
     .setBackground('#1765cc').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(74, 2, 1, 2).setBorder(
+  sh.getRange(75, 2, 1, 2).setBorder(
     true, true, true, true, true, false, '#0d47a1', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
-  sh.getRange(74, 5, 1, 3).merge()
+  sh.getRange(75, 5, 1, 3).merge()
     .setValue('🔍  VISTA PREVIA')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#34a853').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(74, 8).insertCheckboxes().setValue(false)
+  sh.getRange(75, 8).insertCheckboxes().setValue(false)
     .setBackground('#2d9140').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(74, 5, 1, 4).setBorder(
+  sh.getRange(75, 5, 1, 4).setBorder(
     true, true, true, true, true, false, '#1e7e34', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
 
-  // ── Fila 76: Cabecera RESUMEN ─────────────────────────────────
-  sh.getRange(76, 2, 1, 2).merge()
+  // ── Fila 77: Cabecera RESUMEN ─────────────────────────────────
+  sh.getRange(77, 2, 1, 2).merge()
     .setValue('— RESUMEN PREVIO —')
     .setFontSize(10).setFontWeight('bold').setFontColor('#5f6368')
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#f1f3f4');
-  sh.getRange(76, 5, 1, 4).merge()
+  sh.getRange(77, 5, 1, 4).merge()
     .setValue('— RESUMEN PREVIO —')
     .setFontSize(10).setFontWeight('bold').setFontColor('#5f6368')
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#f1f3f4');
 
-  // ── Filas 77-86: RESUMEN LEFT (10 filas) ─────────────────────
+  // ── Filas 78-87: RESUMEN LEFT (10 filas) ─────────────────────
   var leftPrv = [
-    [77,'Cliente'],[78,'Periodo'],[79,'Trabajos'],[80,'Horas totales'],
-    [81,'Materiales (trabajos)'],[82,'Materiales adicionales'],[83,'Total materiales adic.'],
-    [84,'Base imponible'],[85,'IVA / Régimen'],[86,'Total estimado'],
+    [78,'Cliente'],[79,'Periodo'],[80,'Trabajos'],[81,'Horas totales'],
+    [82,'Materiales (trabajos)'],[83,'Materiales adicionales'],[84,'Total materiales adic.'],
+    [85,'Base imponible'],[86,'IVA / Régimen'],[87,'Total estimado'],
   ];
   leftPrv.forEach(function(c) {
     sh.getRange(c[0], 2)
@@ -777,10 +791,10 @@ function setupPanel() {
   sh.getRange(P_.PRV_MATS_OTROS[0], P_.PRV_MATS_OTROS[1])
     .setWrap(true).setVerticalAlignment('top').setFontSize(9);
 
-  // ── Filas 77-83: RESUMEN RIGHT (7 filas) ─────────────────────
+  // ── Filas 78-84: RESUMEN RIGHT (7 filas) ─────────────────────
   var rightPrv = [
-    [77,'Cliente'],[78,'Nº líneas'],[79,'Subtotal'],
-    [80,'IVA'],[81,'Total estimado'],[82,'Fecha emisión'],[83,'Válido hasta'],
+    [78,'Cliente'],[79,'Nº líneas'],[80,'Subtotal'],
+    [81,'IVA'],[82,'Total estimado'],[83,'Fecha emisión'],[84,'Válido hasta'],
   ];
   rightPrv.forEach(function(c) {
     sh.getRange(c[0], 5)
@@ -790,64 +804,64 @@ function setupPanel() {
       .setFontSize(10).setVerticalAlignment('middle').setBackground('#ffffff')
       .setBorder(false, false, true, false, false, false, '#e8eaed', SpreadsheetApp.BorderStyle.SOLID);
   });
-  for (r = 84; r <= 86; r++) {
+  for (r = 85; r <= 87; r++) {
     sh.getRange(r, 5).setBackground('#f8f9fa');
     sh.getRange(r, 6, 1, 3).merge().setBackground('#ffffff');
   }
 
-  // ── Fila 87: Detalle de trabajos (expande al hacer vista previa) ──
-  sh.getRange(87, 2)
+  // ── Fila 88: Detalle de trabajos (expande al hacer vista previa) ──
+  sh.getRange(88, 2)
     .setValue('Detalle trabajos').setFontSize(10).setFontColor('#5f6368')
     .setVerticalAlignment('top').setBackground('#f8f9fa');
-  sh.getRange(87, 3)
+  sh.getRange(88, 3)
     .setFontSize(9).setVerticalAlignment('top').setBackground('#ffffff').setWrap(true)
     .setBorder(false, false, true, false, false, false, '#e8eaed', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Fila 88: Botones GENERAR ──────────────────────────────────
-  sh.getRange(88, 2)
+  // ── Fila 89: Botones GENERAR ──────────────────────────────────
+  sh.getRange(89, 2)
     .setValue('🚀  GENERAR DOCUMENTO')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(88, 3).insertCheckboxes().setValue(false)
+  sh.getRange(89, 3).insertCheckboxes().setValue(false)
     .setBackground('#1765cc').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(88, 2, 1, 2).setBorder(
+  sh.getRange(89, 2, 1, 2).setBorder(
     true, true, true, true, true, false, '#0d47a1', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
-  sh.getRange(88, 5, 1, 3).merge()
+  sh.getRange(89, 5, 1, 3).merge()
     .setValue('📋  GENERAR PRESUPUESTO')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#34a853').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(88, 8).insertCheckboxes().setValue(false)
+  sh.getRange(89, 8).insertCheckboxes().setValue(false)
     .setBackground('#2d9140').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(88, 5, 1, 4).setBorder(
+  sh.getRange(89, 5, 1, 4).setBorder(
     true, true, true, true, true, false, '#1e7e34', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
 
-  // ── Filas 90-91: Estado y URL ─────────────────────────────────
-  sh.getRange(90, 2).setValue('Estado').setFontWeight('bold').setFontSize(10)
+  // ── Filas 91-92: Estado y URL ─────────────────────────────────
+  sh.getRange(91, 2).setValue('Estado').setFontWeight('bold').setFontSize(10)
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(90, 3).setValue('En espera…').setFontColor('#9aa0a6').setFontSize(11)
+  sh.getRange(91, 3).setValue('En espera…').setFontColor('#9aa0a6').setFontSize(11)
     .setVerticalAlignment('middle');
-  sh.getRange(91, 2).setValue('Documento PDF').setFontWeight('bold').setFontSize(10)
+  sh.getRange(92, 2).setValue('Documento PDF').setFontWeight('bold').setFontSize(10)
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(91, 3).setFontSize(10).setFontColor('#1a73e8').setVerticalAlignment('middle');
+  sh.getRange(92, 3).setFontSize(10).setFontColor('#1a73e8').setVerticalAlignment('middle');
 
-  sh.getRange(90, 5).setValue('Estado').setFontWeight('bold').setFontSize(10)
-    .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(90, 6, 1, 3).merge()
-    .setValue('En espera…').setFontColor('#9aa0a6').setFontSize(11)
-    .setVerticalAlignment('middle');
-  sh.getRange(91, 5).setValue('PDF Presupuesto').setFontWeight('bold').setFontSize(10)
+  sh.getRange(91, 5).setValue('Estado').setFontWeight('bold').setFontSize(10)
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
   sh.getRange(91, 6, 1, 3).merge()
+    .setValue('En espera…').setFontColor('#9aa0a6').setFontSize(11)
+    .setVerticalAlignment('middle');
+  sh.getRange(92, 5).setValue('PDF Presupuesto').setFontWeight('bold').setFontSize(10)
+    .setVerticalAlignment('middle').setBackground('#f8f9fa');
+  sh.getRange(92, 6, 1, 3).merge()
     .setFontSize(10).setFontColor('#1a73e8').setVerticalAlignment('middle');
 
-  // ── Fila 93: Hints ────────────────────────────────────────────
-  sh.getRange(93, 2, 1, 2).merge()
+  // ── Fila 94: Hints ────────────────────────────────────────────
+  sh.getRange(94, 2, 1, 2).merge()
     .setValue('💡 Genera siempre la vista previa antes de emitir el documento')
     .setFontSize(9).setFontColor('#9aa0a6')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(93, 5, 1, 4).merge()
+  sh.getRange(94, 5, 1, 4).merge()
     .setValue('💡 Genera siempre la vista previa antes de emitir el presupuesto')
     .setFontSize(9).setFontColor('#9aa0a6')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
@@ -867,7 +881,7 @@ function setupPanel() {
     SpreadsheetApp.newDataValidation()
       .requireValueInList(['Informe', 'Factura', 'Proforma'], true).setAllowInvalid(false).build()
   );
-  sh.getRange(9, 3).setValue(0).setNumberFormat('#,##0.00');
+  sh.getRange(10, 3).setValue(0).setNumberFormat('#,##0.00');
 
   // ── Validaciones RIGHT ────────────────────────────────────────
   if (clienteVal) sh.getRange(5, 6).setDataValidation(clienteVal);
@@ -885,7 +899,7 @@ function setupPanel() {
         .setAllowInvalid(false).build()
     ).setValue('30 días');
 
-  sh.getRange(73, 6)
+  sh.getRange(74, 6)
     .setDataValidation(
       SpreadsheetApp.newDataValidation()
         .requireValueInList(['Sí', 'No'], true).setAllowInvalid(false).build()
@@ -1216,6 +1230,12 @@ function panelGenerarDocumento() {
   var matsItems      = _getMaterialesAdicionales_(sh);
   var selectedJobIds = _getSelectedJobs_(sh).map(function(j) { return j.id; });
 
+  // Leer método de pago seleccionado en el panel
+  var metodoPagoLabel = String(sh.getRange(P_.METODO_PAGO[0], P_.METODO_PAGO[1]).getValue() || '').trim();
+  var metodoPago = (tipo !== 'Informe')
+    ? _resolveMetodoPago_(cliente, metodoPagoLabel)
+    : null;
+
   _panelEstado_(sh, '⏳  Procesando…', '#f9ab00');
   sh.getRange(P_.URL[0], P_.URL[1]).setValue('');
   SpreadsheetApp.flush();
@@ -1223,7 +1243,7 @@ function panelGenerarDocumento() {
   try {
     var url = tipo === 'Informe'
       ? _panelRunInforme_(cliente, fechaIni, fechaFin, selectedJobIds)
-      : _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsItems, selectedJobIds);
+      : _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsItems, selectedJobIds, metodoPago);
 
     if (url) {
       sh.getRange(P_.URL[0], P_.URL[1]).setValue(url).setFontColor('#1a73e8');
@@ -1311,7 +1331,7 @@ function _panelRunInforme_(cliente, fechaIni, fechaFin, selectedJobIds) {
   return null;
 }
 
-function _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsItems, selectedJobIds) {
+function _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsItems, selectedJobIds, metodoPago) {
   var matsArray       = Array.isArray(matsItems) ? matsItems : [];
   var otrosMateriales = matsArray.reduce(function(s, m) { return s + (Number(m.imp) || 0); }, 0);
   setConfig('cliente_factura',        cliente);
@@ -1332,7 +1352,7 @@ function _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsIt
   }
   var rowsBefore = targetSheet.getLastRow();
 
-  generateInvoicePDF(tipoEfectivo, selectedJobIds);
+  generateInvoicePDF(tipoEfectivo, selectedJobIds, metodoPago);
 
   var newRow = targetSheet.getLastRow();
   if (newRow > rowsBefore) {
@@ -1415,6 +1435,84 @@ function _val_(sh, row, col) {
 }
 
 // ================================================================
+// HELPERS: MÉTODO DE PAGO
+// ================================================================
+
+/**
+ * Devuelve un array de etiquetas legibles para los métodos de pago de un cliente.
+ */
+function _buildMetodoPagoLabels_(metodosPago) {
+  return metodosPago.map(function(m) {
+    var lbl = m.tipo || 'Pago';
+    if (m.iban)     lbl += ' — ' + String(m.iban).replace(/\s/g, '').substring(0, 12) + '…';
+    else if (m.numero)  lbl += ' — ' + m.numero;
+    else if (m.email)   lbl += ' — ' + m.email;
+    else if (m.banco)   lbl += ' — ' + m.banco;
+    else if (m.entidad) lbl += ' — ' + m.entidad;
+    return lbl;
+  });
+}
+
+/**
+ * Rellena el dropdown Método de pago (P_.METODO_PAGO) basándose en el cliente seleccionado.
+ */
+function _panelRefreshMetodoPago_(sh, clienteLabel) {
+  var cell = sh.getRange(P_.METODO_PAGO[0], P_.METODO_PAGO[1]);
+  cell.clearContent().clearDataValidations()
+      .setFontStyle('normal').setFontColor('#3c4043');
+  if (!clienteLabel) return;
+  var cliData = _getClienteByLabel_(clienteLabel);
+  var methods = cliData ? (cliData.metodosPago || []) : [];
+  if (methods.length === 0) {
+    cell.setValue('Sin métodos de pago guardados')
+        .setFontColor('#9aa0a6').setFontStyle('italic');
+    return;
+  }
+  var labels = _buildMetodoPagoLabels_(methods);
+  cell.setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(labels, true).setAllowInvalid(true).build()
+  );
+  if (labels.length === 1) cell.setValue(labels[0]);
+}
+
+/**
+ * Rellena el dropdown Método de pago (PF_.METODO_PAGO) en la sección FACTURA DESDE PRESUPUESTO.
+ */
+function _fpRefreshMetodoPago_(sh, clienteLabel) {
+  var cell = sh.getRange(PF_.METODO_PAGO[0], PF_.METODO_PAGO[1]);
+  cell.clearContent().clearDataValidations()
+      .setFontStyle('normal').setFontColor('#3c4043');
+  if (!clienteLabel) return;
+  var cliData = _getClienteByLabel_(clienteLabel);
+  var methods = cliData ? (cliData.metodosPago || []) : [];
+  if (methods.length === 0) {
+    cell.setValue('Sin métodos de pago guardados')
+        .setFontColor('#9aa0a6').setFontStyle('italic');
+    return;
+  }
+  var labels = _buildMetodoPagoLabels_(methods);
+  cell.setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(labels, true).setAllowInvalid(true).build()
+  );
+  if (labels.length === 1) cell.setValue(labels[0]);
+}
+
+/**
+ * Resuelve la etiqueta seleccionada en el dropdown de vuelta al objeto de método de pago.
+ * Devuelve null si no hay selección o no se encuentra.
+ */
+function _resolveMetodoPago_(clienteLabel, selectedLabel) {
+  if (!selectedLabel || selectedLabel === 'Sin métodos de pago guardados') return null;
+  var cliData = _getClienteByLabel_(clienteLabel);
+  if (!cliData || !cliData.metodosPago || !cliData.metodosPago.length) return null;
+  var labels = _buildMetodoPagoLabels_(cliData.metodosPago);
+  var idx    = labels.indexOf(selectedLabel);
+  return idx >= 0 ? cliData.metodosPago[idx] : null;
+}
+
+// ================================================================
 // SECCIÓN FACTURA DESDE PRESUPUESTO — LAYOUT
 // ================================================================
 
@@ -1422,66 +1520,67 @@ function _buildPanelFacturaPresupuesto_(sh) {
   var r;
 
   // ── Alturas de fila ───────────────────────────────────────────
-  sh.setRowHeight(94, 14);
-  sh.setRowHeight(95, 8);
-  sh.setRowHeight(96, 54);
-  sh.setRowHeight(97, 24);
-  sh.setRowHeight(98, 42);
+  sh.setRowHeight(95, 14);
+  sh.setRowHeight(96, 8);
+  sh.setRowHeight(97, 54);
+  sh.setRowHeight(98, 24);
   sh.setRowHeight(99, 42);
-  sh.setRowHeight(100, 34);
+  sh.setRowHeight(100, 42);
   sh.setRowHeight(101, 34);
-  sh.setRowHeight(102, 38);  // Tipo de documento (Factura / Proforma)
-  sh.setRowHeight(103, 52);
-  sh.setRowHeight(104, 10);
-  sh.setRowHeight(105, 34);
-  for (r = 106; r <= 115; r++) sh.setRowHeight(r, 38);
-  sh.setRowHeight(116, 40);
-  sh.setRowHeight(117, 52);
-  sh.setRowHeight(118, 10);
-  sh.setRowHeight(119, 32);
-  for (r = 120; r <= 123; r++) sh.setRowHeight(r, 30);
-  sh.setRowHeight(124, 14);
-  sh.setRowHeight(125, 52);
+  sh.setRowHeight(102, 34);
+  sh.setRowHeight(103, 38);  // Tipo de documento (Factura / Proforma)
+  sh.setRowHeight(104, 38);  // Método de pago (nuevo)
+  sh.setRowHeight(105, 52);
+  sh.setRowHeight(106, 10);
+  sh.setRowHeight(107, 34);
+  for (r = 108; r <= 117; r++) sh.setRowHeight(r, 38);
+  sh.setRowHeight(118, 40);
+  sh.setRowHeight(119, 52);
+  sh.setRowHeight(120, 10);
+  sh.setRowHeight(121, 32);
+  for (r = 122; r <= 125; r++) sh.setRowHeight(r, 30);
   sh.setRowHeight(126, 14);
-  sh.setRowHeight(127, 36);
-  sh.setRowHeight(128, 36);
-  sh.setRowHeight(129, 14);
-  sh.setRowHeight(130, 28);
+  sh.setRowHeight(127, 52);
+  sh.setRowHeight(128, 14);
+  sh.setRowHeight(129, 36);
+  sh.setRowHeight(130, 36);
+  sh.setRowHeight(131, 14);
+  sh.setRowHeight(132, 28);
 
-  // ── Línea separadora (fila 95) ────────────────────────────────
-  sh.getRange(95, 2, 1, 7).setBackground('#bdc1c6');
+  // ── Línea separadora (fila 96) ────────────────────────────────
+  sh.getRange(96, 2, 1, 7).setBackground('#bdc1c6');
 
-  // ── Cabecera (fila 96) ────────────────────────────────────────
-  sh.getRange(96, 2, 1, 7).merge()
+  // ── Cabecera (fila 97) ────────────────────────────────────────
+  sh.getRange(97, 2, 1, 7).merge()
     .setValue('🧾  FACTURA DESDE PRESUPUESTO')
     .setFontSize(18).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#e37400').setFontColor('#ffffff');
 
-  // ── Subtítulo (fila 97) ───────────────────────────────────────
-  sh.getRange(97, 2, 1, 7).merge()
+  // ── Subtítulo (fila 98) ───────────────────────────────────────
+  sh.getRange(98, 2, 1, 7).merge()
     .setValue('Convierte un presupuesto aceptado en factura')
     .setFontSize(10).setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#fef7e0').setFontColor('#e37400');
 
-  // ── Fila 98: selector de cliente ─────────────────────────────
-  _lbl_(sh, 98, 2, '👤  Cliente');
-  sh.getRange(98, 3, 1, 6).merge()
+  // ── Fila 99: selector de cliente ─────────────────────────────
+  _lbl_(sh, 99, 2, '👤  Cliente');
+  sh.getRange(99, 3, 1, 6).merge()
     .setBackground('#ffffff').setVerticalAlignment('middle').setFontSize(11)
     .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
   Logger.log('[_buildPanelFacturaPresupuesto_] llamando _fpRefreshClienteDropdown_...');
   _fpRefreshClienteDropdown_(sh);
   Logger.log('[_buildPanelFacturaPresupuesto_] _fpRefreshClienteDropdown_ completada.');
 
-  // ── Fila 99: selector de presupuesto (filtrado por cliente) ──
-  _lbl_(sh, 99, 2, '📋  Presupuesto');
-  sh.getRange(99, 3, 1, 6).merge()
+  // ── Fila 100: selector de presupuesto (filtrado por cliente) ──
+  _lbl_(sh, 100, 2, '📋  Presupuesto');
+  sh.getRange(100, 3, 1, 6).merge()
     .setBackground('#ffffff').setVerticalAlignment('middle').setFontSize(11)
     .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
   // El dropdown de presupuestos se rellena cuando el usuario elige un cliente
 
-  // ── Filas 100-101: info read-only (se rellenan al cargar) ────
-  var infoRows = [[100,'📊  Base presup.'],[101,'📅  Fecha emisión']];
+  // ── Filas 101-102: info read-only (se rellenan al cargar) ────
+  var infoRows = [[101,'📊  Base presup.'],[102,'📅  Fecha emisión']];
   infoRows.forEach(function(c) {
     _lbl_(sh, c[0], 2, c[1]);
     sh.getRange(c[0], 3, 1, 6).merge()
@@ -1489,9 +1588,9 @@ function _buildPanelFacturaPresupuesto_(sh) {
       .setFontColor('#5f6368')
       .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
   });
-  // Fila 102: Tipo de documento (Factura / Proforma)
-  _lbl_(sh, 102, 2, '📄  Tipo de documento');
-  sh.getRange(102, 3, 1, 6).merge()
+  // Fila 103: Tipo de documento (Factura / Proforma)
+  _lbl_(sh, 103, 2, '📄  Tipo de documento');
+  sh.getRange(103, 3, 1, 6).merge()
     .setBackground('#ffffff').setVerticalAlignment('middle').setFontSize(11)
     .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(PF_.TIPO_DOC[0], PF_.TIPO_DOC[1])
@@ -1500,32 +1599,39 @@ function _buildPanelFacturaPresupuesto_(sh) {
         .requireValueInList(['Factura', 'Proforma'], true).setAllowInvalid(false).build()
     ).setValue('Factura');
 
-  // ── Fila 103: botón CARGAR ────────────────────────────────────
-  sh.getRange(103, 2, 1, 6).merge()
+  // ── Fila 104: método de pago ─────────────────────────────────
+  _lbl_(sh, 104, 2, '💳  Método de pago');
+  sh.getRange(104, 3, 1, 6).merge()
+    .setBackground('#ffffff').setVerticalAlignment('middle').setFontSize(11)
+    .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
+  // dropdown populated dynamically when cliente is selected
+
+  // ── Fila 105: botón CARGAR ────────────────────────────────────
+  sh.getRange(105, 2, 1, 6).merge()
     .setValue('⬇️  CARGAR PRESUPUESTO EN TABLA')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#e37400').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(103, 8).clearContent().clearDataValidations();
-  sh.getRange(103, 8).insertCheckboxes().setValue(false)
+  sh.getRange(105, 8).clearContent().clearDataValidations();
+  sh.getRange(105, 8).insertCheckboxes().setValue(false)
     .setBackground('#c75000').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(103, 2, 1, 7).setBorder(
+  sh.getRange(105, 2, 1, 7).setBorder(
     true, true, true, true, true, false, '#b06000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
 
-  // ── Fila 105: cabecera tabla ──────────────────────────────────
-  sh.getRange(105, 2, 1, 1)
+  // ── Fila 107: cabecera tabla ──────────────────────────────────
+  sh.getRange(107, 2, 1, 1)
     .setValue('📌  Líneas de factura')
     .setFontSize(10).setFontWeight('bold').setFontColor('#e37400')
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(105, 3).setBackground('#f8f9fa');
+  sh.getRange(107, 3).setBackground('#f8f9fa');
   var hdrCols = [[5,'Descripción'],[6,'Cant.'],[7,'P.U. €'],[8,'Importe']];
   hdrCols.forEach(function(hc) {
-    sh.getRange(105, hc[0])
+    sh.getRange(107, hc[0])
       .setValue(hc[1]).setFontSize(9).setFontWeight('bold').setFontColor('#ffffff')
       .setHorizontalAlignment('center').setVerticalAlignment('middle')
       .setBackground('#e37400');
   });
-  sh.getRange(105, 5, 1, 4).setBorder(
+  sh.getRange(107, 5, 1, 4).setBorder(
     true, true, true, true, true, false, '#b06000', SpreadsheetApp.BorderStyle.SOLID
   );
 
@@ -1562,40 +1668,40 @@ function _buildPanelFacturaPresupuesto_(sh) {
   }
   _applyPFPImpFormulas_(sh);  // batch — garantiza H106:H115 completo desde la primera fila
 
-  // ── Fila 116: IVA ─────────────────────────────────────────────
-  sh.getRange(116, 2).setBackground('#f8f9fa');
-  sh.getRange(116, 3).setBackground('#ffffff');
-  _lbl_(sh, 116, 5, '💰  IVA');
-  sh.getRange(116, 6, 1, 3).merge()
+  // ── Fila 118: IVA ─────────────────────────────────────────────
+  sh.getRange(118, 2).setBackground('#f8f9fa');
+  sh.getRange(118, 3).setBackground('#ffffff');
+  _lbl_(sh, 118, 5, '💰  IVA');
+  sh.getRange(118, 6, 1, 3).merge()
     .setValue('Factura: 21%  ·  Proforma: sin IVA')
     .setBackground('#f8f9fa').setVerticalAlignment('middle').setFontSize(9).setFontColor('#5f6368')
     .setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Fila 117: botón VISTA PREVIA ──────────────────────────────
-  sh.getRange(117, 2, 1, 6).merge()
+  // ── Fila 119: botón VISTA PREVIA ──────────────────────────────
+  sh.getRange(119, 2, 1, 6).merge()
     .setValue('🔍  VISTA PREVIA')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#e37400').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(117, 8).clearContent().clearDataValidations();
-  sh.getRange(117, 8).insertCheckboxes().setValue(false)
+  sh.getRange(119, 8).clearContent().clearDataValidations();
+  sh.getRange(119, 8).insertCheckboxes().setValue(false)
     .setBackground('#c75000').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(117, 2, 1, 7).setBorder(
+  sh.getRange(119, 2, 1, 7).setBorder(
     true, true, true, true, true, false, '#b06000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
 
-  // ── Fila 119: cabecera RESUMEN ────────────────────────────────
-  sh.getRange(119, 2, 1, 7).merge()
+  // ── Fila 121: cabecera RESUMEN ────────────────────────────────
+  sh.getRange(121, 2, 1, 7).merge()
     .setValue('— RESUMEN PREVIO —')
     .setFontSize(10).setFontWeight('bold').setFontColor('#5f6368')
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#f1f3f4');
 
-  // ── Filas 120-123: resumen (2 columnas) ───────────────────────
+  // ── Filas 122-125: resumen (2 columnas) ───────────────────────
   var prvDef = [
-    [120, 'Cliente',   'Presupuesto ref.'],
-    [121, 'Nº líneas', 'Subtotal'],
-    [122, 'IVA 21%',   'Total factura'],
-    [123, '',          ''],
+    [122, 'Cliente',   'Presupuesto ref.'],
+    [123, 'Nº líneas', 'Subtotal'],
+    [124, 'IVA 21%',   'Total factura'],
+    [125, '',          ''],
   ];
   prvDef.forEach(function(c) {
     if (c[1]) {
@@ -1617,30 +1723,30 @@ function _buildPanelFacturaPresupuesto_(sh) {
       .setBorder(false, false, true, false, false, false, '#e8eaed', SpreadsheetApp.BorderStyle.SOLID);
   });
 
-  // ── Fila 125: botón GENERAR FACTURA ──────────────────────────
-  sh.getRange(125, 2, 1, 6).merge()
+  // ── Fila 127: botón GENERAR FACTURA ──────────────────────────
+  sh.getRange(127, 2, 1, 6).merge()
     .setValue('🧾  GENERAR DOCUMENTO')
     .setFontSize(13).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#e37400').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(125, 8).clearContent().clearDataValidations();
-  sh.getRange(125, 8).insertCheckboxes().setValue(false)
+  sh.getRange(127, 8).clearContent().clearDataValidations();
+  sh.getRange(127, 8).insertCheckboxes().setValue(false)
     .setBackground('#c75000').setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.getRange(125, 2, 1, 7).setBorder(
+  sh.getRange(127, 2, 1, 7).setBorder(
     true, true, true, true, true, false, '#b06000', SpreadsheetApp.BorderStyle.SOLID_MEDIUM
   );
 
-  // ── Filas 127-128: Estado y URL ───────────────────────────────
-  sh.getRange(127, 2).setValue('Estado').setFontWeight('bold').setFontSize(10)
+  // ── Filas 129-130: Estado y URL ───────────────────────────────
+  sh.getRange(129, 2).setValue('Estado').setFontWeight('bold').setFontSize(10)
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(127, 3, 1, 6).merge()
+  sh.getRange(129, 3, 1, 6).merge()
     .setValue('En espera…').setFontColor('#9aa0a6').setFontSize(11).setVerticalAlignment('middle');
-  sh.getRange(128, 2).setValue('PDF Factura').setFontWeight('bold').setFontSize(10)
+  sh.getRange(130, 2).setValue('PDF Factura').setFontWeight('bold').setFontSize(10)
     .setVerticalAlignment('middle').setBackground('#f8f9fa');
-  sh.getRange(128, 3, 1, 6).merge()
+  sh.getRange(130, 3, 1, 6).merge()
     .setFontSize(10).setFontColor('#1a73e8').setVerticalAlignment('middle');
 
-  // ── Fila 130: hint ────────────────────────────────────────────
-  sh.getRange(130, 2, 1, 7).merge()
+  // ── Fila 132: hint ────────────────────────────────────────────
+  sh.getRange(132, 2, 1, 7).merge()
     .setValue('💡 Carga el presupuesto, edita si es necesario, genera vista previa y emite la factura')
     .setFontSize(9).setFontColor('#9aa0a6')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
@@ -1970,6 +2076,10 @@ function panelGenerarFacturaPresupuesto() {
   var tipo    = String(sh.getRange(PF_.TIPO_DOC[0],    PF_.TIPO_DOC[1]).getValue()    || 'Factura').trim();
   var items   = _getPanelFPItems_(sh);
 
+  // Leer método de pago seleccionado en el panel
+  var metodoPagoLabel = String(sh.getRange(PF_.METODO_PAGO[0], PF_.METODO_PAGO[1]).getValue() || '').trim();
+  var metodoPago = _resolveMetodoPago_(cliente, metodoPagoLabel);
+
   _fpEstado_(sh, '⏳  Generando ' + (tipo === 'Proforma' ? 'proforma' : 'factura') + '…', '#f9ab00');
   sh.getRange(PF_.URL[0], PF_.URL[1]).setValue('');
   SpreadsheetApp.flush();
@@ -1979,7 +2089,8 @@ function panelGenerarFacturaPresupuesto() {
       presupuestoId: preId,
       cliente:       cliente,
       lineItems:     items,
-      tipo:          tipo
+      tipo:          tipo,
+      metodoPago:    metodoPago
     });
 
     sh.getRange(PF_.URL[0], PF_.URL[1]).setValue(result.url).setFontColor('#1a73e8');
@@ -2246,7 +2357,7 @@ function _logCeldaDiag_(sh, row, col) {
 }
 
 // ================================================================
-// TABLA TRABAJOS DISPONIBLES PARA FACTURAR (filas 40-72)
+// TABLA TRABAJOS DISPONIBLES PARA FACTURAR (filas 41-73)
 // ================================================================
 
 /**
@@ -2255,24 +2366,24 @@ function _logCeldaDiag_(sh, row, col) {
  * inicialmente colapsadas (altura 2px). panelBuscarTrabajos() las expande.
  */
 function _buildJobsSection_(sh) {
-  var END_ROW  = JOB_TABLE.START_ROW + JOB_TABLE.MAX_ROWS - 1;  // 129
-  var HINT_ROW = END_ROW + 1;                                    // 130
+  var END_ROW  = JOB_TABLE.START_ROW + JOB_TABLE.MAX_ROWS - 1;  // 72
+  var HINT_ROW = END_ROW + 1;                                    // 73
   var r;
 
   // ── Alturas ────────────────────────────────────────────────────
-  sh.setRowHeight(JOB_TABLE.SEC_ROW, 44);   // 98 — cabecera sección
-  sh.setRowHeight(JOB_TABLE.HDR_ROW, 30);   // 99 — encabezados columna
+  sh.setRowHeight(JOB_TABLE.SEC_ROW, 44);   // 41 — cabecera sección
+  sh.setRowHeight(JOB_TABLE.HDR_ROW, 30);   // 42 — encabezados columna
   for (r = JOB_TABLE.START_ROW; r <= END_ROW; r++) sh.setRowHeight(r, 2);
   sh.setRowHeight(HINT_ROW, 20);
 
-  // ── Cabecera sección (fila 40) ─────────────────────────────────
+  // ── Cabecera sección (fila 41) ─────────────────────────────────
   sh.getRange(JOB_TABLE.SEC_ROW, 2, 1, 8).merge()
     .setValue('📋  TRABAJOS DISPONIBLES PARA FACTURAR')
     .setFontSize(14).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground('#1a73e8').setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBorder(true, true, false, true, false, false, '#0d47a1', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
 
-  // ── Encabezados columna (fila 41) ─────────────────────────────
+  // ── Encabezados columna (fila 42) ─────────────────────────────
   sh.getRange(JOB_TABLE.HDR_ROW, 2)
     .setValue('Sel.').setFontSize(9).setFontWeight('bold').setFontColor('#ffffff')
     .setHorizontalAlignment('center').setVerticalAlignment('middle').setBackground('#1a73e8');
@@ -2327,7 +2438,7 @@ function _buildJobsSection_(sh) {
       .setFontSize(1).setFontColor('#ffffff').setBackground('#ffffff');
   }
 
-  // ── Hint (fila 130) ───────────────────────────────────────────
+  // ── Hint (fila 73) ───────────────────────────────────────────
   sh.getRange(HINT_ROW, 2, 1, 7).merge()
     .setValue('💡 Pulsa "🔍 BUSCAR TRABAJOS" para cargar los trabajos del período')
     .setFontSize(9).setFontColor('#9aa0a6')

@@ -18,7 +18,7 @@
  * IVA e IRPF, genera un PDF de factura profesional, lo guarda en Drive
  * y registra la factura en la hoja FACTURAS.
  */
-function generateInvoicePDF(tipo, selectedJobIds) {
+function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   tipo = tipo || 'Factura';
   Logger.log('================================================');
   Logger.log('generateInvoicePDF(' + tipo + ')');
@@ -73,7 +73,10 @@ function generateInvoicePDF(tipo, selectedJobIds) {
 
   // ── Selección de método de pago ──────────────────────────────
   var pagoSeleccionado = null;
-  if (metodosPago.length === 1) {
+  if (metodoPagoOverride !== undefined) {
+    pagoSeleccionado = metodoPagoOverride;
+    Logger.log('  Método de pago (override): ' + (pagoSeleccionado ? pagoSeleccionado.tipo : 'ninguno'));
+  } else if (metodosPago.length === 1) {
     pagoSeleccionado = metodosPago[0];
     Logger.log('  Método de pago: ' + pagoSeleccionado.tipo + ' (automático)');
   } else if (metodosPago.length > 1) {
