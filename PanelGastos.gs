@@ -205,7 +205,8 @@ function _crearPanelGastos_() {
 
   // Fijar las primeras 13 filas
   sh.setFrozenRows(PG_.TABLE_HDR);
-  sh.setFrozenColumns(1);
+  // setFrozenColumns omitido: la fila 1 tiene merge A1:N1 y
+  // congelar col 1 lanzaría "celda combinada" en esa fila.
 
   SpreadsheetApp.flush();
   Logger.log('  ✓ Estructura creada.');
