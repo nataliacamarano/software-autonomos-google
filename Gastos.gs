@@ -627,6 +627,66 @@ function repararGastosFase1() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// vincularFormularioGastos  — solo reconecta el formulario
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Busca la hoja de respuestas del formulario (puede haberse creado con
+ * otro nombre) y la renombra a RESP_GASTOS.
+ * Si no existe ninguna, vuelve a llamar a setDestination y espera 30s.
+ */
+function vincularFormularioGastos() {
+  Logger.log('=== vincularFormularioGastos() ===');
+  var ss = getTargetSS_();
+
+  // Si ya existe, perfecto
+  if (ss.getSheetByName('RESP_GASTOS')) {
+    Logger.log('  ✓ RESP_GASTOS ya existe.');
+    return;
+  }
+
+  // Buscar hoja de respuestas de formulario ya creada (cualquier nombre genérico)
+  var sheets  = ss.getSheets();
+  var renamed = false;
+  for (var i = sheets.length - 1; i >= 0; i--) {
+    var n = sheets[i].getName();
+    if (/respuestas.de.formulario|form.responses/i.test(n)) {
+      sheets[i].setName('RESP_GASTOS');
+      Logger.log('  ✓ "' + n + '" renombrada a RESP_GASTOS.');
+      renamed = true;
+      break;
+    }
+  }
+  if (renamed) return;
+
+  // No hay ninguna — volver a llamar setDestination y esperar 30s
+  Logger.log('  No encontrada. Re-enviando setDestination (espera 30s)...');
+  var formId = getConfig(GAS_CFG.FORM_ID);
+  if (!formId) { Logger.log('  ❌ Sin form_id en CONFIG.'); return; }
+
+  try {
+    var form     = FormApp.openById(formId);
+    var snapshot = sheets.map(function(s) { return s.getName(); });
+    try { form.removeDestination(); Utilities.sleep(2000); } catch (_) {}
+    form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+
+    // Esperar hasta 30s
+    for (var t = 0; t < 15; t++) {
+      Utilities.sleep(2000);
+      var nueva = ss.getSheets().find(function(s) {
+        return !snapshot.includes(s.getName()) ||
+               /respuestas.de.formulario|form.responses/i.test(s.getName());
+      });
+      if (nueva) { nueva.setName('RESP_GASTOS'); Logger.log('  ✓ RESP_GASTOS creada.'); return; }
+      if (ss.getSheetByName('RESP_GASTOS')) { Logger.log('  ✓ RESP_GASTOS creada.'); return; }
+    }
+    Logger.log('  ⚠️  Timeout. Comprueba manualmente si apareció una hoja nueva y renómbrala a RESP_GASTOS.');
+  } catch (e) {
+    Logger.log('  ❌ Error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // _borrarFormulariosGastosHuerfanos_  — ejecutar una sola vez
 // ─────────────────────────────────────────────────────────────
 
