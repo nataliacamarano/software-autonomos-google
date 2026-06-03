@@ -233,25 +233,49 @@ function actualizarPanelGastos() {
 
   // 1. Leer filtros
   var f = _pgGetFiltros_(sh);
-  Logger.log('  Filtros: tipo=' + f.tipo + '  estadoProc=' + f.estadoProc +
-             '  estadoPago=' + f.estadoPago + '  revisado=' + f.revisado +
-             '  enviarGes=' + f.enviarGes);
+  Logger.log('  Filtros → fechaDesde=' + (f.fechaDesde || 'null') +
+             '  fechaHasta=' + (f.fechaHasta || 'null') +
+             '  tipo="' + f.tipo + '"  estadoProc="' + f.estadoProc + '"' +
+             '  estadoPago="' + f.estadoPago + '"  revisado="' + f.revisado + '"' +
+             '  enviarGes="' + f.enviarGes + '"');
 
   // 2. Leer todos los gastos reales de GASTOS
   var gasSheet = getSheet('GASTOS');
   var maxRows  = gasSheet.getMaxRows();
-  var gastos   = [];
+  var lastRow  = gasSheet.getLastRow();
+  Logger.log('  [GASTOS] hoja="' + gasSheet.getName() + '"  GID=' + gasSheet.getSheetId() +
+             '  maxRows=' + maxRows + '  getLastRow()=' + lastRow);
+
+  var gastos  = [];
+  var leidas  = 0;
   if (maxRows > 1) {
-    var allData = gasSheet.getRange(2, 1, maxRows - 1, HEADERS_GASTOS.length).getValues();
+    // Leer solo hasta la última fila real para evitar leer miles de filas vacías
+    var readRows = Math.max(lastRow - 1, 1);
+    Logger.log('  Leyendo ' + readRows + ' filas (fila 2 → fila ' + (readRows + 1) + ')...');
+    var allData = gasSheet.getRange(2, 1, readRows, HEADERS_GASTOS.length).getValues();
+    leidas = allData.length;
     gastos = allData.filter(function(row) {
       return String(row[COL_GAS.ID_GASTO - 1]).trim().indexOf('GAS-') === 0;
     });
   }
-  Logger.log('  Total gastos en GASTOS: ' + gastos.length);
+  Logger.log('  Filas leídas: ' + leidas + '  →  Gastos con prefijo GAS-: ' + gastos.length);
 
-  // 3. Aplicar filtros
+  // Traza de cada gasto encontrado
+  gastos.forEach(function(row, i) {
+    Logger.log('  Gasto[' + i + ']: id="' + String(row[COL_GAS.ID_GASTO - 1]).trim() + '"' +
+               '  tipo="'    + String(row[COL_GAS.TIPO_GASTO - 1]).trim() + '"' +
+               '  eProc="'   + String(row[COL_GAS.ESTADO_PROCESAMIENTO - 1]).trim() + '"' +
+               '  ePago="'   + String(row[COL_GAS.ESTADO_PAGO - 1]).trim() + '"' +
+               '  revisado=' + row[COL_GAS.REVISADO - 1] +
+               '  enviar='   + row[COL_GAS.ENVIAR_GESTOR - 1]);
+  });
+
+  // 3. Aplicar filtros (con trazas de rechazo)
   var filtrados = _pgAplicarFiltros_(gastos, f);
-  Logger.log('  Gastos tras filtro: ' + filtrados.length);
+  Logger.log('  Gastos tras filtros: ' + filtrados.length +
+             (filtrados.length < gastos.length
+               ? '  (' + (gastos.length - filtrados.length) + ' descartados)'
+               : '  (ninguno descartado)'));
 
   // 4. Resumen
   _pgEscribirResumen_(sh, filtrados);
@@ -289,39 +313,69 @@ function _pgGetFiltros_(sh) {
 
 function _pgAplicarFiltros_(gastos, f) {
   return gastos.filter(function(row) {
-    // Fecha: usa Fecha_Gasto si existe, si no Fecha_Alta
+    var id   = String(row[COL_GAS.ID_GASTO - 1]).trim();
     var fGas = row[COL_GAS.FECHA_GASTO - 1];
     var fRef = (fGas instanceof Date && !isNaN(fGas.getTime()))
              ? fGas : row[COL_GAS.FECHA_ALTA - 1];
 
     if (f.fechaDesde && fRef instanceof Date && !isNaN(fRef.getTime())) {
-      if (fRef < f.fechaDesde) return false;
+      if (fRef < f.fechaDesde) {
+        Logger.log('  DESCARTADO ' + id + ': fecha ' + fRef + ' < fechaDesde ' + f.fechaDesde);
+        return false;
+      }
     }
     if (f.fechaHasta && fRef instanceof Date && !isNaN(fRef.getTime())) {
       var hasta = new Date(f.fechaHasta);
       hasta.setHours(23, 59, 59, 999);
-      if (fRef > hasta) return false;
+      if (fRef > hasta) {
+        Logger.log('  DESCARTADO ' + id + ': fecha ' + fRef + ' > fechaHasta ' + f.fechaHasta);
+        return false;
+      }
     }
     if (f.tipo !== 'Todos') {
-      if (String(row[COL_GAS.TIPO_GASTO - 1]).trim() !== f.tipo) return false;
+      var tipoReal = String(row[COL_GAS.TIPO_GASTO - 1]).trim();
+      if (tipoReal !== f.tipo) {
+        Logger.log('  DESCARTADO ' + id + ': tipo="' + tipoReal + '" ≠ filtro="' + f.tipo + '"');
+        return false;
+      }
     }
     if (f.estadoProc !== 'Todos') {
-      if (String(row[COL_GAS.ESTADO_PROCESAMIENTO - 1]).trim() !== f.estadoProc) return false;
+      var epReal = String(row[COL_GAS.ESTADO_PROCESAMIENTO - 1]).trim();
+      if (epReal !== f.estadoProc) {
+        Logger.log('  DESCARTADO ' + id + ': estadoProc="' + epReal + '" ≠ filtro="' + f.estadoProc + '"');
+        return false;
+      }
     }
     if (f.estadoPago !== 'Todos') {
-      if (String(row[COL_GAS.ESTADO_PAGO - 1]).trim() !== f.estadoPago) return false;
+      var epaReal = String(row[COL_GAS.ESTADO_PAGO - 1]).trim();
+      if (epaReal !== f.estadoPago) {
+        Logger.log('  DESCARTADO ' + id + ': estadoPago="' + epaReal + '" ≠ filtro="' + f.estadoPago + '"');
+        return false;
+      }
     }
     if (f.revisado !== 'Todos') {
       var rev     = row[COL_GAS.REVISADO - 1];
       var revBool = (rev === true || String(rev).toLowerCase() === 'true');
-      if (f.revisado === 'Sí' && !revBool) return false;
-      if (f.revisado === 'No' &&  revBool) return false;
+      if (f.revisado === 'Sí' && !revBool) {
+        Logger.log('  DESCARTADO ' + id + ': revisado=false pero filtro=Sí');
+        return false;
+      }
+      if (f.revisado === 'No' && revBool) {
+        Logger.log('  DESCARTADO ' + id + ': revisado=true pero filtro=No');
+        return false;
+      }
     }
     if (f.enviarGes !== 'Todos') {
       var env     = row[COL_GAS.ENVIAR_GESTOR - 1];
       var envBool = (env === true || String(env).toLowerCase() === 'true');
-      if (f.enviarGes === 'Sí' && !envBool) return false;
-      if (f.enviarGes === 'No' &&  envBool) return false;
+      if (f.enviarGes === 'Sí' && !envBool) {
+        Logger.log('  DESCARTADO ' + id + ': enviarGestor=false pero filtro=Sí');
+        return false;
+      }
+      if (f.enviarGes === 'No' && envBool) {
+        Logger.log('  DESCARTADO ' + id + ': enviarGestor=true pero filtro=No');
+        return false;
+      }
     }
     return true;
   });
@@ -536,6 +590,135 @@ function onEditPanelGastos_(e) {
     ui.alert('Texto OCR — ' + id, cabecera + cuerpo, ui.ButtonSet.OK);
     return;
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+// diagnosticarPanelGastos — diagnóstico completo de lectura
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Diagnóstico completo: lee GASTOS, lista todos los registros GAS-*,
+ * simula los filtros actuales del panel y muestra por qué cada
+ * gasto es incluido o descartado. Sin modificar nada.
+ */
+function diagnosticarPanelGastos() {
+  Logger.log('================================================');
+  Logger.log('diagnosticarPanelGastos()');
+  Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
+  Logger.log('================================================');
+
+  var ss = getTargetSS_();
+
+  // ── 1. Estado de PANEL_GASTOS ─────────────────────────────────
+  Logger.log('\n[1] Hoja PANEL_GASTOS:');
+  var panelSh = ss.getSheetByName('PANEL_GASTOS');
+  if (!panelSh) {
+    Logger.log('  ❌ No existe. Ejecuta ⑯ PANEL_GASTOS — Crear completo primero.');
+    return;
+  }
+  Logger.log('  ✓ Existe. GID=' + panelSh.getSheetId() +
+             '  getLastRow()=' + panelSh.getLastRow());
+
+  // ── 2. Filtros activos ────────────────────────────────────────
+  Logger.log('\n[2] Filtros activos en el panel:');
+  var f = _pgGetFiltros_(panelSh);
+  Logger.log('  fechaDesde  = ' + (f.fechaDesde ? Utilities.formatDate(f.fechaDesde, Session.getScriptTimeZone(), 'dd/MM/yyyy') : 'null (sin filtro)'));
+  Logger.log('  fechaHasta  = ' + (f.fechaHasta ? Utilities.formatDate(f.fechaHasta, Session.getScriptTimeZone(), 'dd/MM/yyyy') : 'null (sin filtro)'));
+  Logger.log('  tipo        = "' + f.tipo + '"');
+  Logger.log('  estadoProc  = "' + f.estadoProc + '"');
+  Logger.log('  estadoPago  = "' + f.estadoPago + '"');
+  Logger.log('  revisado    = "' + f.revisado + '"');
+  Logger.log('  enviarGes   = "' + f.enviarGes + '"');
+
+  // ── 3. Lectura de GASTOS ──────────────────────────────────────
+  Logger.log('\n[3] Hoja GASTOS:');
+  var gasSheet = getSheet('GASTOS');
+  Logger.log('  hoja="' + gasSheet.getName() + '"  GID=' + gasSheet.getSheetId());
+  Logger.log('  maxRows=' + gasSheet.getMaxRows() + '  getLastRow()=' + gasSheet.getLastRow());
+
+  var lastRow = gasSheet.getLastRow();
+  if (lastRow < 2) {
+    Logger.log('  ❌ La hoja GASTOS está vacía (sin datos).');
+    return;
+  }
+
+  var readRows = lastRow - 1;
+  var allData  = gasSheet.getRange(2, 1, readRows, HEADERS_GASTOS.length).getValues();
+  Logger.log('  Filas leídas: ' + allData.length);
+
+  // Mostrar las primeras 5 filas en bruto (para detectar problemas de esquema)
+  Logger.log('  Primeras ' + Math.min(5, allData.length) + ' filas (col A = ID_Gasto):');
+  for (var i = 0; i < Math.min(5, allData.length); i++) {
+    Logger.log('    fila ' + (i + 2) + ': ID="' + String(allData[i][0]) + '"' +
+               '  tipo="' + String(allData[i][COL_GAS.TIPO_GASTO - 1]) + '"' +
+               '  eProc="' + String(allData[i][COL_GAS.ESTADO_PROCESAMIENTO - 1]) + '"');
+  }
+
+  var gastos = allData.filter(function(row) {
+    return String(row[COL_GAS.ID_GASTO - 1]).trim().indexOf('GAS-') === 0;
+  });
+  Logger.log('  Gastos con prefijo GAS-: ' + gastos.length);
+
+  // ── 4. Traza por gasto ────────────────────────────────────────
+  Logger.log('\n[4] Traza filtro por gasto:');
+  gastos.forEach(function(row) {
+    var id      = String(row[COL_GAS.ID_GASTO - 1]).trim();
+    var motivo  = _pgRazonRechazo_(row, f);
+    Logger.log('  ' + id + ' → ' + (motivo ? '❌ DESCARTADO: ' + motivo : '✅ INCLUIDO'));
+    Logger.log('      tipo="' + String(row[COL_GAS.TIPO_GASTO - 1]).trim() + '"' +
+               '  eProc="' + String(row[COL_GAS.ESTADO_PROCESAMIENTO - 1]).trim() + '"' +
+               '  ePago="' + String(row[COL_GAS.ESTADO_PAGO - 1]).trim() + '"' +
+               '  revisado=' + row[COL_GAS.REVISADO - 1] +
+               '  enviar='   + row[COL_GAS.ENVIAR_GESTOR - 1]);
+  });
+
+  Logger.log('\n================================================');
+  Logger.log('FIN diagnosticarPanelGastos()');
+  Logger.log('  → Ejecuta actualizarPanelGastos() para recargar el panel.');
+  Logger.log('================================================');
+}
+
+/**
+ * Devuelve el motivo de rechazo de un gasto dado los filtros,
+ * o null si el gasto pasa todos los filtros.
+ */
+function _pgRazonRechazo_(row, f) {
+  var fGas = row[COL_GAS.FECHA_GASTO - 1];
+  var fRef = (fGas instanceof Date && !isNaN(fGas.getTime()))
+           ? fGas : row[COL_GAS.FECHA_ALTA - 1];
+
+  if (f.fechaDesde && fRef instanceof Date && !isNaN(fRef.getTime()) && fRef < f.fechaDesde)
+    return 'fecha ' + fRef + ' < fechaDesde';
+  if (f.fechaHasta) {
+    var hasta = new Date(f.fechaHasta); hasta.setHours(23, 59, 59, 999);
+    if (fRef instanceof Date && !isNaN(fRef.getTime()) && fRef > hasta)
+      return 'fecha ' + fRef + ' > fechaHasta';
+  }
+  if (f.tipo !== 'Todos') {
+    var tipoReal = String(row[COL_GAS.TIPO_GASTO - 1]).trim();
+    if (tipoReal !== f.tipo) return 'tipo="' + tipoReal + '" ≠ "' + f.tipo + '"';
+  }
+  if (f.estadoProc !== 'Todos') {
+    var ep = String(row[COL_GAS.ESTADO_PROCESAMIENTO - 1]).trim();
+    if (ep !== f.estadoProc) return 'estadoProc="' + ep + '" ≠ "' + f.estadoProc + '"';
+  }
+  if (f.estadoPago !== 'Todos') {
+    var epa = String(row[COL_GAS.ESTADO_PAGO - 1]).trim();
+    if (epa !== f.estadoPago) return 'estadoPago="' + epa + '" ≠ "' + f.estadoPago + '"';
+  }
+  if (f.revisado !== 'Todos') {
+    var rev     = row[COL_GAS.REVISADO - 1];
+    var revBool = (rev === true || String(rev).toLowerCase() === 'true');
+    if (f.revisado === 'Sí' && !revBool) return 'revisado=false pero filtro=Sí';
+    if (f.revisado === 'No' &&  revBool) return 'revisado=true pero filtro=No';
+  }
+  if (f.enviarGes !== 'Todos') {
+    var env     = row[COL_GAS.ENVIAR_GESTOR - 1];
+    var envBool = (env === true || String(env).toLowerCase() === 'true');
+    if (f.enviarGes === 'Sí' && !envBool) return 'enviarGestor=false pero filtro=Sí';
+    if (f.enviarGes === 'No' &&  envBool) return 'enviarGestor=true pero filtro=No';
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────
