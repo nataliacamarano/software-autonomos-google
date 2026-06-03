@@ -1,5 +1,5 @@
 // ============================================================
-// Gastos.gs — Módulo de gastos FASE 1: Estructura base
+// Gastos.gs — Módulo de gastos FASE 2: Recepción y normalización
 // ============================================================
 
 // Columnas de la hoja GASTOS (base 1) — 23 columnas
@@ -39,26 +39,26 @@ var HEADERS_GASTOS = [
 ];
 
 var TIPOS_GASTO = [
-  'Materiales de obra',
-  'Herramientas y maquinaria',
-  'Material de oficina',
-  'Combustible y transporte',
-  'Electricidad',
-  'Agua',
-  'Internet y teléfono',
-  'Alquiler local/almacén',
+  'Combustible',
+  'Materiales',
+  'Herramientas',
+  'Recambios',
+  'Productos químicos',
+  'Transporte',
+  'Parking',
+  'Peajes',
+  'Comidas',
+  'Alojamiento',
+  'Telefonía',
+  'Internet',
   'Seguros',
-  'Asesoría y gestoría',
-  'Formación y cursos',
-  'Software y licencias',
-  'Mantenimiento y reparaciones',
-  'Publicidad y marketing',
-  'Dietas y representación',
-  'Viajes y desplazamientos',
-  'Ropa de trabajo y EPIs',
-  'Subcontrataciones',
-  'Gastos bancarios',
-  'Otros servicios profesionales',
+  'Gestoría',
+  'Alquiler maquinaria',
+  'Vehículos',
+  'Ropa laboral',
+  'Publicidad',
+  'Formación',
+  'Gasto recurrente',
   'Otros'
 ];
 
@@ -348,22 +348,46 @@ function validateGastosModule() {
 /**
  * Procesa una respuesta del formulario GASTOS y escribe en la hoja GASTOS.
  * Llamado desde onFormSubmitHandler() en Triggers.gs cuando la hoja es RESP_GASTOS.
+ * FASE 2: copia foto a carpeta Drive, detecta falta de foto, evita duplicados.
  */
 function onGastoFormSubmit(namedValues) {
   try {
-    var sheet  = getSheet('GASTOS');
-    var id     = _nextGastoId_();
-    var ahora  = new Date();
+    var sheet = getSheet('GASTOS');
+    var ahora = new Date();
 
-    var tipoGasto   = String((namedValues['Tipo de gasto']                      || [''])[0]).trim();
-    var fotoUrl     = String((namedValues['URL de la foto del ticket / factura']|| [''])[0]).trim();
-    var estadoPago  = String((namedValues['Estado del gasto']                   || [''])[0]).trim() || 'Pendiente';
-    var observaciones = String((namedValues['Observaciones']                    || [''])[0]).trim();
+    var tipoGasto     = String((namedValues['Tipo de gasto']                      || [''])[0]).trim();
+    var fotoUrlRaw    = String((namedValues['URL de la foto del ticket / factura'] || [''])[0]).trim();
+    var estadoPago    = String((namedValues['Estado del gasto']                   || [''])[0]).trim() || 'Pendiente';
+    var observaciones = String((namedValues['Observaciones']                      || [''])[0]).trim();
 
-    // Extraer el ID del archivo de Drive desde la URL
-    var archivoId = '';
-    var m = fotoUrl.match(/[-\w]{25,}/);
-    if (m) archivoId = m[0];
+    // Deduplicación: mismo tipo + foto + estado en los últimos 10 minutos
+    if (_gastoYaRegistrado_(sheet, tipoGasto, fotoUrlRaw, ahora)) {
+      logEvent('WARN', 'onGastoFormSubmit', 'Duplicado detectado — omitido.', fotoUrlRaw);
+      return { success: true, id: null, skipped: true };
+    }
+
+    var id         = _nextGastoId_();
+    var fotoUrl    = fotoUrlRaw;
+    var archivoId  = '';
+    var estadoProc = 'Pendiente OCR';
+
+    if (fotoUrlRaw) {
+      // Intentar copiar el archivo a la carpeta de gastos
+      var copia = _copiarArchivoAGastos_(fotoUrlRaw);
+      if (copia) {
+        fotoUrl   = copia.url;
+        archivoId = copia.id;
+      } else {
+        // Fallback: extraer ID del archivo de la URL original
+        var m = fotoUrlRaw.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+        if (!m) m = fotoUrlRaw.match(/[?&]id=([a-zA-Z0-9_-]{25,})/);
+        if (m) archivoId = m[1];
+      }
+    } else {
+      estadoProc    = 'Revisar';
+      var notaFalta = 'Falta foto del ticket/factura';
+      observaciones = observaciones ? (observaciones + ' | ' + notaFalta) : notaFalta;
+    }
 
     var row = new Array(HEADERS_GASTOS.length).fill('');
     row[COL_GAS.ID_GASTO              - 1] = id;
@@ -375,10 +399,10 @@ function onGastoFormSubmit(namedValues) {
     row[COL_GAS.REVISADO              - 1] = false;
     row[COL_GAS.ENVIAR_GESTOR         - 1] = false;
     row[COL_GAS.OBSERVACIONES         - 1] = observaciones;
-    row[COL_GAS.ESTADO_PROCESAMIENTO  - 1] = 'Pendiente OCR';
+    row[COL_GAS.ESTADO_PROCESAMIENTO  - 1] = estadoProc;
 
     sheet.appendRow(row);
-    logEvent('INFO', 'onGastoFormSubmit', 'Gasto registrado: ' + id, tipoGasto);
+    logEvent('INFO', 'onGastoFormSubmit', 'Gasto registrado: ' + id, tipoGasto + ' | ' + estadoProc);
     return { success: true, id: id };
   } catch (e) {
     logEvent('ERROR', 'onGastoFormSubmit', e.message, JSON.stringify(namedValues));
@@ -525,7 +549,139 @@ function _borrarFormulariosGastosHuerfanos_() {
   Logger.log('Formularios movidos a papelera: ' + borrados);
 }
 
+// ─────────────────────────────────────────────────────────────
+// actualizarFormularioGastos — sincroniza tipos en el form existente
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Actualiza las opciones del campo "Tipo de gasto" en el formulario existente
+ * para que coincidan con TIPOS_GASTO. Ejecutar una vez tras cambiar la lista.
+ */
+function actualizarFormularioGastos() {
+  var formId = getConfig(GAS_CFG.FORM_ID);
+  if (!formId) { Logger.log('❌ Sin form_id en CONFIG. Ejecuta installGastosModule().'); return; }
+  try {
+    var form  = FormApp.openById(formId);
+    var items = form.getItems(FormApp.ItemType.LIST);
+    var updated = 0;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].getTitle() === 'Tipo de gasto') {
+        items[i].asListItem().setChoiceValues(TIPOS_GASTO);
+        Logger.log('✓ "Tipo de gasto" actualizado (' + TIPOS_GASTO.length + ' opciones).');
+        updated++;
+      }
+      if (items[i].getTitle() === 'Estado del gasto') {
+        items[i].asListItem().setChoiceValues(ESTADOS_PAGO_GASTO);
+        Logger.log('✓ "Estado del gasto" actualizado.');
+        updated++;
+      }
+    }
+    if (updated === 0) Logger.log('⚠️  No se encontraron campos LIST en el formulario.');
+    Logger.log('URL: ' + form.getPublishedUrl());
+  } catch (e) {
+    Logger.log('❌ Error: ' + e.message);
+    logEvent('ERROR', 'actualizarFormularioGastos', e.message, '');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// testGastosFase2
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Prueba onGastoFormSubmit con datos simulados.
+ * Crea 2 filas en GASTOS: una con foto, otra sin foto.
+ * Verifica deduplicación ejecutando el mismo registro dos veces.
+ */
+function testGastosFase2() {
+  Logger.log('================================================');
+  Logger.log('testGastosFase2()');
+  Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
+  Logger.log('================================================');
+
+  // Test 1: gasto con URL de foto (URL fake — no copiará archivo, pero procesará la fila)
+  Logger.log('\n[1] Gasto con foto (URL Drive simulada):');
+  var nv1 = {
+    'Tipo de gasto':                       ['Combustible'],
+    'URL de la foto del ticket / factura': ['https://drive.google.com/file/d/1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P/view'],
+    'Estado del gasto':                    ['Pagado'],
+    'Observaciones':                       ['Test FASE 2 — con foto']
+  };
+  var r1 = onGastoFormSubmit(nv1);
+  Logger.log('  Resultado: ' + JSON.stringify(r1));
+
+  // Test 2: gasto sin foto → Estado_Procesamiento = "Revisar"
+  Logger.log('\n[2] Gasto sin foto:');
+  var nv2 = {
+    'Tipo de gasto':                       ['Materiales'],
+    'URL de la foto del ticket / factura': [''],
+    'Estado del gasto':                    ['Pendiente'],
+    'Observaciones':                       ['Test FASE 2 — sin foto']
+  };
+  var r2 = onGastoFormSubmit(nv2);
+  Logger.log('  Resultado: ' + JSON.stringify(r2));
+
+  // Test 3: duplicado — mismo registro que Test 1 → debe omitirse
+  Logger.log('\n[3] Duplicado del Test 1 (debe skipped=true):');
+  var r3 = onGastoFormSubmit(nv1);
+  Logger.log('  Resultado: ' + JSON.stringify(r3));
+
+  Logger.log('\n================================================');
+  Logger.log('VERIFICAR EN HOJA GASTOS:');
+  Logger.log('  Fila ' + r1.id + ': Estado_Procesamiento = "Pendiente OCR"');
+  Logger.log('  Fila ' + r2.id + ': Estado_Procesamiento = "Revisar"');
+  Logger.log('               Observaciones contiene "Falta foto..."');
+  Logger.log('  Test 3: skipped=true (no se añadió fila duplicada)');
+  Logger.log('================================================');
+}
+
 // ── Privadas ──────────────────────────────────────────────────
+
+/**
+ * Copia un archivo de Drive (dado por URL) a la carpeta de gastos.
+ * Devuelve { id, url } del archivo copiado, o null si falla.
+ */
+function _copiarArchivoAGastos_(url) {
+  try {
+    var m = url.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
+    if (!m) m = url.match(/[?&]id=([a-zA-Z0-9_-]{25,})/);
+    if (!m) return null;
+
+    var fileId   = m[1];
+    var folderId = getConfig(GAS_CFG.FOLDER_ID);
+    if (!folderId) return null;
+
+    var folder = DriveApp.getFolderById(folderId);
+    var file   = DriveApp.getFileById(fileId);
+    var copia  = file.makeCopy(file.getName(), folder);
+    copia.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    return { id: copia.getId(), url: copia.getUrl() };
+  } catch (e) {
+    logEvent('WARN', '_copiarArchivoAGastos_', e.message, url);
+    return null;
+  }
+}
+
+/**
+ * Devuelve true si ya existe en GASTOS un registro con el mismo
+ * tipo + fotoUrl creado en los últimos 10 minutos (doble trigger).
+ */
+function _gastoYaRegistrado_(sheet, tipoGasto, fotoUrl, ahora) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  var data     = sheet.getRange(2, 1, lastRow - 1, HEADERS_GASTOS.length).getValues();
+  var limite   = 10 * 60 * 1000; // 10 minutos en ms
+  for (var i = data.length - 1; i >= 0; i--) {
+    var rowTipo  = String(data[i][COL_GAS.TIPO_GASTO  - 1]);
+    var rowFoto  = String(data[i][COL_GAS.FOTO_URL    - 1]);
+    var rowFecha = data[i][COL_GAS.FECHA_ALTA - 1];
+    if (rowTipo === tipoGasto && rowFoto === fotoUrl && rowFecha instanceof Date) {
+      if (ahora.getTime() - rowFecha.getTime() < limite) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Genera el siguiente ID de gasto del año en curso.
