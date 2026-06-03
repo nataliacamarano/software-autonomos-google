@@ -519,6 +519,114 @@ function calculateVATSummary() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// repararGastosFase1  — ejecutar una sola vez para corregir
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Corrige la instalación cuando la hoja GASTOS tiene el esquema antiguo
+ * y RESP_GASTOS no existe.
+ *
+ * Acciones:
+ *   1. Si GASTOS no tiene cabecera ID_Gasto → la renombra a GASTOS_LEGACY.
+ *   2. Crea GASTOS nueva con 23 columnas, validaciones y anchos.
+ *   3. Desvincula el formulario de su destino actual y lo re-vincula al
+ *      spreadsheet → crea RESP_GASTOS.
+ */
+function repararGastosFase1() {
+  Logger.log('================================================');
+  Logger.log('repararGastosFase1()');
+  Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
+  Logger.log('================================================');
+
+  var ss = getTargetSS_();
+
+  // ── 1. Renombrar hoja GASTOS antigua ─────────────────────────
+  Logger.log('\n[1] Hoja GASTOS:');
+  var existente = ss.getSheetByName('GASTOS');
+  if (existente) {
+    var primeraCol = existente.getLastRow() > 0
+      ? String(existente.getRange(1, 1).getValue()).trim() : '';
+    if (primeraCol !== 'ID_Gasto') {
+      var legacyName = 'GASTOS_LEGACY';
+      if (ss.getSheetByName(legacyName)) legacyName = 'GASTOS_LEGACY_' + Date.now();
+      existente.setName(legacyName);
+      Logger.log('  ✓ Hoja antigua renombrada a "' + legacyName + '" (' +
+                 Math.max(0, existente.getLastRow() - 1) + ' registros preservados).');
+    } else {
+      Logger.log('  ✓ Ya tiene el esquema correcto (ID_Gasto en col 1). Sin cambios.');
+    }
+  } else {
+    Logger.log('  ℹ️  No existía hoja GASTOS.');
+  }
+
+  // ── 2. Crear GASTOS nueva con 23 columnas ────────────────────
+  Logger.log('\n[2] Creando nueva hoja GASTOS:');
+  var sheet = ss.getSheetByName('GASTOS') || ss.insertSheet('GASTOS');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS_GASTOS);
+    applyHeaderStyle_(sheet, HEADERS_GASTOS.length);
+    Logger.log('  ✓ Cabeceras escritas (' + HEADERS_GASTOS.length + ' columnas).');
+  } else {
+    Logger.log('  ✓ Cabeceras existentes conservadas.');
+  }
+
+  // Anchos
+  var widths = [
+    [COL_GAS.ID_GASTO,120],[COL_GAS.FECHA_ALTA,110],[COL_GAS.TIPO_GASTO,175],
+    [COL_GAS.FECHA_GASTO,110],[COL_GAS.PROVEEDOR,160],[COL_GAS.CIF_NIF_PROVEEDOR,120],
+    [COL_GAS.NUMERO_FACTURA_TICKET,150],[COL_GAS.CONCEPTO,220],[COL_GAS.CATEGORIA,140],
+    [COL_GAS.BASE_IMPONIBLE,100],[COL_GAS.IVA_PORCENTAJE,80],[COL_GAS.IVA_IMPORTE,90],
+    [COL_GAS.TOTAL,90],[COL_GAS.METODO_PAGO,130],[COL_GAS.ESTADO_PAGO,100],
+    [COL_GAS.FOTO_URL,220],[COL_GAS.ARCHIVO_ID,160],[COL_GAS.OCR_TEXTO,200],
+    [COL_GAS.CONFIANZA_OCR,100],[COL_GAS.REVISADO,80],[COL_GAS.ENVIAR_GESTOR,100],
+    [COL_GAS.OBSERVACIONES,200],[COL_GAS.ESTADO_PROCESAMIENTO,150]
+  ];
+  widths.forEach(function(w) { sheet.setColumnWidth(w[0], w[1]); });
+
+  // Validaciones
+  var maxRows  = sheet.getMaxRows();
+  var dataRows = Math.max(maxRows - 1, 1);
+  sheet.getRange(2, COL_GAS.TIPO_GASTO, dataRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(TIPOS_GASTO, true).setAllowInvalid(true).build());
+  sheet.getRange(2, COL_GAS.ESTADO_PAGO, dataRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(ESTADOS_PAGO_GASTO, true).setAllowInvalid(false).build());
+  var ruleCheck = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+  sheet.getRange(2, COL_GAS.REVISADO,      dataRows, 1).setDataValidation(ruleCheck);
+  sheet.getRange(2, COL_GAS.ENVIAR_GESTOR, dataRows, 1).setDataValidation(ruleCheck);
+  Logger.log('  ✓ Validaciones y anchos aplicados.');
+
+  // ── 3. Reconectar formulario → RESP_GASTOS ───────────────────
+  Logger.log('\n[3] Reconectando formulario:');
+  var formId = getConfig(GAS_CFG.FORM_ID);
+  if (!formId) {
+    Logger.log('  ❌ Sin form_id en CONFIG. Ejecuta installGastosModule() primero.');
+  } else {
+    try {
+      var form = FormApp.openById(formId);
+      try { form.removeDestination(); Utilities.sleep(1000); } catch (_) {}
+
+      var snapshot = ss.getSheets().map(function(s) { return s.getName(); });
+      form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+      var ok = renameNewSheet_(ss, snapshot, 'RESP_GASTOS');
+      if (ok) {
+        Logger.log('  ✓ Formulario reconectado → RESP_GASTOS creada.');
+      } else {
+        Logger.log('  ⚠️  setDestination enviado pero RESP_GASTOS no apareció en 12s.');
+        Logger.log('      Espera 30s y ejecuta validateGastosModule() para verificar.');
+      }
+    } catch (e) {
+      Logger.log('  ❌ Error: ' + e.message);
+      logEvent('ERROR', 'repararGastosFase1', e.message, '');
+    }
+  }
+
+  Logger.log('\n================================================');
+  Logger.log('REPARACIÓN COMPLETADA.');
+  Logger.log('  Ejecuta validateGastosModule() para verificar.');
+  Logger.log('================================================');
+}
+
+// ─────────────────────────────────────────────────────────────
 // _borrarFormulariosGastosHuerfanos_  — ejecutar una sola vez
 // ─────────────────────────────────────────────────────────────
 
