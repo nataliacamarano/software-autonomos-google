@@ -289,8 +289,10 @@ function onOpen() {
       .addItem('⑬ PANEL_CLIENTE — Exportar historial PDF','exportarHistorialClientePDF')
       .addItem('⑭ PANEL_CLIENTE — Diagnosticar duplicados DOC_TRABAJOS','diagnosticarDocTrabajosDuplicados')
       .addItem('⑮ Instalar módulo Gastos (FASE 1)',     'installGastosModule')
+      .addSeparator()
       .addItem('⑯ PANEL_GASTOS — Crear completo',      'crearPanelGastos')
       .addItem('⑰ PANEL_GASTOS — Actualizar datos',    'actualizarPanelGastos')
+      .addItem('⑱ PANEL_GASTOS — Diagnosticar',        'diagnosticarPanelGastos')
       .addSeparator()
       .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
       .addSeparator()
@@ -2758,3 +2760,8 @@ function _getSelectedJobs_(sh) {
   }
   return jobs;
 }
+
+// ── PANEL_GASTOS — wrappers públicos (menú + desplegable) ────
+function crearPanelGastos()        { _crearPanelGastos_();        }
+function actualizarPanelGastos()   { _actualizarPanelGastos_();   }
+function diagnosticarPanelGastos() { _diagnosticarPanelGastos_(); }

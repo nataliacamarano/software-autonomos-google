@@ -722,14 +722,6 @@ function _pgRazonRechazo_(row, f) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Wrappers públicos (visibles en el desplegable de Apps Script)
-// ─────────────────────────────────────────────────────────────
-
-function crearPanelGastos()        { return _crearPanelGastos_();        }
-function actualizarPanelGastos()   { return _actualizarPanelGastos_();   }
-function diagnosticarPanelGastos() { return _diagnosticarPanelGastos_(); }
-
-// ─────────────────────────────────────────────────────────────
 // Utilidad de estilo
 // ─────────────────────────────────────────────────────────────
 
