@@ -139,8 +139,7 @@ function installGastosModule() {
 
   // ── 3. Validaciones de datos ──────────────────────────────────
   Logger.log('\n[3] Validaciones:');
-  var maxRows  = sheet.getMaxRows();
-  var dataRows = Math.max(maxRows - 1, 1);
+  var dataRows = 200; // filas fijas para no inflar getLastRow()
 
   sheet.getRange(2, COL_GAS.TIPO_GASTO, dataRows, 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
@@ -353,6 +352,7 @@ function validateGastosModule() {
 function onGastoFormSubmit(namedValues) {
   try {
     var sheet = getSheet('GASTOS');
+    Logger.log('[onGastoFormSubmit] hoja="' + sheet.getName() + '"  GID=' + sheet.getSheetId() + '  lastRow=' + sheet.getLastRow());
     var ahora = new Date();
 
     var tipoGasto     = String((namedValues['Tipo de gasto']                      || [''])[0]).trim();
@@ -584,8 +584,7 @@ function repararGastosFase1() {
   widths.forEach(function(w) { sheet.setColumnWidth(w[0], w[1]); });
 
   // Validaciones
-  var maxRows  = sheet.getMaxRows();
-  var dataRows = Math.max(maxRows - 1, 1);
+  var dataRows = 200; // filas fijas para no inflar getLastRow()
   sheet.getRange(2, COL_GAS.TIPO_GASTO, dataRows, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(TIPOS_GASTO, true).setAllowInvalid(true).build());
   sheet.getRange(2, COL_GAS.ESTADO_PAGO, dataRows, 1).setDataValidation(
@@ -922,6 +921,7 @@ function _nextGastoId_() {
   try { sheet = getSheet('GASTOS'); } catch (e) { return prefix + '001'; }
 
   var lastRow = sheet.getLastRow();
+  Logger.log('[_nextGastoId_] hoja="' + sheet.getName() + '"  GID=' + sheet.getSheetId() + '  lastRow=' + lastRow);
   var maxNum  = 0;
   if (lastRow > 1) {
     var ids = sheet.getRange(2, COL_GAS.ID_GASTO, lastRow - 1, 1).getValues().flat();
@@ -933,7 +933,9 @@ function _nextGastoId_() {
       }
     }
   }
-  return prefix + String(maxNum + 1).padStart(3, '0');
+  var nextId = prefix + String(maxNum + 1).padStart(3, '0');
+  Logger.log('[_nextGastoId_] → ' + nextId);
+  return nextId;
 }
 
 // ============================================================
@@ -1307,4 +1309,137 @@ function _actualizarGastoConOCR_(sheet, rowNum, datos, textoOCR, confianza, esta
 function _normNum_(str) {
   var v = parseFloat(String(str || '').replace(',', '.'));
   return isNaN(v) ? '' : v;
+}
+
+// ============================================================
+// FASE 3.1 — Diagnóstico y corrección de destino de datos
+// ============================================================
+
+/**
+ * Muestra en el log toda la información sobre la hoja GASTOS y sus datos:
+ * nombre, GID, maxRows, getLastRow(), filas reales con ID_Gasto, y las 5 más recientes.
+ * También muestra si existe GASTOS_LEGACY y cuántos registros tiene.
+ */
+function diagnosticarDestinoGastos() {
+  Logger.log('================================================');
+  Logger.log('diagnosticarDestinoGastos()');
+  Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
+  Logger.log('================================================');
+
+  var ss = getTargetSS_();
+
+  // ── GASTOS principal ─────────────────────────────────────────
+  Logger.log('\n[1] Hoja GASTOS:');
+  var sheet = ss.getSheetByName('GASTOS');
+  if (!sheet) {
+    Logger.log('  ❌ No existe la hoja GASTOS.');
+  } else {
+    Logger.log('  Nombre:   "' + sheet.getName() + '"');
+    Logger.log('  GID:       ' + sheet.getSheetId());
+    Logger.log('  maxRows:   ' + sheet.getMaxRows());
+    Logger.log('  getLastRow(): ' + sheet.getLastRow());
+
+    var lastRow = sheet.getLastRow();
+    var idCol   = [];
+    if (lastRow > 1) {
+      idCol = sheet.getRange(2, COL_GAS.ID_GASTO, lastRow - 1, 1).getValues().flat();
+    }
+    var gasIds = idCol.map(function(v) { return String(v).trim(); })
+                      .filter(function(v) { return v.indexOf('GAS-') === 0; });
+    Logger.log('  Filas con ID_Gasto real: ' + gasIds.length);
+
+    if (gasIds.length > 0) {
+      Logger.log('  Últimos IDs (hasta 5):');
+      var ultimos = gasIds.slice(-5);
+      ultimos.forEach(function(id) { Logger.log('    ' + id); });
+    }
+
+    // ¿Hay datos más allá de la fila 1000?
+    var filasOcultas = [];
+    for (var i = 0; i < idCol.length; i++) {
+      var fila = i + 2;
+      if (fila > 1000 && String(idCol[i]).trim().indexOf('GAS-') === 0) {
+        filasOcultas.push('fila ' + fila + ': ' + String(idCol[i]).trim());
+      }
+    }
+    if (filasOcultas.length > 0) {
+      Logger.log('  ⚠️  DATOS MÁS ALLÁ DE FILA 1000 (invisibles sin scroll):');
+      filasOcultas.forEach(function(l) { Logger.log('    ' + l); });
+    }
+
+    // Primeras cabeceras para verificar esquema
+    var hdrs = sheet.getLastColumn() > 0
+      ? sheet.getRange(1, 1, 1, Math.min(sheet.getLastColumn(), 5)).getValues()[0]
+      : [];
+    Logger.log('  Primeras cabeceras: ' + hdrs.join(' | '));
+  }
+
+  // ── GASTOS_LEGACY ────────────────────────────────────────────
+  Logger.log('\n[2] Hoja GASTOS_LEGACY:');
+  var legacy = ss.getSheetByName('GASTOS_LEGACY');
+  if (legacy) {
+    Logger.log('  Existe. Registros: ' + Math.max(0, legacy.getLastRow() - 1));
+    Logger.log('  GID: ' + legacy.getSheetId());
+    var legHdrs = legacy.getLastColumn() > 0
+      ? legacy.getRange(1, 1, 1, Math.min(legacy.getLastColumn(), 5)).getValues()[0]
+      : [];
+    Logger.log('  Primeras cabeceras: ' + legHdrs.join(' | '));
+  } else {
+    Logger.log('  No existe.');
+  }
+
+  // ── Siguiente ID ─────────────────────────────────────────────
+  Logger.log('\n[3] _nextGastoId_():');
+  try {
+    Logger.log('  ' + _nextGastoId_());
+  } catch (e) {
+    Logger.log('  Error: ' + e.message);
+  }
+
+  Logger.log('\n================================================');
+  Logger.log('FIN diagnosticarDestinoGastos()');
+  Logger.log('================================================');
+}
+
+/**
+ * Elimina las validaciones de checkbox (Revisado y Enviar_Gestor) de todas las
+ * filas que no tienen datos reales (ID_Gasto vacío), de modo que getLastRow()
+ * vuelva a reflejar el número real de filas con datos.
+ *
+ * Ejecutar UNA VEZ sobre la hoja GASTOS existente para reparar el problema
+ * de checkboxes aplicados a las filas 2-1000.
+ */
+function limpiarCheckboxesExceso() {
+  Logger.log('=== limpiarCheckboxesExceso() ===');
+  var sheet   = getSheet('GASTOS');
+  var maxRows = sheet.getMaxRows();
+  Logger.log('  maxRows: ' + maxRows + '  getLastRow(): ' + sheet.getLastRow());
+
+  // Encontrar la última fila real con ID_Gasto
+  var idCol      = sheet.getRange(2, COL_GAS.ID_GASTO, maxRows - 1, 1).getValues().flat();
+  var ultimaFila = 1; // fila de cabecera
+  for (var i = idCol.length - 1; i >= 0; i--) {
+    if (String(idCol[i]).trim() !== '') { ultimaFila = i + 2; break; }
+  }
+  Logger.log('  Última fila con dato real: ' + ultimaFila);
+
+  // Borrar validaciones desde (ultimaFila + 1) hasta el final de la hoja
+  var firstEmpty = ultimaFila + 1;
+  if (firstEmpty > maxRows) {
+    Logger.log('  ✓ No hay filas vacías con validaciones. Nada que limpiar.');
+    return;
+  }
+
+  var numToClean = maxRows - firstEmpty + 1;
+  Logger.log('  Limpiando validaciones de ' + numToClean + ' filas vacías (filas ' + firstEmpty + '-' + maxRows + ')...');
+
+  sheet.getRange(firstEmpty, COL_GAS.REVISADO,      numToClean, 1).clearDataValidations();
+  sheet.getRange(firstEmpty, COL_GAS.ENVIAR_GESTOR, numToClean, 1).clearDataValidations();
+  sheet.getRange(firstEmpty, COL_GAS.TIPO_GASTO,    numToClean, 1).clearDataValidations();
+  sheet.getRange(firstEmpty, COL_GAS.ESTADO_PAGO,   numToClean, 1).clearDataValidations();
+
+  Logger.log('  ✓ Validaciones borradas.');
+  Logger.log('  Nuevo getLastRow(): ' + sheet.getLastRow());
+  Logger.log('  Ahora appendRow() añadirá datos en fila ' + (sheet.getLastRow() + 1));
+  Logger.log('=== FIN limpiarCheckboxesExceso() ===');
 }
