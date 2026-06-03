@@ -999,6 +999,24 @@ function procesarOCRGasto(idGasto) {
   }
 }
 
+/**
+ * Procesa el OCR del último gasto registrado en GASTOS.
+ * Útil para probar tras registrar un nuevo gasto.
+ */
+function procesarOCRUltimoGasto() {
+  var sheet   = getSheet('GASTOS');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) { Logger.log('Sin gastos en GASTOS.'); return; }
+
+  // Buscar el último ID_Gasto no vacío
+  var ids = sheet.getRange(2, COL_GAS.ID_GASTO, lastRow - 1, 1).getValues();
+  for (var i = ids.length - 1; i >= 0; i--) {
+    var id = String(ids[i][0]).trim();
+    if (id) return procesarOCRGasto(id);
+  }
+  Logger.log('No se encontró ningún ID_Gasto.');
+}
+
 // ─────────────────────────────────────────────────────────────
 // procesarGastosPendientesOCR  — batch sobre todos los pendientes
 // ─────────────────────────────────────────────────────────────
@@ -1017,14 +1035,18 @@ function procesarGastosPendientesOCR() {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) { Logger.log('  Sin gastos registrados.'); return; }
 
-  var data       = sheet.getRange(2, 1, lastRow - 1, HEADERS_GASTOS.length).getValues();
+  // Leer solo columnas relevantes para el filtro (ID, Revisado, Estado)
+  var colsIds    = sheet.getRange(2, COL_GAS.ID_GASTO,             lastRow - 1, 1).getValues();
+  var colsRev    = sheet.getRange(2, COL_GAS.REVISADO,             lastRow - 1, 1).getValues();
+  var colsEst    = sheet.getRange(2, COL_GAS.ESTADO_PROCESAMIENTO, lastRow - 1, 1).getValues();
   var pendientes = [];
-  for (var i = 0; i < data.length; i++) {
-    var estado   = String(data[i][COL_GAS.ESTADO_PROCESAMIENTO - 1]);
-    var revisado = data[i][COL_GAS.REVISADO - 1];
-    if (estado === 'Pendiente OCR' &&
+  for (var i = 0; i < colsIds.length; i++) {
+    var id       = String(colsIds[i][0]).trim();
+    var estado   = String(colsEst[i][0]).trim();
+    var revisado = colsRev[i][0];
+    if (id && estado === 'Pendiente OCR' &&
         revisado !== true && String(revisado).toLowerCase() !== 'true') {
-      pendientes.push(String(data[i][COL_GAS.ID_GASTO - 1]));
+      pendientes.push(id);
     }
   }
 
