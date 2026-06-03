@@ -800,8 +800,13 @@ function _getTrabajosDropdownClientes_() {
       if (empresa) label += ' (' + empresa + ')';
       if (label) options.push(label);
     }
-    // Eliminar duplicados (dos clientes con mismo nombre generarían error en FormApp)
-    return [...new Set(options)];
+    // Eliminar duplicados por nombre normalizado (trim+lowercase+sin tildes)
+    var seenKeys = {}, deduped = [];
+    options.forEach(function(lbl) {
+      var key = _normalizeClientLabel_(lbl);
+      if (!seenKeys[key]) { seenKeys[key] = true; deduped.push(lbl); }
+    });
+    return deduped;
   } catch (e) {
     Logger.log('  Error leyendo CLIENTES: ' + e.message);
     return [];

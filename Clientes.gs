@@ -175,6 +175,106 @@ function editarDatosPagoDesdePanel() {
   }
 }
 
+// ================================================================
+// NORMALIZACIÓN Y DEDUPLICACIÓN DE CLIENTES
+// ================================================================
+
+/**
+ * Normaliza una etiqueta de cliente para comparación:
+ * trim → lowercase → quitar tildes → colapsar espacios.
+ */
+function _normalizeClientLabel_(s) {
+  return String(s || '').trim().toLowerCase()
+    .replace(/[áàäâã]/g, 'a').replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i').replace(/[óòöôõ]/g, 'o')
+    .replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n').replace(/ç/g, 'c')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Revisa la hoja CLIENTES, elimina filas duplicadas (conserva la primera aparición
+ * de cada nombre normalizado) y refresca todos los dropdowns.
+ * Llamado desde: Menú ⚙️ Sistema → 🧹 Limpiar clientes duplicados.
+ */
+function limpiarClientesDuplicados() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    var sheet   = getSheet(SHEET_NAMES.CLIENTES);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) { ui.alert('No hay clientes registrados.'); return; }
+
+    var data     = sheet.getRange(2, 1, lastRow - 1, COL_CLI.METODOS_PAGO).getValues();
+    var seen     = {};
+    var toDelete = [];
+
+    for (var i = 0; i < data.length; i++) {
+      var nombre    = String(data[i][COL_CLI.NOMBRE    - 1] || '').trim();
+      var apellidos = String(data[i][COL_CLI.APELLIDOS - 1] || '').trim();
+      var empresa   = String(data[i][COL_CLI.EMPRESA   - 1] || '').trim();
+      var label     = (nombre + ' ' + apellidos).trim();
+      if (empresa) label += ' (' + empresa + ')';
+      if (!label.replace(/[\s()]/g, '')) continue;  // fila completamente vacía
+
+      var key = _normalizeClientLabel_(label);
+      if (!seen[key]) {
+        seen[key] = true;
+      } else {
+        toDelete.push(i + 2);  // índice de fila en la hoja (fila 1 = cabecera)
+      }
+    }
+
+    if (toDelete.length === 0) {
+      ui.alert('✅ No se encontraron clientes duplicados.');
+      return;
+    }
+
+    // Eliminar de abajo a arriba para que los índices no se desplacen
+    toDelete.sort(function(a, b) { return b - a; });
+    for (var d = 0; d < toDelete.length; d++) {
+      sheet.deleteRow(toDelete[d]);
+    }
+
+    _refreshAllClienteDropdowns_();
+
+    ui.alert(
+      '✅ Clientes duplicados eliminados y dropdowns actualizados.\n\n' +
+      'Filas eliminadas: ' + toDelete.length
+    );
+  } catch (e) {
+    ui.alert('Error en limpiarClientesDuplicados:\n' + e.message);
+    logEvent('ERROR', 'limpiarClientesDuplicados', e.message, '');
+  }
+}
+
+/**
+ * Refresca los dropdowns de cliente en PANEL, PANEL_CLIENTE y formulario de trabajos.
+ */
+function _refreshAllClienteDropdowns_() {
+  var ss    = SpreadsheetApp.getActive();
+  var names = _panelGetClienteNames_(ss);
+
+  // PANEL — dropdowns de cliente en FACTURAS Y DOCUMENTOS (izquierdo y presupuestos)
+  var panelSh = ss.getSheetByName('PANEL');
+  if (panelSh && names.length > 0) {
+    var val = SpreadsheetApp.newDataValidation()
+      .requireValueInList(names, true).setAllowInvalid(false).build();
+    panelSh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).setDataValidation(val);
+    panelSh.getRange(P_.PRE_CLIENTE[0], P_.PRE_CLIENTE[1]).setDataValidation(val);
+  }
+
+  // PANEL_CLIENTE — dropdown de cliente
+  var pcSh = ss.getSheetByName('PANEL_CLIENTE');
+  if (pcSh && names.length > 0) {
+    pcSh.getRange(PC_.CLIENTE[0], PC_.CLIENTE[1]).setDataValidation(
+      SpreadsheetApp.newDataValidation()
+        .requireValueInList(names, true).setAllowInvalid(false).build()
+    );
+  }
+
+  // Formulario de trabajos
+  try { refreshTrabajosDropdowns(); } catch (_) {}
+}
+
 /**
  * Guarda los métodos de pago desde el modal HTML.
  * Llamado via google.script.run desde EditarPago.html.

@@ -287,6 +287,8 @@ function onOpen() {
       .addItem('⑬ PANEL_CLIENTE — Exportar historial PDF','exportarHistorialClientePDF')
       .addItem('⑭ PANEL_CLIENTE — Diagnosticar duplicados DOC_TRABAJOS','diagnosticarDocTrabajosDuplicados')
       .addSeparator()
+      .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
+      .addSeparator()
       .addItem('⚡ Generar documento (manual)',         'panelGenerarDocumento')
       .addSeparator()
       .addItem('🧪 Crear presupuesto de prueba (3 líneas)', 'testCrearPresupuestoPrueba')
@@ -1180,7 +1182,7 @@ function panelRefreshClientes() {
 
   var nombres = _panelGetClienteNames_(ss);
   if (!nombres.length) {
-    SpreadsheetApp.getUi().alert('⚠️ No se encontraron clientes en TRABAJOS.');
+    SpreadsheetApp.getUi().alert('⚠️ No se encontraron clientes activos en la hoja CLIENTES.');
     return;
   }
 
@@ -1371,15 +1373,21 @@ function _getPanelPresupuestoItems_(sh) {
 
 function _panelGetClienteNames_(ss) {
   try {
-    var sh = ss.getSheetByName('TRABAJOS');
+    var sh = (ss || SpreadsheetApp.getActive()).getSheetByName('CLIENTES');
     if (!sh || sh.getLastRow() < 2) return [];
-    var vals = sh.getRange(2, COL_TRA.CLIENTE, sh.getLastRow() - 1, 1).getValues().flat();
-    var seen = {};
-    var res  = [];
-    vals.forEach(function(v) {
-      var s = String(v || '').trim();
-      if (s && !seen[s]) { seen[s] = true; res.push(s); }
-    });
+    var data = sh.getRange(2, 1, sh.getLastRow() - 1, COL_CLI.ACTIVO).getValues();
+    var seen = {}, res = [];
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][COL_CLI.ACTIVO - 1]).toLowerCase() !== 'true') continue;
+      var nombre    = String(data[i][COL_CLI.NOMBRE    - 1] || '').trim();
+      var apellidos = String(data[i][COL_CLI.APELLIDOS - 1] || '').trim();
+      var empresa   = String(data[i][COL_CLI.EMPRESA   - 1] || '').trim();
+      var label     = (nombre + ' ' + apellidos).trim();
+      if (empresa) label += ' (' + empresa + ')';
+      if (!label) continue;
+      var key = _normalizeClientLabel_(label);
+      if (!seen[key]) { seen[key] = true; res.push(label); }
+    }
     return res.sort();
   } catch (e) {
     return [];
