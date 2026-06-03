@@ -117,6 +117,14 @@ function onFormSubmitHandler(e) {
     } else if (sheetName === 'RESP_TRABAJOS') {
       onTrabajosFormSubmit(nv);
 
+    } else if (sheetName === 'RESP_GASTOS') {
+      const res = onGastoFormSubmit(nv);
+      if (res && res.success) {
+        logEvent('INFO', 'onFormSubmitHandler', 'Gasto registrado OK: ' + res.id, '');
+      } else {
+        logEvent('ERROR', 'onFormSubmitHandler', 'Gasto FALLIDO: ' + (res && res.error), '');
+      }
+
     } else {
       logEvent('WARN', 'onFormSubmitHandler',
                'Hoja de respuestas no reconocida: "' + sheetName + '"', '');

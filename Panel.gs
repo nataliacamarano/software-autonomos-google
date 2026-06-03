@@ -288,6 +288,7 @@ function onOpen() {
       .addItem('⑫ PANEL_CLIENTE — Crear completo',       'setupPanelClienteCompleto')
       .addItem('⑬ PANEL_CLIENTE — Exportar historial PDF','exportarHistorialClientePDF')
       .addItem('⑭ PANEL_CLIENTE — Diagnosticar duplicados DOC_TRABAJOS','diagnosticarDocTrabajosDuplicados')
+      .addItem('⑮ Instalar módulo Gastos (FASE 1)',     'installGastosModule')
       .addSeparator()
       .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
       .addSeparator()
