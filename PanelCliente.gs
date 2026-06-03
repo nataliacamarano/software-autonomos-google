@@ -646,12 +646,17 @@ function refreshPanelCliente() {
     ]);
 
     // ── 12. Limpiar secciones dinámicas ──────────────────────────
-    // getLastRow() no cuenta celdas con value=false (checkboxes desmarcados en col G)
-    // ni celdas con solo data validation (col J). Usar mínimo garantizado de 400 filas
-    // para evitar checkboxes huérfanos de renders anteriores en cualquier columna.
+    // getLastRow() no cuenta celdas con value=false ni celdas con sola data-validation.
+    // Se llama clearDataValidations() explícitamente porque clear() no elimina de forma
+    // fiable las validaciones de insertCheckboxes() en todas las versiones de GAS.
     var lastUsedRow = Math.max(PC_.DATA_START, sh.getLastRow());
     var clearRows   = Math.max(lastUsedRow - PC_.DATA_START + 100, 400);
-    sh.getRange(PC_.DATA_START, 1, clearRows, 11).breakApart().clear();
+    var clearRange_ = sh.getRange(PC_.DATA_START, 1, clearRows, 11);
+    clearRange_.breakApart();
+    SpreadsheetApp.flush();
+    clearRange_.clearDataValidations();
+    clearRange_.clearContent();
+    clearRange_.clearFormat();
     SpreadsheetApp.flush();
     var currentRow = PC_.DATA_START;
 
