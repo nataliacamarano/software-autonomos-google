@@ -149,25 +149,30 @@ function onClienteFormSubmit(namedValues) {
  */
 function editarDatosPagoDesdePanel() {
   var ui = SpreadsheetApp.getUi();
-  var sh = SpreadsheetApp.getActive().getSheetByName('PANEL_CLIENTE');
-  if (!sh) { ui.alert('PANEL_CLIENTE no encontrado.'); return; }
+  try {
+    var sh = SpreadsheetApp.getActive().getSheetByName('PANEL_CLIENTE');
+    if (!sh) { ui.alert('PANEL_CLIENTE no encontrado.'); return; }
 
-  var cliente = String(sh.getRange(PC_.CLIENTE[0], PC_.CLIENTE[1]).getValue() || '').trim();
-  if (!cliente) { ui.alert('Selecciona un cliente primero.'); return; }
+    var cliente = String(sh.getRange(PC_.CLIENTE[0], PC_.CLIENTE[1]).getValue() || '').trim();
+    if (!cliente) { ui.alert('Selecciona un cliente primero en el desplegable.'); return; }
 
-  var cliData = _getClienteByLabel_(cliente);
-  if (!cliData) { ui.alert('Cliente no encontrado en la hoja CLIENTES.'); return; }
+    var cliData = _getClienteByLabel_(cliente);
+    if (!cliData) { ui.alert('Cliente no encontrado en la hoja CLIENTES:\n"' + cliente + '"'); return; }
 
-  var template = HtmlService.createTemplateFromFile('EditarPago');
-  template.clienteLabel  = cliente;
-  template.clienteNombre = (cliData.nombre || cliente).substring(0, 35);
-  template.metodosJson   = JSON.stringify(cliData.metodosPago || []);
+    var template = HtmlService.createTemplateFromFile('EditarPago');
+    template.clienteLabel  = cliente;
+    template.clienteNombre = (cliData.nombre || cliente).substring(0, 35);
+    template.metodosJson   = JSON.stringify(cliData.metodosPago || []);
 
-  var titulo = 'Datos de pago' + (cliente.length > 28 ? '' : ' — ' + cliente);
-  ui.showModalDialog(
-    template.evaluate().setWidth(440).setHeight(560),
-    titulo
-  );
+    var titulo = 'Datos de pago' + (cliente.length > 28 ? '' : ' — ' + cliente);
+    ui.showModalDialog(
+      template.evaluate().setWidth(440).setHeight(560),
+      titulo
+    );
+  } catch (err) {
+    ui.alert('Error al abrir datos de pago:\n' + err.message);
+    logEvent('ERROR', 'editarDatosPagoDesdePanel', err.message, err.stack || '');
+  }
 }
 
 /**

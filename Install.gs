@@ -800,7 +800,8 @@ function _getTrabajosDropdownClientes_() {
       if (empresa) label += ' (' + empresa + ')';
       if (label) options.push(label);
     }
-    return options;
+    // Eliminar duplicados (dos clientes con mismo nombre generarían error en FormApp)
+    return [...new Set(options)];
   } catch (e) {
     Logger.log('  Error leyendo CLIENTES: ' + e.message);
     return [];
@@ -816,12 +817,13 @@ function _getTrabajosDropdownOperarios_() {
     var options = [];
     for (var i = 0; i < data.length; i++) {
       if (String(data[i][COL_OPE.ACTIVO - 1]).toLowerCase() !== 'true') continue;
-      var nombre       = String(data[i][COL_OPE.NOMBRE       - 1] || '').trim();
-      var apellidos    = String(data[i][COL_OPE.APELLIDOS    - 1] || '').trim();
+      var nombre    = String(data[i][COL_OPE.NOMBRE    - 1] || '').trim();
+      var apellidos = String(data[i][COL_OPE.APELLIDOS - 1] || '').trim();
       var label = (nombre + ' ' + apellidos).trim();
       if (label) options.push(label);
     }
-    return options;
+    // Eliminar duplicados
+    return [...new Set(options)];
   } catch (e) {
     Logger.log('  Error leyendo OPERARIOS: ' + e.message);
     return [];

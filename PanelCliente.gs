@@ -689,7 +689,7 @@ function refreshPanelCliente() {
       .setBackground('#e8f0fe').setFontColor('#1a73e8')
       .setFontWeight('bold').setFontSize(10)
       .setHorizontalAlignment('left').setVerticalAlignment('middle');
-    sh.getRange(currentRow, 3).insertCheckboxes().setNote('EDITAR_PAGO').setBackground('#e8f0fe');
+    sh.getRange(currentRow, 3).insertCheckboxes('EDITAR_PAGO', '').setBackground('#e8f0fe');
     sh.getRange(currentRow, 4, 1, 4).setBackground('#e8f0fe');
     sh.setRowHeight(currentRow, 28);
     currentRow++;

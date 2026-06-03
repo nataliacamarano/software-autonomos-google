@@ -365,10 +365,14 @@ function onPanelEdit(e) {
       refreshPanelCliente();
       return;
     }
-    // Checkbox ✏ Editar datos de pago (col C, nota = EDITAR_PAGO)
-    if (e.value === 'TRUE' && pcCol === PC_.BOTON[1] && e.range.getNote().trim() === 'EDITAR_PAGO') {
-      e.range.setValue(false);
-      editarDatosPagoDesdePanel();
+    // Checkbox ✏ Editar datos de pago — valor personalizado 'EDITAR_PAGO' al marcarse
+    if (String(e.value || '') === 'EDITAR_PAGO' && pcCol === 3 && pcRow >= PC_.DATA_START) {
+      e.range.setValue('');
+      try {
+        editarDatosPagoDesdePanel();
+      } catch (err) {
+        SpreadsheetApp.getUi().alert('Error al abrir el formulario de pago:\n' + err.message);
+      }
       return;
     }
     // Checkbox ✓ Cobrada — toggle estado de cobro en FACTURAS/PROFORMAS (col G = 7)

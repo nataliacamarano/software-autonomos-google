@@ -998,13 +998,17 @@ function refreshTrabajosDropdowns() {
     var titulo   = item.getTitle();
 
     if (titulo === 'Cliente' && clientesList.length > 0) {
-      listItem.setChoiceValues(clientesList);
+      var uniqueClientes = [...new Set(clientesList)];
+      Logger.log('  → setChoiceValues "Cliente": ' + uniqueClientes.length + ' opciones — ' + JSON.stringify(uniqueClientes));
+      listItem.setChoiceValues(uniqueClientes);
       updatedClientes = true;
-      Logger.log('  ✓ Desplegable "Cliente" actualizado (' + clientesList.length + ' opciones)');
+      Logger.log('  ✓ Desplegable "Cliente" actualizado');
     } else if (titulo === 'Operario' && operariosList.length > 0) {
-      listItem.setChoiceValues(operariosList);
+      var uniqueOperarios = [...new Set(operariosList)];
+      Logger.log('  → setChoiceValues "Operario": ' + uniqueOperarios.length + ' opciones — ' + JSON.stringify(uniqueOperarios));
+      listItem.setChoiceValues(uniqueOperarios);
       updatedOperarios = true;
-      Logger.log('  ✓ Desplegable "Operario" actualizado (' + operariosList.length + ' opciones)');
+      Logger.log('  ✓ Desplegable "Operario" actualizado');
     }
   }
 
