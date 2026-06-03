@@ -627,6 +627,62 @@ function repararGastosFase1() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// reprocesarRespGastos  — procesa respuestas no grabadas en GASTOS
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Lee RESP_GASTOS fila a fila y llama a onGastoFormSubmit para cada respuesta
+ * que no tenga ya un ID correspondiente en GASTOS.
+ * Útil cuando el trigger no pudo procesar respuestas anteriores.
+ */
+function reprocesarRespGastos() {
+  Logger.log('=== reprocesarRespGastos() ===');
+  var ss       = getTargetSS_();
+  var respSh   = ss.getSheetByName('RESP_GASTOS');
+  if (!respSh) { Logger.log('  ❌ RESP_GASTOS no encontrada.'); return; }
+
+  var lastRow = respSh.getLastRow();
+  if (lastRow < 2) { Logger.log('  Sin respuestas.'); return; }
+
+  // Leer cabeceras y datos
+  var all     = respSh.getRange(1, 1, lastRow, respSh.getLastColumn()).getValues();
+  var headers = all[0].map(function(h) { return String(h).trim(); });
+  Logger.log('  Cabeceras RESP_GASTOS: ' + headers.join(' | '));
+  Logger.log('  Respuestas encontradas: ' + (lastRow - 1));
+
+  var procesadas = 0, omitidas = 0;
+
+  for (var i = 1; i < all.length; i++) {
+    var row = all[i];
+    // Construir namedValues igual que lo haría el trigger
+    var nv = {};
+    headers.forEach(function(h, idx) {
+      nv[h] = [String(row[idx] || '').trim()];
+    });
+
+    var fotoUrl = String((nv['URL de la foto del ticket / factura'] || [''])[0]).trim();
+    var tipo    = String((nv['Tipo de gasto'] || [''])[0]).trim();
+    Logger.log('  Fila ' + (i+1) + ': tipo="' + tipo + '"  foto="' + fotoUrl.substring(0,60) + '"');
+
+    var result = onGastoFormSubmit(nv);
+    if (result.skipped) {
+      Logger.log('    → omitida (ya existe en GASTOS).');
+      omitidas++;
+    } else if (result.success) {
+      Logger.log('    → registrada como ' + result.id);
+      procesadas++;
+    } else {
+      Logger.log('    → ERROR: ' + result.error);
+    }
+
+    if (i < all.length - 1) Utilities.sleep(500);
+  }
+
+  Logger.log('\nRESUMEN: procesadas=' + procesadas + '  omitidas=' + omitidas);
+  Logger.log('=== FIN reprocesarRespGastos() ===');
+}
+
+// ─────────────────────────────────────────────────────────────
 // vincularFormularioGastos  — solo reconecta el formulario
 // ─────────────────────────────────────────────────────────────
 
