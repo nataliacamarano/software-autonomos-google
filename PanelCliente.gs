@@ -1336,8 +1336,10 @@ function actualizarEstadoCobro(docId, tipo, isPagada, filaEditada) {
   }
 
   if (tipo === 'Proforma') {
-    if (colCobro < 0) colCobro = 19; // posición estándar PROFORMAS (col Estado_Cobro)
-    if (colPago  < 0) colPago  = 17; // posición estándar PROFORMAS (col Fecha_Pago)
+    if (colCobro      < 0) colCobro      = 19; // Estado_Cobro
+    if (colPago       < 0) colPago       = 17; // Fecha_Pago
+    if (colMetodoPago < 0) colMetodoPago = 20; // Metodo_Pago_Usado
+    if (colDatosPago  < 0) colDatosPago  = 21; // Datos_Pago_Usados
     sh.getRange(targetRow, colCobro).setValue(nuevoEstado);
     sh.getRange(targetRow, colPago ).setValue(isPagada ? new Date() : '');
   } else {
@@ -1348,37 +1350,37 @@ function actualizarEstadoCobro(docId, tipo, isPagada, filaEditada) {
         .setValue('Estado Cobro')
         .setFontWeight('bold').setBackground('#1a73e8').setFontColor('#ffffff');
     }
-    if (colPago < 0) colPago = 21; // posición estándar FACTURAS (col Fecha_Pago)
+    if (colPago       < 0) colPago       = 21; // Fecha_Pago
+    if (colMetodoPago < 0) colMetodoPago = 22; // Metodo_Pago_Usado
+    if (colDatosPago  < 0) colDatosPago  = 23; // Datos_Pago_Usados
     sh.getRange(targetRow, colCobro).setValue(nuevoEstado);
     sh.getRange(targetRow, colPago ).setValue(isPagada ? new Date() : '');
   }
 
-  // Registrar o borrar el método de pago usado
-  if (colMetodoPago > 0 || colDatosPago > 0) {
-    if (!isPagada) {
-      if (colMetodoPago > 0) sh.getRange(targetRow, colMetodoPago).setValue('');
-      if (colDatosPago  > 0) sh.getRange(targetRow, colDatosPago ).setValue('');
-    } else {
-      // Obtener cliente y sus métodos de pago
-      var cliNombreDoc_ = '';
-      try {
-        var rowData_ = sh.getRange(targetRow, 1, 1, sh.getLastColumn()).getValues()[0];
-        // Nombre_Cliente está en col 6 (índice 5) para FACTURAS y PROFORMAS
-        cliNombreDoc_ = String(rowData_[5] || '').trim();
-      } catch (_) {}
-      var cliDocData_  = cliNombreDoc_ ? _getClienteByLabel_(cliNombreDoc_) : null;
-      var metodosDoc_  = cliDocData_ ? (cliDocData_.metodosPago || []) : [];
-      var pagoUsado_   = null;
+  // Registrar o borrar el método de pago usado al marcar pagada
+  if (!isPagada) {
+    sh.getRange(targetRow, colMetodoPago).setValue('');
+    sh.getRange(targetRow, colDatosPago ).setValue('');
+  } else {
+    // Solo pedir método si todavía no tiene uno guardado
+    var yaMetodo_ = String(sh.getRange(targetRow, colMetodoPago).getValue() || '').trim();
+    if (!yaMetodo_) {
+      var cliNombreDoc_ = String(sh.getRange(targetRow, 6).getValue() || '').trim();
+      var cliDocData_   = cliNombreDoc_ ? _getClienteByLabel_(cliNombreDoc_) : null;
+      var metodosDoc_   = cliDocData_ ? (cliDocData_.metodosPago || []) : [];
+      var pagoUsado_    = null;
 
       if (metodosDoc_.length === 1) {
         pagoUsado_ = metodosDoc_[0];
       } else if (metodosDoc_.length > 1) {
         var opsTxt_ = metodosDoc_.map(function(m, i) {
-          return (i + 1) + '. ' + m.tipo + (m.iban ? ' (' + m.iban + ')' : m.numero ? ' (' + m.numero + ')' : '');
+          var extra = m.iban ? ' (' + m.iban.replace(/\s/g,'').substring(0,10) + '…)' :
+                      m.numero ? ' (' + m.numero + ')' : m.email ? ' (' + m.email + ')' : '';
+          return (i + 1) + '. ' + m.tipo + extra;
         }).join('\n');
         var selResp_ = SpreadsheetApp.getUi().prompt(
-          'Método de pago utilizado',
-          'Selecciona el número del método de pago:\n\n' + opsTxt_,
+          '¿Con qué método se cobró?',
+          'Selecciona el número:\n\n' + opsTxt_ + '\n\n0. Sin datos de pago',
           SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
         );
         if (selResp_.getSelectedButton() === SpreadsheetApp.getUi().Button.OK) {
@@ -1387,8 +1389,8 @@ function actualizarEstadoCobro(docId, tipo, isPagada, filaEditada) {
         }
       }
 
-      if (colMetodoPago > 0) sh.getRange(targetRow, colMetodoPago).setValue(pagoUsado_ ? pagoUsado_.tipo : '');
-      if (colDatosPago  > 0) sh.getRange(targetRow, colDatosPago ).setValue(pagoUsado_ ? JSON.stringify(pagoUsado_) : '');
+      sh.getRange(targetRow, colMetodoPago).setValue(pagoUsado_ ? pagoUsado_.tipo : '');
+      sh.getRange(targetRow, colDatosPago ).setValue(pagoUsado_ ? JSON.stringify(pagoUsado_) : '');
     }
   }
 

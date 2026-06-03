@@ -797,31 +797,38 @@ function _buildPagoRows_(m) {
  */
 function _getClienteByLabel_(label) {
   try {
-    var clientes = getClientes(false);
+    var sheet = getSheet(SHEET_NAMES.CLIENTES);
+    var data  = sheet.getDataRange().getValues();
+    if (data.length < 2) return null;
     var labelLow = String(label).toLowerCase().trim();
-    for (var i = 0; i < clientes.length; i++) {
-      var c         = clientes[i];
-      var nombre    = String(c.Nombre    || '').trim();
-      var apellidos = String(c.Apellidos || '').trim();
-      var empresa_  = String(c.Empresa   || '').trim();
+
+    for (var i = 1; i < data.length; i++) {
+      var row       = data[i];
+      if (!row.some(function(c) { return c !== ''; })) continue; // fila vacía
+      var nombre    = String(row[COL_CLI.NOMBRE    - 1] || '').trim();
+      var apellidos = String(row[COL_CLI.APELLIDOS - 1] || '').trim();
+      var empresa_  = String(row[COL_CLI.EMPRESA   - 1] || '').trim();
       var dropLabel = (nombre + ' ' + apellidos).trim();
       if (empresa_) dropLabel += ' (' + empresa_ + ')';
-      if (dropLabel.toLowerCase() === labelLow) {
-        var metodosPago = [];
-        try {
-          var mp_ = JSON.parse(String(c.Metodos_Pago || '[]'));
-          if (Array.isArray(mp_)) metodosPago = mp_;
-        } catch (_) {}
-        return {
-          id:          String(c.ID_Cliente || ''),
-          nombre:      dropLabel,
-          email:       String(c.Email     || '').trim(),
-          telefono:    String(c.Telefono  || '').trim(),
-          direccion:   String(c.Direccion || '').trim(),
-          cif:         String(c.CIF_NIF   || '').trim(),
-          metodosPago: metodosPago
-        };
-      }
+      if (dropLabel.toLowerCase() !== labelLow) continue;
+
+      // Leer metodosPago por posición de columna para evitar dependencia del nombre de cabecera
+      var metodosPago = [];
+      try {
+        var mpRaw = row.length >= COL_CLI.METODOS_PAGO ? row[COL_CLI.METODOS_PAGO - 1] : '';
+        var mp_ = JSON.parse(String(mpRaw || '[]'));
+        if (Array.isArray(mp_)) metodosPago = mp_;
+      } catch (_) {}
+
+      return {
+        id:          String(row[COL_CLI.ID        - 1] || ''),
+        nombre:      dropLabel,
+        email:       String(row[COL_CLI.EMAIL     - 1] || '').trim(),
+        telefono:    String(row[COL_CLI.TELEFONO  - 1] || '').trim(),
+        direccion:   String(row[COL_CLI.DIRECCION - 1] || '').trim(),
+        cif:         String(row[COL_CLI.CIF_NIF   - 1] || '').trim(),
+        metodosPago: metodosPago
+      };
     }
   } catch (e) {
     Logger.log('  Error buscando cliente: ' + e.message);

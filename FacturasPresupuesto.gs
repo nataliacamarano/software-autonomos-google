@@ -44,6 +44,28 @@ function generateInvoiceFromPresupuestoPDF(params) {
   var cliEmail  = cliData ? cliData.email     : '';
   var cliId     = cliData ? cliData.id        : '';
 
+  // ── Selección de método de pago ──────────────────────────────
+  var metodosPago_fp = cliData ? (cliData.metodosPago || []) : [];
+  var pagoSeleccionado = null;
+  if (metodosPago_fp.length === 1) {
+    pagoSeleccionado = metodosPago_fp[0];
+  } else if (metodosPago_fp.length > 1) {
+    var opsTxt_fp = metodosPago_fp.map(function(m, i) {
+      var extra = m.iban ? ' (' + m.iban.replace(/\s/g,'').substring(0,10) + '…)' :
+                  m.numero ? ' (' + m.numero + ')' : m.email ? ' (' + m.email + ')' : '';
+      return (i + 1) + '. ' + m.tipo + extra;
+    }).join('\n');
+    var selResp_fp = SpreadsheetApp.getUi().prompt(
+      'Método de pago para esta ' + tipo,
+      'El cliente tiene varios métodos. Escribe el número:\n\n' + opsTxt_fp + '\n\n0. No incluir datos de pago',
+      SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
+    );
+    if (selResp_fp.getSelectedButton() === SpreadsheetApp.getUi().Button.OK) {
+      var selIdx_fp = parseInt(selResp_fp.getResponseText()) - 1;
+      if (selIdx_fp >= 0 && selIdx_fp < metodosPago_fp.length) pagoSeleccionado = metodosPago_fp[selIdx_fp];
+    }
+  }
+
   // ── 3. Cálculo de importes desde las líneas de la tabla ──────
   // IVA nunca heredado del presupuesto — se aplica una sola vez aquí.
   // Fallback: si cant o pu están vacíos, usa lineItems[i].imp directamente.
@@ -160,6 +182,20 @@ function generateInvoiceFromPresupuestoPDF(params) {
     }
   }
 
+  // Sección DATOS DE PAGO (solo si hay método seleccionado)
+  if (pagoSeleccionado) {
+    body.appendParagraph('');
+    body.appendHorizontalRule();
+    body.appendParagraph('DATOS DE PAGO').editAsText().setFontSize(11).setBold(true);
+    body.appendParagraph('');
+    var pagoData_fp = _buildPagoRows_(pagoSeleccionado);
+    var tblPago_fp = body.appendTable(pagoData_fp);
+    for (var pr_fp = 0; pr_fp < tblPago_fp.getNumRows(); pr_fp++) {
+      tblPago_fp.getRow(pr_fp).editAsText().setFontSize(10);
+      tblPago_fp.getRow(pr_fp).getCell(0).editAsText().setBold(true);
+    }
+  }
+
   // Aviso legal para proformas
   if (tipo === 'Proforma') {
     body.appendParagraph('');
@@ -223,11 +259,12 @@ function generateInvoiceFromPresupuestoPDF(params) {
       '',                // 16 Fecha_Envio
       '',                // 17 Fecha_Pago
       presupuestoId,     // 18 ID_Presupuesto_Origen
-      'Pendiente de cobro' // 19 Estado_Cobro
+      'Pendiente de cobro', // 19 Estado_Cobro
+      pagoSeleccionado ? pagoSeleccionado.tipo : '', // 20 Metodo_Pago_Usado
+      pagoSeleccionado ? JSON.stringify(pagoSeleccionado) : '' // 21 Datos_Pago_Usados
     ]);
   } else {
     var facSheet = getSheet('FACTURAS');
-    _ensureFacPrespCol_(facSheet);
     facSheet.appendRow([
       numFac.id,         // 1  ID_Factura
       hoy,               // 2  Fecha_Emision
@@ -250,14 +287,20 @@ function generateInvoiceFromPresupuestoPDF(params) {
       pdfUrl,            // 19 URL_PDF
       '',                // 20 Fecha_Envio
       '',                // 21 Fecha_Pago
-      presupuestoId      // 22 ID_Presupuesto_Origen
+      pagoSeleccionado ? pagoSeleccionado.tipo : '', // 22 Metodo_Pago_Usado
+      pagoSeleccionado ? JSON.stringify(pagoSeleccionado) : '' // 23 Datos_Pago_Usados
     ]);
 
-    // Compatibilidad: si existe columna 'Estado Cobro', marcar Pendiente
-    var hdrs = facSheet.getRange(1, 1, 1, facSheet.getLastColumn()).getValues()[0];
-    for (var ch = 0; ch < hdrs.length; ch++) {
-      if (String(hdrs[ch]).trim() === 'Estado Cobro') {
-        facSheet.getRange(facSheet.getLastRow(), ch + 1).setValue('Pendiente');
+    var newFacRow = facSheet.getLastRow();
+    // ID_Presupuesto_Origen: columna dinámica (header scan + crear si no existe)
+    var presCol = _ensureFacPrespCol_(facSheet);
+    facSheet.getRange(newFacRow, presCol).setValue(presupuestoId);
+
+    // Estado Cobro: columna dinámica del módulo de cobros
+    var facHdrs = facSheet.getRange(1, 1, 1, facSheet.getLastColumn()).getValues()[0];
+    for (var ch = 0; ch < facHdrs.length; ch++) {
+      if (String(facHdrs[ch]).trim() === 'Estado Cobro') {
+        facSheet.getRange(newFacRow, ch + 1).setValue('Pendiente');
         break;
       }
     }
@@ -276,15 +319,16 @@ function generateInvoiceFromPresupuestoPDF(params) {
 }
 
 /**
- * Asegura que la hoja FACTURAS tiene cabecera 'ID_Presupuesto_Origen' en col 22.
- * Si ya existe no modifica nada. Añade cabecera solo si la col 22 está vacía.
+ * Busca la columna 'ID_Presupuesto_Origen' en FACTURAS por nombre de cabecera.
+ * Si no existe la crea al final. Devuelve el número de columna (base 1).
  */
 function _ensureFacPrespCol_(facSheet) {
-  var lastCol = facSheet.getLastColumn();
-  if (lastCol >= 22) {
-    var existing = String(facSheet.getRange(1, 22).getValue()).trim();
-    if (existing === 'ID_Presupuesto_Origen') return;
-    if (existing !== '') return; // hay algo inesperado en col 22, no tocar
+  var lastCol = Math.max(facSheet.getLastColumn(), 1);
+  var hdrs = facSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < hdrs.length; i++) {
+    if (String(hdrs[i]).trim() === 'ID_Presupuesto_Origen') return i + 1;
   }
-  facSheet.getRange(1, 22).setValue('ID_Presupuesto_Origen');
+  var newCol = lastCol + 1;
+  facSheet.getRange(1, newCol).setValue('ID_Presupuesto_Origen');
+  return newCol;
 }
