@@ -599,11 +599,14 @@ function testGastosFase2() {
   Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
   Logger.log('================================================');
 
-  // Test 1: gasto con URL de foto (URL fake — no copiará archivo, pero procesará la fila)
+  // URL única por ejecución para evitar colisión con runs previos
+  var fotoUrlTest = 'https://drive.google.com/file/d/TEST_' + Date.now() + '/view';
+
+  // Test 1: gasto con URL de foto
   Logger.log('\n[1] Gasto con foto (URL Drive simulada):');
   var nv1 = {
     'Tipo de gasto':                       ['Combustible'],
-    'URL de la foto del ticket / factura': ['https://drive.google.com/file/d/1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P/view'],
+    'URL de la foto del ticket / factura': [fotoUrlTest],
     'Estado del gasto':                    ['Pagado'],
     'Observaciones':                       ['Test FASE 2 — con foto']
   };
@@ -621,7 +624,7 @@ function testGastosFase2() {
   var r2 = onGastoFormSubmit(nv2);
   Logger.log('  Resultado: ' + JSON.stringify(r2));
 
-  // Test 3: duplicado — mismo registro que Test 1 → debe omitirse
+  // Test 3: duplicado — misma URL que Test 1, dentro de 3 min → debe omitirse
   Logger.log('\n[3] Duplicado del Test 1 (debe skipped=true):');
   var r3 = onGastoFormSubmit(nv1);
   Logger.log('  Resultado: ' + JSON.stringify(r3));
@@ -664,19 +667,20 @@ function _copiarArchivoAGastos_(url) {
 }
 
 /**
- * Devuelve true si ya existe en GASTOS un registro con el mismo
- * tipo + fotoUrl creado en los últimos 10 minutos (doble trigger).
+ * Devuelve true si ya existe en GASTOS un registro con la misma fotoUrl
+ * creado en los últimos 3 minutos (doble disparo del trigger).
+ * Solo aplica cuando fotoUrl no está vacía: dos envíos sin foto son legítimos.
  */
 function _gastoYaRegistrado_(sheet, tipoGasto, fotoUrl, ahora) {
+  if (!fotoUrl) return false; // sin foto no se deduplica
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return false;
-  var data     = sheet.getRange(2, 1, lastRow - 1, HEADERS_GASTOS.length).getValues();
-  var limite   = 10 * 60 * 1000; // 10 minutos en ms
+  var data   = sheet.getRange(2, 1, lastRow - 1, HEADERS_GASTOS.length).getValues();
+  var limite = 3 * 60 * 1000; // 3 minutos en ms
   for (var i = data.length - 1; i >= 0; i--) {
-    var rowTipo  = String(data[i][COL_GAS.TIPO_GASTO  - 1]);
-    var rowFoto  = String(data[i][COL_GAS.FOTO_URL    - 1]);
+    var rowFoto  = String(data[i][COL_GAS.FOTO_URL  - 1]);
     var rowFecha = data[i][COL_GAS.FECHA_ALTA - 1];
-    if (rowTipo === tipoGasto && rowFoto === fotoUrl && rowFecha instanceof Date) {
+    if (rowFoto === fotoUrl && rowFecha instanceof Date) {
       if (ahora.getTime() - rowFecha.getTime() < limite) return true;
     }
   }
