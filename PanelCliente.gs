@@ -654,6 +654,53 @@ function refreshPanelCliente() {
     SpreadsheetApp.flush();
     var currentRow = PC_.DATA_START;
 
+    // ── DATOS DE PAGO ─────────────────────────────────────────────
+    currentRow = _pcSectionHeader_(sh, currentRow, 'DATOS DE PAGO', '#455a64');
+    var pagoRows_ = [];
+    if (cliInfo && cliInfo.metodoPago) {
+      pagoRows_.push(['Método de pago', cliInfo.metodoPago]);
+      var mp_ = cliInfo.metodoPago.toLowerCase();
+      if (mp_ === 'transferencia bancaria' || mp_ === 'domiciliación bancaria') {
+        if (cliInfo.titularCuenta) pagoRows_.push(['Titular',   cliInfo.titularCuenta]);
+        if (cliInfo.banco)         pagoRows_.push(['Banco',     cliInfo.banco]);
+        if (cliInfo.iban)          pagoRows_.push(['IBAN',      cliInfo.iban]);
+        if (cliInfo.swiftBic)      pagoRows_.push(['SWIFT/BIC', cliInfo.swiftBic]);
+      } else if (mp_ === 'paypal') {
+        if (cliInfo.paypalEmail)   pagoRows_.push(['PayPal',    cliInfo.paypalEmail]);
+      } else if (cliInfo.observacionesPago) {
+        pagoRows_.push(['Observaciones', cliInfo.observacionesPago]);
+      }
+    }
+    if (pagoRows_.length === 0) {
+      sh.getRange(currentRow, 2, 1, 6).merge()
+        .setValue('Sin datos de pago registrados.')
+        .setFontSize(10).setFontColor('#9aa0a6').setFontStyle('italic')
+        .setVerticalAlignment('middle').setBackground('#ffffff');
+      sh.setRowHeight(currentRow, 26);
+      currentRow++;
+    } else {
+      var pVals_ = pagoRows_.map(function(r) { return [r[0], r[1], '', '', '', '']; });
+      var pBgs_  = pagoRows_.map(function(_, pi) {
+        var bg = pi % 2 === 0 ? '#f8f9fa' : '#ffffff';
+        return [bg, bg, bg, bg, bg, bg];
+      });
+      sh.getRange(currentRow, 2, pagoRows_.length, 6).setValues(pVals_).setFontSize(10).setBackgrounds(pBgs_);
+      sh.getRange(currentRow, 2, pagoRows_.length, 1).setFontWeight('bold').setFontColor('#5f6368');
+      sh.getRange(currentRow, 3, pagoRows_.length, 1).setFontColor('#3c4043');
+      for (var pRi = 0; pRi < pagoRows_.length; pRi++) sh.setRowHeight(currentRow + pRi, 26);
+      currentRow += pagoRows_.length;
+    }
+    // Botón editar datos de pago
+    sh.getRange(currentRow, 2, 1, 1).setValue('✏  Editar datos de pago')
+      .setBackground('#e8f0fe').setFontColor('#1a73e8')
+      .setFontWeight('bold').setFontSize(10)
+      .setHorizontalAlignment('left').setVerticalAlignment('middle');
+    sh.getRange(currentRow, 3).insertCheckboxes().setNote('EDITAR_PAGO').setBackground('#e8f0fe');
+    sh.getRange(currentRow, 4, 1, 4).setBackground('#e8f0fe');
+    sh.setRowHeight(currentRow, 28);
+    currentRow++;
+    currentRow++; // spacer
+
     // ── ALERTAS ───────────────────────────────────────────────────
     var alertasBlock = [];
     // Sin trabajos en 60+ días

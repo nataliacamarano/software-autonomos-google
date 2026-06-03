@@ -21,7 +21,9 @@ const SHEET_HEADERS = {
   ],
   CLIENTES: [
     'ID_Cliente', 'Timestamp', 'Nombre', 'Apellidos', 'Empresa',
-    'Email', 'Telefono', 'Direccion', 'CIF_NIF', 'Activo'
+    'Email', 'Telefono', 'Direccion', 'CIF_NIF', 'Activo',
+    'Metodo_Pago', 'Titular_Cuenta', 'Banco', 'IBAN', 'SWIFT_BIC',
+    'Paypal_Email', 'Observaciones_Pago'
   ],
   OPERARIOS: [
     'ID_Operario', 'Timestamp', 'Nombre', 'Apellidos',

@@ -119,6 +119,7 @@ function generateClientReportPDF() {
   // ── 4. Crear Google Doc ───────────────────────────────────────
   Logger.log('\n[4] Creando Google Doc...');
   var empresa = getConfig('empresa_nombre') || 'Mi Empresa';
+  var cliInfPago = null; try { cliInfPago = _getClienteByLabel_(cliente); } catch(_) {}
   var titulo  = 'Informe_' + _sanitizeFilename_(cliente) +
                 '_' + fechaIniStr.replace(/\//g, '-') +
                 '_a_' + fechaFinStr.replace(/\//g, '-');
@@ -149,6 +150,9 @@ function generateClientReportPDF() {
   body.appendParagraph('RESUMEN').setHeading(DocumentApp.ParagraphHeading.HEADING3);
   body.appendParagraph('Total de trabajos: ' + trabajos.length);
   body.appendParagraph('Total de horas:    ' + totalHoras.toFixed(2) + ' h');
+  if (cliInfPago && cliInfPago.metodoPago) {
+    body.appendParagraph('Método de pago:    ' + cliInfPago.metodoPago);
+  }
 
   body.appendHorizontalRule();
 

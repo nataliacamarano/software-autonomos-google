@@ -365,6 +365,12 @@ function onPanelEdit(e) {
       refreshPanelCliente();
       return;
     }
+    // Checkbox ✏ Editar datos de pago (col C, nota = EDITAR_PAGO)
+    if (e.value === 'TRUE' && pcCol === PC_.BOTON[1] && e.range.getNote().trim() === 'EDITAR_PAGO') {
+      e.range.setValue(false);
+      editarDatosPagoDesdePanel();
+      return;
+    }
     // Checkbox ✓ Cobrada — toggle estado de cobro en FACTURAS/PROFORMAS (col G = 7)
     // El ID del documento está guardado en la nota de la celda checkbox (no en col A)
     if ((e.value === 'TRUE' || e.value === 'FALSE') && pcCol === 7) {

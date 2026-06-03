@@ -68,7 +68,14 @@ function generateInvoicePDF(tipo, selectedJobIds) {
   var cliCif    = cliData ? cliData.cif       : '';
   var cliDir    = cliData ? cliData.direccion : '';
   var cliEmail  = cliData ? cliData.email     : '';
-  var cliId     = cliData ? cliData.id        : '';
+  var cliId              = cliData ? cliData.id                : '';
+  var cliMetodoPago      = cliData ? cliData.metodoPago        : '';
+  var cliTitular         = cliData ? cliData.titularCuenta     : '';
+  var cliBanco           = cliData ? cliData.banco             : '';
+  var cliIban            = cliData ? cliData.iban              : '';
+  var cliSwift           = cliData ? cliData.swiftBic          : '';
+  var cliPaypal          = cliData ? cliData.paypalEmail       : '';
+  var cliObsPago         = cliData ? cliData.observacionesPago : '';
   Logger.log('  ' + (cliData
     ? '✓ ' + cliNombre + (cliCif ? ' | CIF: ' + cliCif : '')
     : '⚠️  No encontrado en CLIENTES — se usará el nombre del dropdown.'));
@@ -278,6 +285,31 @@ function generateInvoicePDF(tipo, selectedJobIds) {
         totalCell.setBackgroundColor('#f0f0f0');
         totalCell.editAsText().setBold(true).setFontSize(12);
       }
+    }
+  }
+
+  // Sección DATOS DE PAGO (solo si el cliente tiene método configurado)
+  if (cliMetodoPago) {
+    body.appendParagraph('');
+    body.appendHorizontalRule();
+    body.appendParagraph('DATOS DE PAGO').editAsText().setFontSize(11).setBold(true);
+    body.appendParagraph('');
+    var pagoData = [['Método de pago', cliMetodoPago]];
+    var mpLow = cliMetodoPago.toLowerCase();
+    if (mpLow === 'transferencia bancaria' || mpLow === 'domiciliación bancaria') {
+      if (cliTitular) pagoData.push(['Titular', cliTitular]);
+      if (cliBanco)   pagoData.push(['Banco', cliBanco]);
+      if (cliIban)    pagoData.push(['IBAN', cliIban]);
+      if (cliSwift)   pagoData.push(['SWIFT / BIC', cliSwift]);
+    } else if (mpLow === 'paypal') {
+      if (cliPaypal)  pagoData.push(['Email PayPal', cliPaypal]);
+    } else if (cliObsPago) {
+      pagoData.push(['Observaciones', cliObsPago]);
+    }
+    var tblPago = body.appendTable(pagoData);
+    for (var pr = 0; pr < tblPago.getNumRows(); pr++) {
+      tblPago.getRow(pr).editAsText().setFontSize(10);
+      tblPago.getRow(pr).getCell(0).editAsText().setBold(true);
     }
   }
 
@@ -744,12 +776,19 @@ function _getClienteByLabel_(label) {
       if (empresa_) dropLabel += ' (' + empresa_ + ')';
       if (dropLabel.toLowerCase() === labelLow) {
         return {
-          id:        String(c.ID_Cliente || ''),
-          nombre:    dropLabel,
-          email:     String(c.Email      || '').trim(),
-          telefono:  String(c.Telefono   || '').trim(),
-          direccion: String(c.Direccion  || '').trim(),
-          cif:       String(c.CIF_NIF    || '').trim()
+          id:                String(c.ID_Cliente         || ''),
+          nombre:            dropLabel,
+          email:             String(c.Email              || '').trim(),
+          telefono:          String(c.Telefono           || '').trim(),
+          direccion:         String(c.Direccion          || '').trim(),
+          cif:               String(c.CIF_NIF            || '').trim(),
+          metodoPago:        String(c.Metodo_Pago        || '').trim(),
+          titularCuenta:     String(c.Titular_Cuenta     || '').trim(),
+          banco:             String(c.Banco              || '').trim(),
+          iban:              String(c.IBAN               || '').trim(),
+          swiftBic:          String(c.SWIFT_BIC          || '').trim(),
+          paypalEmail:       String(c.Paypal_Email       || '').trim(),
+          observacionesPago: String(c.Observaciones_Pago || '').trim()
         };
       }
     }
