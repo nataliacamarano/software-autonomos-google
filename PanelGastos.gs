@@ -65,7 +65,7 @@ var PG_COLORS = {
  * título, filtros, resumen y cabeceras de tabla.
  * Idempotente: borra y rehace si ya existe.
  */
-function crearPanelGastos() {
+function _crearPanelGastos_() {
   Logger.log('=== crearPanelGastos() ===');
   var ss = getTargetSS_();
   var sh = ss.getSheetByName('PANEL_GASTOS');
@@ -221,13 +221,13 @@ function crearPanelGastos() {
  * Lee los filtros del panel, obtiene los gastos de GASTOS,
  * aplica los filtros, escribe el resumen y la tabla con colores.
  */
-function actualizarPanelGastos() {
+function _actualizarPanelGastos_() {
   Logger.log('=== actualizarPanelGastos() ===');
   var ss = getTargetSS_();
   var sh = ss.getSheetByName('PANEL_GASTOS');
   if (!sh) {
     Logger.log('  PANEL_GASTOS no existe — creando...');
-    crearPanelGastos();
+    _crearPanelGastos_();
     sh = ss.getSheetByName('PANEL_GASTOS');
   }
 
@@ -526,7 +526,7 @@ function onEditPanelGastos_(e) {
   // Botón Actualizar (B10)
   if (row === PG_.BTN_ACTUALIZAR[0] && col === PG_.BTN_ACTUALIZAR[1] && val === 'TRUE') {
     e.range.setValue(false);
-    actualizarPanelGastos();
+    _actualizarPanelGastos_();
     return;
   }
 
@@ -601,7 +601,7 @@ function onEditPanelGastos_(e) {
  * simula los filtros actuales del panel y muestra por qué cada
  * gasto es incluido o descartado. Sin modificar nada.
  */
-function diagnosticarPanelGastos() {
+function _diagnosticarPanelGastos_() {
   Logger.log('================================================');
   Logger.log('diagnosticarPanelGastos()');
   Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
@@ -720,6 +720,14 @@ function _pgRazonRechazo_(row, f) {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Wrappers públicos (visibles en el desplegable de Apps Script)
+// ─────────────────────────────────────────────────────────────
+
+function crearPanelGastos()        { return _crearPanelGastos_();        }
+function actualizarPanelGastos()   { return _actualizarPanelGastos_();   }
+function diagnosticarPanelGastos() { return _diagnosticarPanelGastos_(); }
 
 // ─────────────────────────────────────────────────────────────
 // Utilidad de estilo
