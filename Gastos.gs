@@ -204,10 +204,11 @@ function installGastosModule() {
       .setChoiceValues(TIPOS_GASTO)
       .setRequired(true);
 
-    // Campo 2: Foto del ticket / factura (subida de archivo)
-    form.addFileUploadItem()
-      .setTitle('Foto del ticket / factura')
-      .setRequired(true);
+    // Campo 2: URL de la foto del ticket / factura (Drive o fotos Google)
+    form.addTextItem()
+      .setTitle('URL de la foto del ticket / factura')
+      .setHelpText('Sube la foto a Google Drive o Google Fotos y pega aquí el enlace compartido.')
+      .setRequired(false);
 
     // Campo 3: Estado del gasto
     form.addListItem()
@@ -354,10 +355,10 @@ function onGastoFormSubmit(namedValues) {
     var id     = _nextGastoId_();
     var ahora  = new Date();
 
-    var tipoGasto   = String((namedValues['Tipo de gasto']           || [''])[0]).trim();
-    var fotoUrl     = String((namedValues['Foto del ticket / factura']|| [''])[0]).trim();
-    var estadoPago  = String((namedValues['Estado del gasto']        || [''])[0]).trim() || 'Pendiente';
-    var observaciones = String((namedValues['Observaciones']         || [''])[0]).trim();
+    var tipoGasto   = String((namedValues['Tipo de gasto']                      || [''])[0]).trim();
+    var fotoUrl     = String((namedValues['URL de la foto del ticket / factura']|| [''])[0]).trim();
+    var estadoPago  = String((namedValues['Estado del gasto']                   || [''])[0]).trim() || 'Pendiente';
+    var observaciones = String((namedValues['Observaciones']                    || [''])[0]).trim();
 
     // Extraer el ID del archivo de Drive desde la URL
     var archivoId = '';
