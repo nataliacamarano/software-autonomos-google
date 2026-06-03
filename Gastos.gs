@@ -494,6 +494,33 @@ function calculateVATSummary() {
   Logger.log('================================================');
 }
 
+// ─────────────────────────────────────────────────────────────
+// _borrarFormulariosGastosHuerfanos_  — ejecutar una sola vez
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Mueve a la papelera todos los formularios llamados
+ * "GASTOS — Álvaro Gestión" excepto el guardado en CONFIG.
+ */
+function _borrarFormulariosGastosHuerfanos_() {
+  var formIdCorrecto = getConfig(GAS_CFG.FORM_ID);
+  if (!formIdCorrecto) { Logger.log('❌ Sin form_id en CONFIG.'); return; }
+
+  var files   = DriveApp.getFilesByName('GASTOS — Álvaro Gestión');
+  var borrados = 0;
+  while (files.hasNext()) {
+    var f = files.next();
+    if (f.getId() !== formIdCorrecto) {
+      f.setTrashed(true);
+      Logger.log('🗑️  Papelera: ' + f.getName() + ' (' + f.getId() + ')');
+      borrados++;
+    } else {
+      Logger.log('✓  Conservado (correcto): ' + f.getId());
+    }
+  }
+  Logger.log('Formularios movidos a papelera: ' + borrados);
+}
+
 // ── Privadas ──────────────────────────────────────────────────
 
 /**
