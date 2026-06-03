@@ -502,6 +502,10 @@ function calculateVATSummary() {
  * Mueve a la papelera todos los formularios llamados
  * "GASTOS — Álvaro Gestión" excepto el guardado en CONFIG.
  */
+function borrarFormulariosGastosHuerfanos() {
+  return _borrarFormulariosGastosHuerfanos_();
+}
+
 function _borrarFormulariosGastosHuerfanos_() {
   var formIdCorrecto = getConfig(GAS_CFG.FORM_ID);
   if (!formIdCorrecto) { Logger.log('❌ Sin form_id en CONFIG.'); return; }
