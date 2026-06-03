@@ -646,11 +646,12 @@ function refreshPanelCliente() {
     ]);
 
     // ── 12. Limpiar secciones dinámicas ──────────────────────────
+    // getLastRow() no cuenta celdas con value=false (checkboxes desmarcados en col G)
+    // ni celdas con solo data validation (col J). Usar mínimo garantizado de 400 filas
+    // para evitar checkboxes huérfanos de renders anteriores en cualquier columna.
     var lastUsedRow = Math.max(PC_.DATA_START, sh.getLastRow());
-    sh.getRange(PC_.DATA_START, 1, lastUsedRow - PC_.DATA_START + 50, 11).breakApart().clear();
-    // Targeted clear for col J: insertCheckboxes() leaves data validation without a value,
-    // so getLastRow() may not count those rows — explicit wide clear removes orphan checkboxes.
-    sh.getRange(PC_.DATA_START, 10, 300, 1).clear();
+    var clearRows   = Math.max(lastUsedRow - PC_.DATA_START + 100, 400);
+    sh.getRange(PC_.DATA_START, 1, clearRows, 11).breakApart().clear();
     SpreadsheetApp.flush();
     var currentRow = PC_.DATA_START;
 
