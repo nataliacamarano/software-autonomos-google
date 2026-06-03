@@ -1443,3 +1443,61 @@ function limpiarCheckboxesExceso() {
   Logger.log('  Ahora appendRow() añadirá datos en fila ' + (sheet.getLastRow() + 1));
   Logger.log('=== FIN limpiarCheckboxesExceso() ===');
 }
+
+/**
+ * Corrige el bug de "datos en fila 1001":
+ *   1. Lee todos los registros reales (ID_Gasto = GAS-…) de donde estén.
+ *   2. Borra todo el contenido y validaciones de las filas 2 en adelante.
+ *   3. Re-escribe los registros compactados desde la fila 2.
+ *   4. Re-aplica validaciones a 200 filas.
+ *
+ * Ejecutar UNA VEZ cuando diagnosticarDestinoGastos() muestra datos
+ * más allá de la fila 1000.
+ */
+function reubicarGastosEnFilasCorrectas() {
+  Logger.log('=== reubicarGastosEnFilasCorrectas() ===');
+  var sheet   = getSheet('GASTOS');
+  var maxRows = sheet.getMaxRows();
+  var numCols = HEADERS_GASTOS.length;
+
+  Logger.log('  maxRows: ' + maxRows + '  getLastRow(): ' + sheet.getLastRow());
+
+  // 1. Leer todos los datos actuales (filas 2 en adelante)
+  var allData = sheet.getRange(2, 1, maxRows - 1, numCols).getValues();
+
+  // 2. Filtrar solo filas con ID_Gasto real
+  var reales = allData.filter(function(row) {
+    return String(row[COL_GAS.ID_GASTO - 1]).trim().indexOf('GAS-') === 0;
+  });
+  Logger.log('  Registros reales encontrados: ' + reales.length);
+  reales.forEach(function(r) {
+    Logger.log('    ' + String(r[COL_GAS.ID_GASTO - 1]).trim());
+  });
+
+  // 3. Borrar todo el contenido de las filas 2 en adelante
+  Logger.log('  Borrando contenido filas 2-' + maxRows + '...');
+  sheet.getRange(2, 1, maxRows - 1, numCols).clearContent();
+  sheet.getRange(2, 1, maxRows - 1, numCols).clearDataValidations();
+  Logger.log('  ✓ Contenido y validaciones borrados.');
+
+  // 4. Re-escribir los registros reales desde la fila 2
+  if (reales.length > 0) {
+    sheet.getRange(2, 1, reales.length, numCols).setValues(reales);
+    Logger.log('  ✓ ' + reales.length + ' registros re-escritos a partir de la fila 2.');
+  }
+
+  // 5. Re-aplicar validaciones a 200 filas
+  var dataRows  = 200;
+  var ruleCheck = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+  sheet.getRange(2, COL_GAS.TIPO_GASTO, dataRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(TIPOS_GASTO, true).setAllowInvalid(true).build());
+  sheet.getRange(2, COL_GAS.ESTADO_PAGO, dataRows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(ESTADOS_PAGO_GASTO, true).setAllowInvalid(false).build());
+  sheet.getRange(2, COL_GAS.REVISADO,      dataRows, 1).setDataValidation(ruleCheck);
+  sheet.getRange(2, COL_GAS.ENVIAR_GESTOR, dataRows, 1).setDataValidation(ruleCheck);
+  Logger.log('  ✓ Validaciones re-aplicadas a ' + dataRows + ' filas.');
+
+  Logger.log('  Nuevo getLastRow(): ' + sheet.getLastRow());
+  Logger.log('  El próximo appendRow() escribirá en fila ' + (sheet.getLastRow() + 1));
+  Logger.log('=== FIN reubicarGastosEnFilasCorrectas() ===');
+}
