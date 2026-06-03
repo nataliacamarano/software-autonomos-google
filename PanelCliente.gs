@@ -656,22 +656,8 @@ function refreshPanelCliente() {
 
     // ── DATOS DE PAGO ─────────────────────────────────────────────
     currentRow = _pcSectionHeader_(sh, currentRow, 'DATOS DE PAGO', '#455a64');
-    var pagoRows_ = [];
-    if (cliInfo && cliInfo.metodoPago) {
-      pagoRows_.push(['Método de pago', cliInfo.metodoPago]);
-      var mp_ = cliInfo.metodoPago.toLowerCase();
-      if (mp_ === 'transferencia bancaria' || mp_ === 'domiciliación bancaria') {
-        if (cliInfo.titularCuenta) pagoRows_.push(['Titular',   cliInfo.titularCuenta]);
-        if (cliInfo.banco)         pagoRows_.push(['Banco',     cliInfo.banco]);
-        if (cliInfo.iban)          pagoRows_.push(['IBAN',      cliInfo.iban]);
-        if (cliInfo.swiftBic)      pagoRows_.push(['SWIFT/BIC', cliInfo.swiftBic]);
-      } else if (mp_ === 'paypal') {
-        if (cliInfo.paypalEmail)   pagoRows_.push(['PayPal',    cliInfo.paypalEmail]);
-      } else if (cliInfo.observacionesPago) {
-        pagoRows_.push(['Observaciones', cliInfo.observacionesPago]);
-      }
-    }
-    if (pagoRows_.length === 0) {
+    var metodosPago_ = (cliInfo && Array.isArray(cliInfo.metodosPago)) ? cliInfo.metodosPago : [];
+    if (metodosPago_.length === 0) {
       sh.getRange(currentRow, 2, 1, 6).merge()
         .setValue('Sin datos de pago registrados.')
         .setFontSize(10).setFontColor('#9aa0a6').setFontStyle('italic')
@@ -679,16 +665,24 @@ function refreshPanelCliente() {
       sh.setRowHeight(currentRow, 26);
       currentRow++;
     } else {
-      var pVals_ = pagoRows_.map(function(r) { return [r[0], r[1], '', '', '', '']; });
-      var pBgs_  = pagoRows_.map(function(_, pi) {
-        var bg = pi % 2 === 0 ? '#f8f9fa' : '#ffffff';
-        return [bg, bg, bg, bg, bg, bg];
-      });
-      sh.getRange(currentRow, 2, pagoRows_.length, 6).setValues(pVals_).setFontSize(10).setBackgrounds(pBgs_);
-      sh.getRange(currentRow, 2, pagoRows_.length, 1).setFontWeight('bold').setFontColor('#5f6368');
-      sh.getRange(currentRow, 3, pagoRows_.length, 1).setFontColor('#3c4043');
-      for (var pRi = 0; pRi < pagoRows_.length; pRi++) sh.setRowHeight(currentRow + pRi, 26);
-      currentRow += pagoRows_.length;
+      for (var mi = 0; mi < metodosPago_.length; mi++) {
+        var mPago = metodosPago_[mi];
+        var pagoRows_ = _buildPagoRows_(mPago);
+        var headerBg = mi === 0 ? '#ecf3fb' : '#f0f4c3';
+        var pVals_ = pagoRows_.map(function(r) { return [r[0], r[1], '', '', '', '']; });
+        var pBgs_  = pagoRows_.map(function(_, pi) {
+          if (pi === 0) return [headerBg, headerBg, headerBg, headerBg, headerBg, headerBg];
+          var bg = pi % 2 === 0 ? '#f8f9fa' : '#ffffff';
+          return [bg, bg, bg, bg, bg, bg];
+        });
+        sh.getRange(currentRow, 2, pagoRows_.length, 6).setValues(pVals_).setFontSize(10).setBackgrounds(pBgs_);
+        sh.getRange(currentRow, 2, pagoRows_.length, 1).setFontWeight('bold').setFontColor('#5f6368');
+        sh.getRange(currentRow, 3, pagoRows_.length, 1).setFontColor('#3c4043');
+        sh.getRange(currentRow, 2, 1, 1).setFontColor('#1a73e8');
+        for (var pRi = 0; pRi < pagoRows_.length; pRi++) sh.setRowHeight(currentRow + pRi, 26);
+        currentRow += pagoRows_.length;
+        if (mi < metodosPago_.length - 1) currentRow++; // spacer between methods
+      }
     }
     // Botón editar datos de pago
     sh.getRange(currentRow, 2, 1, 1).setValue('✏  Editar datos de pago')
@@ -1332,11 +1326,13 @@ function actualizarEstadoCobro(docId, tipo, isPagada, filaEditada) {
 
   // Localizar columnas por cabecera (tolerante a mayúsculas y guiones bajos)
   var hdrs     = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var colCobro = -1, colPago = -1;
+  var colCobro = -1, colPago = -1, colMetodoPago = -1, colDatosPago = -1;
   for (var h = 0; h < hdrs.length; h++) {
     var hdrNorm = String(hdrs[h]).trim().toLowerCase().replace(/_/g, ' ');
-    if (hdrNorm === 'estado cobro') colCobro = h + 1;
-    if (hdrNorm === 'fecha pago')   colPago  = h + 1;
+    if (hdrNorm === 'estado cobro')       colCobro      = h + 1;
+    if (hdrNorm === 'fecha pago')         colPago       = h + 1;
+    if (hdrNorm === 'metodo pago usado')  colMetodoPago = h + 1;
+    if (hdrNorm === 'datos pago usados')  colDatosPago  = h + 1;
   }
 
   if (tipo === 'Proforma') {
@@ -1355,6 +1351,45 @@ function actualizarEstadoCobro(docId, tipo, isPagada, filaEditada) {
     if (colPago < 0) colPago = 21; // posición estándar FACTURAS (col Fecha_Pago)
     sh.getRange(targetRow, colCobro).setValue(nuevoEstado);
     sh.getRange(targetRow, colPago ).setValue(isPagada ? new Date() : '');
+  }
+
+  // Registrar o borrar el método de pago usado
+  if (colMetodoPago > 0 || colDatosPago > 0) {
+    if (!isPagada) {
+      if (colMetodoPago > 0) sh.getRange(targetRow, colMetodoPago).setValue('');
+      if (colDatosPago  > 0) sh.getRange(targetRow, colDatosPago ).setValue('');
+    } else {
+      // Obtener cliente y sus métodos de pago
+      var cliNombreDoc_ = '';
+      try {
+        var rowData_ = sh.getRange(targetRow, 1, 1, sh.getLastColumn()).getValues()[0];
+        // Nombre_Cliente está en col 6 (índice 5) para FACTURAS y PROFORMAS
+        cliNombreDoc_ = String(rowData_[5] || '').trim();
+      } catch (_) {}
+      var cliDocData_  = cliNombreDoc_ ? _getClienteByLabel_(cliNombreDoc_) : null;
+      var metodosDoc_  = cliDocData_ ? (cliDocData_.metodosPago || []) : [];
+      var pagoUsado_   = null;
+
+      if (metodosDoc_.length === 1) {
+        pagoUsado_ = metodosDoc_[0];
+      } else if (metodosDoc_.length > 1) {
+        var opsTxt_ = metodosDoc_.map(function(m, i) {
+          return (i + 1) + '. ' + m.tipo + (m.iban ? ' (' + m.iban + ')' : m.numero ? ' (' + m.numero + ')' : '');
+        }).join('\n');
+        var selResp_ = SpreadsheetApp.getUi().prompt(
+          'Método de pago utilizado',
+          'Selecciona el número del método de pago:\n\n' + opsTxt_,
+          SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
+        );
+        if (selResp_.getSelectedButton() === SpreadsheetApp.getUi().Button.OK) {
+          var selIdx_ = parseInt(selResp_.getResponseText()) - 1;
+          if (selIdx_ >= 0 && selIdx_ < metodosDoc_.length) pagoUsado_ = metodosDoc_[selIdx_];
+        }
+      }
+
+      if (colMetodoPago > 0) sh.getRange(targetRow, colMetodoPago).setValue(pagoUsado_ ? pagoUsado_.tipo : '');
+      if (colDatosPago  > 0) sh.getRange(targetRow, colDatosPago ).setValue(pagoUsado_ ? JSON.stringify(pagoUsado_) : '');
+    }
   }
 
   Logger.log('[actualizarEstadoCobro] Estado escrito: "' + nuevoEstado

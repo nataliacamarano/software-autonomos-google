@@ -22,8 +22,7 @@ const SHEET_HEADERS = {
   CLIENTES: [
     'ID_Cliente', 'Timestamp', 'Nombre', 'Apellidos', 'Empresa',
     'Email', 'Telefono', 'Direccion', 'CIF_NIF', 'Activo',
-    'Metodo_Pago', 'Titular_Cuenta', 'Banco', 'IBAN', 'SWIFT_BIC',
-    'Paypal_Email', 'Observaciones_Pago'
+    'Metodos_Pago'
   ],
   OPERARIOS: [
     'ID_Operario', 'Timestamp', 'Nombre', 'Apellidos',
@@ -43,7 +42,8 @@ const SHEET_HEADERS = {
     'Direccion_Cliente', 'CIF_Cliente', 'IDs_Trabajos', 'Concepto',
     'Base_Imponible', 'IVA_Porcentaje', 'IVA_Importe',
     'IRPF_Porcentaje', 'IRPF_Importe', 'Total',
-    'Estado', 'URL_PDF', 'Fecha_Envio', 'Fecha_Pago'
+    'Estado', 'URL_PDF', 'Fecha_Envio', 'Fecha_Pago',
+    'Metodo_Pago_Usado', 'Datos_Pago_Usados'
   ],
   PENDIENTES: [
     'ID_Trabajo', 'Fecha_Creacion', 'Nombre_Cliente', 'Nombre_Operario',
@@ -60,7 +60,8 @@ const SHEET_HEADERS = {
     'ID_Cliente', 'Nombre_Cliente', 'Email_Cliente',
     'Direccion_Cliente', 'CIF_Cliente', 'IDs_Trabajos', 'Concepto',
     'Base_Imponible', 'Total', 'Estado', 'URL_PDF', 'Fecha_Envio', 'Fecha_Pago',
-    'ID_Presupuesto_Origen', 'Estado_Cobro'
+    'ID_Presupuesto_Origen', 'Estado_Cobro',
+    'Metodo_Pago_Usado', 'Datos_Pago_Usados'
   ],
   INFORMES: [
     'ID_Informe', 'Fecha_Emision', 'ID_Cliente', 'Nombre_Cliente',

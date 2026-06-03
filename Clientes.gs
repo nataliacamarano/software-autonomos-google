@@ -4,29 +4,18 @@
 
 // Columnas de la hoja CLIENTES (base 1)
 const COL_CLI = {
-  ID:                 1,
-  TIMESTAMP:          2,
-  NOMBRE:             3,
-  APELLIDOS:          4,
-  EMPRESA:            5,
-  EMAIL:              6,
-  TELEFONO:           7,
-  DIRECCION:          8,
-  CIF_NIF:            9,
-  ACTIVO:             10,
-  METODO_PAGO:        11,
-  TITULAR_CUENTA:     12,
-  BANCO:              13,
-  IBAN:               14,
-  SWIFT_BIC:          15,
-  PAYPAL_EMAIL:       16,
-  OBSERVACIONES_PAGO: 17
+  ID:           1,
+  TIMESTAMP:    2,
+  NOMBRE:       3,
+  APELLIDOS:    4,
+  EMPRESA:      5,
+  EMAIL:        6,
+  TELEFONO:     7,
+  DIRECCION:    8,
+  CIF_NIF:      9,
+  ACTIVO:       10,
+  METODOS_PAGO: 11   // JSON array de métodos de pago
 };
-
-const METODOS_PAGO = [
-  'Transferencia bancaria', 'Bizum', 'Efectivo',
-  'Tarjeta', 'PayPal', 'Domiciliación bancaria', 'Otro'
-];
 
 // ---- Lectura ----
 
@@ -67,13 +56,7 @@ function createCliente(data) {
       String(data.direccion).trim(),
       String(data.cifNif || '').trim().toUpperCase(),
       true,
-      String(data.metodoPago        || '').trim(),
-      String(data.titularCuenta     || '').trim(),
-      String(data.banco             || '').trim(),
-      String(data.iban              || '').trim().toUpperCase(),
-      String(data.swiftBic          || '').trim().toUpperCase(),
-      String(data.paypalEmail       || '').trim().toLowerCase(),
-      String(data.observacionesPago || '').trim()
+      JSON.stringify(Array.isArray(data.metodosPago) ? data.metodosPago : [])
     ]);
     logEvent('INFO', 'createCliente', `Cliente creado: ${id}`, String(data.nombre));
     refreshTrabajosDropdowns();
@@ -94,20 +77,13 @@ function updateCliente(id, data) {
     if (!row) return { success: false, error: `Cliente "${id}" no encontrado.` };
 
     const colMap = {
-      nombre:             COL_CLI.NOMBRE,
-      apellidos:          COL_CLI.APELLIDOS,
-      empresa:            COL_CLI.EMPRESA,
-      email:              COL_CLI.EMAIL,
-      telefono:           COL_CLI.TELEFONO,
-      direccion:          COL_CLI.DIRECCION,
-      cifNif:             COL_CLI.CIF_NIF,
-      metodoPago:         COL_CLI.METODO_PAGO,
-      titularCuenta:      COL_CLI.TITULAR_CUENTA,
-      banco:              COL_CLI.BANCO,
-      iban:               COL_CLI.IBAN,
-      swiftBic:           COL_CLI.SWIFT_BIC,
-      paypalEmail:        COL_CLI.PAYPAL_EMAIL,
-      observacionesPago:  COL_CLI.OBSERVACIONES_PAGO
+      nombre:      COL_CLI.NOMBRE,
+      apellidos:   COL_CLI.APELLIDOS,
+      empresa:     COL_CLI.EMPRESA,
+      email:       COL_CLI.EMAIL,
+      telefono:    COL_CLI.TELEFONO,
+      direccion:   COL_CLI.DIRECCION,
+      cifNif:      COL_CLI.CIF_NIF
     };
 
     Object.entries(colMap).forEach(([key, col]) => {
@@ -115,6 +91,14 @@ function updateCliente(id, data) {
         sheet.getRange(row, col).setValue(String(data[key]).trim());
       }
     });
+
+    // Métodos de pago (JSON array)
+    if (data.metodosPago !== undefined) {
+      var val = Array.isArray(data.metodosPago)
+        ? JSON.stringify(data.metodosPago)
+        : String(data.metodosPago);
+      sheet.getRange(row, COL_CLI.METODOS_PAGO).setValue(val);
+    }
 
     logEvent('INFO', 'updateCliente', `Cliente actualizado: ${id}`, '');
     refreshTrabajosDropdowns();
@@ -161,12 +145,11 @@ function onClienteFormSubmit(namedValues) {
 }
 
 /**
- * Diálogo de edición de datos de pago lanzado desde PANEL_CLIENTE.
- * Usa prompts secuenciales según el método elegido.
+ * Abre el modal HTML de edición de datos de pago (desde PANEL_CLIENTE).
  */
 function editarDatosPagoDesdePanel() {
-  var ui  = SpreadsheetApp.getUi();
-  var sh  = SpreadsheetApp.getActive().getSheetByName('PANEL_CLIENTE');
+  var ui = SpreadsheetApp.getUi();
+  var sh = SpreadsheetApp.getActive().getSheetByName('PANEL_CLIENTE');
   if (!sh) { ui.alert('PANEL_CLIENTE no encontrado.'); return; }
 
   var cliente = String(sh.getRange(PC_.CLIENTE[0], PC_.CLIENTE[1]).getValue() || '').trim();
@@ -175,46 +158,34 @@ function editarDatosPagoDesdePanel() {
   var cliData = _getClienteByLabel_(cliente);
   if (!cliData) { ui.alert('Cliente no encontrado en la hoja CLIENTES.'); return; }
 
-  // ── Paso 1: método de pago ────────────────────────────────────
-  var r1 = ui.prompt(
-    'Datos de pago — ' + cliente,
-    'Método de pago\n\nOpciones: ' + METODOS_PAGO.join(' · ') +
-    '\n\nActual: ' + (cliData.metodoPago || '(sin definir)'),
-    ui.ButtonSet.OK_CANCEL
+  var template = HtmlService.createTemplateFromFile('EditarPago');
+  template.clienteLabel  = cliente;
+  template.clienteNombre = (cliData.nombre || cliente).substring(0, 35);
+  template.metodosJson   = JSON.stringify(cliData.metodosPago || []);
+
+  var titulo = 'Datos de pago' + (cliente.length > 28 ? '' : ' — ' + cliente);
+  ui.showModalDialog(
+    template.evaluate().setWidth(440).setHeight(560),
+    titulo
   );
-  if (r1.getSelectedButton() !== ui.Button.OK) return;
-  var nuevoPago = { metodoPago: r1.getResponseText().trim() };
-  var mp = nuevoPago.metodoPago.toLowerCase();
+}
 
-  // ── Paso 2: campos según método ──────────────────────────────
-  if (mp === 'transferencia bancaria' || mp === 'domiciliación bancaria') {
-    var prompts = [
-      ['titularCuenta', 'Titular de la cuenta',   cliData.titularCuenta     || ''],
-      ['banco',         'Banco',                   cliData.banco             || ''],
-      ['iban',          'IBAN',                    cliData.iban              || ''],
-      ['swiftBic',      'SWIFT / BIC (opcional)',  cliData.swiftBic          || '']
-    ];
-    for (var pi = 0; pi < prompts.length; pi++) {
-      var p = prompts[pi];
-      var resp = ui.prompt(p[1], 'Actual: ' + (p[2] || '(vacío)'), ui.ButtonSet.OK_CANCEL);
-      if (resp.getSelectedButton() !== ui.Button.OK) return;
-      nuevoPago[p[0]] = resp.getResponseText().trim();
-    }
-  } else if (mp === 'paypal') {
-    var rPP = ui.prompt('Email de PayPal', 'Actual: ' + (cliData.paypalEmail || '(vacío)'), ui.ButtonSet.OK_CANCEL);
-    if (rPP.getSelectedButton() !== ui.Button.OK) return;
-    nuevoPago.paypalEmail = rPP.getResponseText().trim().toLowerCase();
-  } else {
-    var rObs = ui.prompt('Observaciones de pago', 'Actual: ' + (cliData.observacionesPago || '(vacío)'), ui.ButtonSet.OK_CANCEL);
-    if (rObs.getSelectedButton() !== ui.Button.OK) return;
-    nuevoPago.observacionesPago = rObs.getResponseText().trim();
-  }
+/**
+ * Guarda los métodos de pago desde el modal HTML.
+ * Llamado via google.script.run desde EditarPago.html.
+ */
+function guardarMetodosPago(clienteLabel, metodosJson) {
+  var cliData = _getClienteByLabel_(clienteLabel);
+  if (!cliData) throw new Error('Cliente no encontrado: ' + clienteLabel);
 
-  var result = updateCliente(cliData.id, nuevoPago);
-  if (result.success) {
-    refreshPanelCliente();
-    _pcEstado_(sh, '✅  Datos de pago guardados para ' + cliente, '#ffffff', '#34a853');
-  } else {
-    ui.alert('Error al guardar: ' + result.error);
-  }
+  var metodos;
+  try { metodos = JSON.parse(metodosJson); } catch (_) { metodos = []; }
+  if (!Array.isArray(metodos)) metodos = [];
+
+  var result = updateCliente(cliData.id, { metodosPago: metodos });
+  if (!result.success) throw new Error(result.error);
+
+  refreshPanelCliente();
+  var pcSh = SpreadsheetApp.getActive().getSheetByName('PANEL_CLIENTE');
+  if (pcSh) _pcEstado_(pcSh, '✅  Datos de pago guardados para ' + clienteLabel, '#ffffff', '#34a853');
 }

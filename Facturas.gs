@@ -68,14 +68,32 @@ function generateInvoicePDF(tipo, selectedJobIds) {
   var cliCif    = cliData ? cliData.cif       : '';
   var cliDir    = cliData ? cliData.direccion : '';
   var cliEmail  = cliData ? cliData.email     : '';
-  var cliId              = cliData ? cliData.id                : '';
-  var cliMetodoPago      = cliData ? cliData.metodoPago        : '';
-  var cliTitular         = cliData ? cliData.titularCuenta     : '';
-  var cliBanco           = cliData ? cliData.banco             : '';
-  var cliIban            = cliData ? cliData.iban              : '';
-  var cliSwift           = cliData ? cliData.swiftBic          : '';
-  var cliPaypal          = cliData ? cliData.paypalEmail       : '';
-  var cliObsPago         = cliData ? cliData.observacionesPago : '';
+  var cliId      = cliData ? cliData.id    : '';
+  var metodosPago = cliData ? (cliData.metodosPago || []) : [];
+
+  // ── Selección de método de pago ──────────────────────────────
+  var pagoSeleccionado = null;
+  if (metodosPago.length === 1) {
+    pagoSeleccionado = metodosPago[0];
+    Logger.log('  Método de pago: ' + pagoSeleccionado.tipo + ' (automático)');
+  } else if (metodosPago.length > 1) {
+    var opsTxt = metodosPago.map(function(m, i) {
+      var extra = m.iban ? ' (' + m.iban.replace(/\s/g,'').substring(0, 10) + '…)' :
+                  m.numero ? ' (' + m.numero + ')' : m.email ? ' (' + m.email + ')' : '';
+      return (i + 1) + '. ' + m.tipo + extra;
+    }).join('\n');
+    var selResp = SpreadsheetApp.getUi().prompt(
+      'Método de pago para este ' + tipo,
+      'El cliente tiene varios métodos. Escribe el número:\n\n' + opsTxt + '\n\n0. No incluir datos de pago',
+      SpreadsheetApp.getUi().ButtonSet.OK_CANCEL
+    );
+    if (selResp.getSelectedButton() === SpreadsheetApp.getUi().Button.OK) {
+      var selIdx = parseInt(selResp.getResponseText()) - 1;
+      if (selIdx >= 0 && selIdx < metodosPago.length) pagoSeleccionado = metodosPago[selIdx];
+    }
+    if (pagoSeleccionado) Logger.log('  Método elegido: ' + pagoSeleccionado.tipo);
+  }
+
   Logger.log('  ' + (cliData
     ? '✓ ' + cliNombre + (cliCif ? ' | CIF: ' + cliCif : '')
     : '⚠️  No encontrado en CLIENTES — se usará el nombre del dropdown.'));
@@ -288,24 +306,13 @@ function generateInvoicePDF(tipo, selectedJobIds) {
     }
   }
 
-  // Sección DATOS DE PAGO (solo si el cliente tiene método configurado)
-  if (cliMetodoPago) {
+  // Sección DATOS DE PAGO (solo si hay método seleccionado)
+  if (pagoSeleccionado) {
     body.appendParagraph('');
     body.appendHorizontalRule();
     body.appendParagraph('DATOS DE PAGO').editAsText().setFontSize(11).setBold(true);
     body.appendParagraph('');
-    var pagoData = [['Método de pago', cliMetodoPago]];
-    var mpLow = cliMetodoPago.toLowerCase();
-    if (mpLow === 'transferencia bancaria' || mpLow === 'domiciliación bancaria') {
-      if (cliTitular) pagoData.push(['Titular', cliTitular]);
-      if (cliBanco)   pagoData.push(['Banco', cliBanco]);
-      if (cliIban)    pagoData.push(['IBAN', cliIban]);
-      if (cliSwift)   pagoData.push(['SWIFT / BIC', cliSwift]);
-    } else if (mpLow === 'paypal') {
-      if (cliPaypal)  pagoData.push(['Email PayPal', cliPaypal]);
-    } else if (cliObsPago) {
-      pagoData.push(['Observaciones', cliObsPago]);
-    }
+    var pagoData = _buildPagoRows_(pagoSeleccionado);
     var tblPago = body.appendTable(pagoData);
     for (var pr = 0; pr < tblPago.getNumRows(); pr++) {
       tblPago.getRow(pr).editAsText().setFontSize(10);
@@ -385,7 +392,9 @@ function generateInvoicePDF(tipo, selectedJobIds) {
       '',                                               // Fecha_Envio
       '',                                               // Fecha_Pago
       '',                                               // ID_Presupuesto_Origen (vacío — origen trabajos)
-      'Pendiente de cobro'                              // Estado_Cobro
+      'Pendiente de cobro',                             // Estado_Cobro
+      pagoSeleccionado ? pagoSeleccionado.tipo : '',    // Metodo_Pago_Usado
+      pagoSeleccionado ? JSON.stringify(pagoSeleccionado) : '' // Datos_Pago_Usados
     ]);
     _guardarMaterialesJson_(proSheet, matsAdicStr);
     Logger.log('  ✓ Registrada en PROFORMAS.');
@@ -413,7 +422,9 @@ function generateInvoicePDF(tipo, selectedJobIds) {
       'Emitida',                                        // Estado
       pdfUrl,                                           // URL_PDF
       '',                                               // Fecha_Envio
-      ''                                                // Fecha_Pago
+      '',                                               // Fecha_Pago
+      pagoSeleccionado ? pagoSeleccionado.tipo : '',    // Metodo_Pago_Usado
+      pagoSeleccionado ? JSON.stringify(pagoSeleccionado) : '' // Datos_Pago_Usados
     ]);
     _guardarMaterialesJson_(facSheet, matsAdicStr);
 
@@ -759,9 +770,30 @@ function _ensureProformasEstadoCobro_(sheet) {
 }
 
 /**
+ * Convierte un objeto método de pago en filas [['campo', 'valor'], ...] para tabla PDF.
+ */
+function _buildPagoRows_(m) {
+  var rows = [['Método de pago', m.tipo || '']];
+  var tl = (m.tipo || '').toLowerCase();
+  if (tl === 'transferencia bancaria' || tl === 'domiciliación bancaria') {
+    if (m.titular) rows.push(['Titular', m.titular]);
+    if (m.banco)   rows.push(['Banco',   m.banco]);
+    if (m.iban)    rows.push(['IBAN',    m.iban]);
+    if (m.swift)   rows.push(['SWIFT / BIC', m.swift]);
+  } else if (tl === 'bizum') {
+    if (m.numero)  rows.push(['Número Bizum', m.numero]);
+  } else if (tl === 'paypal') {
+    if (m.email)   rows.push(['Email PayPal', m.email]);
+  } else if (m.observaciones) {
+    rows.push(['Observaciones', m.observaciones]);
+  }
+  return rows;
+}
+
+/**
  * Busca en CLIENTES la fila que corresponde a la etiqueta del dropdown.
  * Formato de etiqueta: "Nombre Apellidos (Empresa)" o "Nombre Apellidos".
- * Devuelve { id, nombre, email, telefono, direccion, cif } o null.
+ * Devuelve { id, nombre, email, telefono, direccion, cif, metodosPago } o null.
  */
 function _getClienteByLabel_(label) {
   try {
@@ -775,20 +807,19 @@ function _getClienteByLabel_(label) {
       var dropLabel = (nombre + ' ' + apellidos).trim();
       if (empresa_) dropLabel += ' (' + empresa_ + ')';
       if (dropLabel.toLowerCase() === labelLow) {
+        var metodosPago = [];
+        try {
+          var mp_ = JSON.parse(String(c.Metodos_Pago || '[]'));
+          if (Array.isArray(mp_)) metodosPago = mp_;
+        } catch (_) {}
         return {
-          id:                String(c.ID_Cliente         || ''),
-          nombre:            dropLabel,
-          email:             String(c.Email              || '').trim(),
-          telefono:          String(c.Telefono           || '').trim(),
-          direccion:         String(c.Direccion          || '').trim(),
-          cif:               String(c.CIF_NIF            || '').trim(),
-          metodoPago:        String(c.Metodo_Pago        || '').trim(),
-          titularCuenta:     String(c.Titular_Cuenta     || '').trim(),
-          banco:             String(c.Banco              || '').trim(),
-          iban:              String(c.IBAN               || '').trim(),
-          swiftBic:          String(c.SWIFT_BIC          || '').trim(),
-          paypalEmail:       String(c.Paypal_Email       || '').trim(),
-          observacionesPago: String(c.Observaciones_Pago || '').trim()
+          id:          String(c.ID_Cliente || ''),
+          nombre:      dropLabel,
+          email:       String(c.Email     || '').trim(),
+          telefono:    String(c.Telefono  || '').trim(),
+          direccion:   String(c.Direccion || '').trim(),
+          cif:         String(c.CIF_NIF   || '').trim(),
+          metodosPago: metodosPago
         };
       }
     }

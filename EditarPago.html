@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Google Sans',Arial,sans-serif;font-size:13px;background:#fff;padding:16px;color:#3c4043}
+    h3{color:#1a73e8;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+    .card{background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;padding:12px 12px 10px;margin:6px 0;position:relative}
+    .card-tipo{font-weight:bold;color:#1a73e8;font-size:13px;margin-bottom:4px}
+    .card-detail{color:#5f6368;font-size:12px;line-height:1.6}
+    .card-detail b{color:#3c4043}
+    .btn-del{position:absolute;top:8px;right:8px;background:none;border:none;color:#9aa0a6;cursor:pointer;font-size:16px;line-height:1;padding:2px 5px}
+    .btn-del:hover{color:#ea4335}
+    .empty{color:#9aa0a6;font-style:italic;font-size:12px;padding:8px 0}
+    .sep{height:1px;background:#e0e0e0;margin:12px 0}
+    .add-panel{background:#e8f0fe;border:1px solid #1a73e8;border-radius:8px;padding:12px;margin:8px 0;display:none}
+    .add-panel.open{display:block}
+    label{display:block;font-size:11px;color:#5f6368;margin:8px 0 2px;font-weight:bold;text-transform:uppercase;letter-spacing:.4px}
+    select,input[type=text],input[type=email],input[type=tel]{width:100%;padding:7px 9px;border:1px solid #ccc;border-radius:4px;font-size:13px;outline:none;transition:border .15s}
+    select:focus,input:focus{border-color:#1a73e8}
+    .field-wrap{display:none}
+    .field-wrap.on{display:block}
+    .opt-badge{display:inline-block;font-size:10px;background:#e8f0fe;color:#1a73e8;border-radius:10px;padding:1px 6px;margin-left:4px;font-weight:normal}
+    .row{display:flex;gap:8px;margin-top:14px}
+    .btn{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;flex:1}
+    .btn-primary{background:#1a73e8;color:#fff}
+    .btn-primary:hover{background:#1557b0}
+    .btn-secondary{background:#f1f3f4;color:#3c4043}
+    .btn-secondary:hover{background:#e0e0e0}
+    .btn-add{background:#34a853;color:#fff;padding:7px 14px;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold}
+    .btn-add:hover{background:#2d7a45}
+    .btn-sm{padding:5px 12px;font-size:12px}
+    .spinner{display:none;text-align:center;padding:10px;color:#9aa0a6;font-size:12px}
+    .msg{display:none;padding:8px 10px;border-radius:4px;font-size:12px;margin-top:8px}
+    .msg.err{background:#fce8e6;color:#c5221f}
+  </style>
+</head>
+<body>
+  <h3>✏ <span id="cliName"></span></h3>
+
+  <div id="methodList"></div>
+
+  <div class="add-panel" id="addPanel">
+    <label>Método de pago</label>
+    <select id="selTipo" onchange="onTipoChange()">
+      <option value="">— Seleccionar —</option>
+      <option>Transferencia bancaria</option>
+      <option>Bizum</option>
+      <option>Efectivo</option>
+      <option>Tarjeta</option>
+      <option>PayPal</option>
+      <option>Domiciliación bancaria</option>
+      <option>Otro</option>
+    </select>
+    <div id="fTransfer" class="field-wrap">
+      <label>Titular de cuenta *</label>
+      <input type="text" id="fTitular" placeholder="Nombre completo del titular">
+      <label>Banco *</label>
+      <input type="text" id="fBanco" placeholder="CaixaBank, BBVA, Santander…">
+      <label>IBAN *</label>
+      <input type="text" id="fIban" placeholder="ES91 2100 0418 4502 0005 1332">
+      <label>SWIFT / BIC <span class="opt-badge">opcional</span></label>
+      <input type="text" id="fSwift" placeholder="CAIXESBBXXX">
+    </div>
+    <div id="fBizum" class="field-wrap">
+      <label>Número de teléfono *</label>
+      <input type="tel" id="fBizumNum" placeholder="612 345 678">
+    </div>
+    <div id="fPaypal" class="field-wrap">
+      <label>Email de PayPal *</label>
+      <input type="email" id="fPaypalEmail" placeholder="usuario@email.com">
+    </div>
+    <div id="fOtro" class="field-wrap">
+      <label>Observaciones</label>
+      <input type="text" id="fObs" placeholder="Instrucciones de pago">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-add btn-sm" onclick="addMethod()">+ Añadir</button>
+      <button class="btn btn-secondary btn-sm" onclick="cancelAdd()">Cancelar</button>
+    </div>
+    <div class="msg err" id="addErr"></div>
+  </div>
+
+  <button class="btn-add" id="btnShowAdd" onclick="showAdd()" style="margin-top:8px">
+    + Añadir método de pago
+  </button>
+
+  <div class="sep"></div>
+
+  <div class="row">
+    <button class="btn btn-primary" onclick="save()" id="btnSave">Guardar</button>
+    <button class="btn btn-secondary" onclick="google.script.host.close()">Cancelar</button>
+  </div>
+  <div class="spinner" id="spinner">Guardando…</div>
+  <div class="msg err" id="saveErr"></div>
+
+  <script>
+    var methods = <?!= metodosJson ?>;
+    var clienteLabel = <?!= JSON.stringify(clienteLabel) ?>;
+    document.getElementById('cliName').textContent = <?!= JSON.stringify(clienteNombre) ?>;
+
+    function esc(s){
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function detail(m){
+      var lines=[];
+      if(m.titular)       lines.push('<b>Titular:</b> '+esc(m.titular));
+      if(m.banco)         lines.push('<b>Banco:</b> '+esc(m.banco));
+      if(m.iban)          lines.push('<b>IBAN:</b> '+esc(m.iban));
+      if(m.swift)         lines.push('<b>SWIFT:</b> '+esc(m.swift));
+      if(m.numero)        lines.push('<b>Número:</b> '+esc(m.numero));
+      if(m.email)         lines.push('<b>Email:</b> '+esc(m.email));
+      if(m.observaciones) lines.push(esc(m.observaciones));
+      return lines.join('<br>');
+    }
+
+    function render(){
+      var list=document.getElementById('methodList');
+      if(!methods.length){
+        list.innerHTML='<div class="empty">Sin métodos de pago registrados.</div>';
+        return;
+      }
+      list.innerHTML=methods.map(function(m,i){
+        var det=detail(m);
+        return '<div class="card">'+
+          '<div class="card-tipo">'+esc(m.tipo)+'</div>'+
+          (det?'<div class="card-detail">'+det+'</div>':'')+
+          '<button class="btn-del" onclick="del('+i+')" title="Eliminar">✕</button>'+
+          '</div>';
+      }).join('');
+    }
+
+    function del(i){ methods.splice(i,1); render(); }
+
+    function showAdd(){
+      document.getElementById('addPanel').classList.add('open');
+      document.getElementById('btnShowAdd').style.display='none';
+    }
+
+    function cancelAdd(){
+      document.getElementById('addPanel').classList.remove('open');
+      document.getElementById('btnShowAdd').style.display='inline-block';
+      reset();
+    }
+
+    function onTipoChange(){
+      ['fTransfer','fBizum','fPaypal','fOtro'].forEach(function(id){
+        document.getElementById(id).classList.remove('on');
+      });
+      var t=document.getElementById('selTipo').value.toLowerCase();
+      if(t==='transferencia bancaria'||t==='domiciliación bancaria') document.getElementById('fTransfer').classList.add('on');
+      else if(t==='bizum')   document.getElementById('fBizum').classList.add('on');
+      else if(t==='paypal')  document.getElementById('fPaypal').classList.add('on');
+      else if(t==='otro')    document.getElementById('fOtro').classList.add('on');
+    }
+
+    function reset(){
+      document.getElementById('selTipo').value='';
+      ['fTitular','fBanco','fIban','fSwift','fBizumNum','fPaypalEmail','fObs']
+        .forEach(function(id){document.getElementById(id).value='';});
+      ['fTransfer','fBizum','fPaypal','fOtro'].forEach(function(id){
+        document.getElementById(id).classList.remove('on');
+      });
+      document.getElementById('addErr').style.display='none';
+    }
+
+    function err(msg){
+      var el=document.getElementById('addErr');
+      el.textContent=msg; el.style.display='block';
+    }
+
+    function addMethod(){
+      var tipo=document.getElementById('selTipo').value;
+      if(!tipo){err('Selecciona un método de pago.');return;}
+      var m={tipo:tipo};
+      var tl=tipo.toLowerCase();
+      if(tl==='transferencia bancaria'||tl==='domiciliación bancaria'){
+        m.titular=document.getElementById('fTitular').value.trim();
+        m.banco  =document.getElementById('fBanco').value.trim();
+        m.iban   =document.getElementById('fIban').value.trim().toUpperCase();
+        m.swift  =document.getElementById('fSwift').value.trim().toUpperCase();
+        if(!m.titular||!m.banco||!m.iban){err('Titular, banco e IBAN son obligatorios.');return;}
+      } else if(tl==='bizum'){
+        m.numero=document.getElementById('fBizumNum').value.trim();
+        if(!m.numero){err('El número de teléfono es obligatorio.');return;}
+      } else if(tl==='paypal'){
+        m.email=document.getElementById('fPaypalEmail').value.trim().toLowerCase();
+        if(!m.email){err('El email de PayPal es obligatorio.');return;}
+      } else if(tl==='otro'){
+        m.observaciones=document.getElementById('fObs').value.trim();
+      }
+      methods.push(m); render(); cancelAdd();
+    }
+
+    function save(){
+      document.getElementById('btnSave').disabled=true;
+      document.getElementById('spinner').style.display='block';
+      document.getElementById('saveErr').style.display='none';
+      google.script.run
+        .withSuccessHandler(function(){google.script.host.close();})
+        .withFailureHandler(function(e){
+          document.getElementById('spinner').style.display='none';
+          document.getElementById('btnSave').disabled=false;
+          var el=document.getElementById('saveErr');
+          el.textContent='Error: '+(e.message||e); el.style.display='block';
+        })
+        .guardarMetodosPago(clienteLabel, JSON.stringify(methods));
+    }
+
+    render();
+  </script>
+</body>
+</html>

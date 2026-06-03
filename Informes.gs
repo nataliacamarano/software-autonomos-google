@@ -150,8 +150,8 @@ function generateClientReportPDF() {
   body.appendParagraph('RESUMEN').setHeading(DocumentApp.ParagraphHeading.HEADING3);
   body.appendParagraph('Total de trabajos: ' + trabajos.length);
   body.appendParagraph('Total de horas:    ' + totalHoras.toFixed(2) + ' h');
-  if (cliInfPago && cliInfPago.metodoPago) {
-    body.appendParagraph('Método de pago:    ' + cliInfPago.metodoPago);
+  if (cliInfPago && cliInfPago.metodosPago && cliInfPago.metodosPago.length > 0) {
+    body.appendParagraph('Método de pago:    ' + cliInfPago.metodosPago.map(function(m) { return m.tipo; }).join(' / '));
   }
 
   body.appendHorizontalRule();
