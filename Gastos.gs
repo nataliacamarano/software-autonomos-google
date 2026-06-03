@@ -401,7 +401,9 @@ function onGastoFormSubmit(namedValues) {
     row[COL_GAS.OBSERVACIONES         - 1] = observaciones;
     row[COL_GAS.ESTADO_PROCESAMIENTO  - 1] = estadoProc;
 
-    sheet.appendRow(row);
+    var targetRow = _nextEmptyGastosRow_(sheet);
+    Logger.log('[onGastoFormSubmit] escribiendo en fila ' + targetRow);
+    sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
     logEvent('INFO', 'onGastoFormSubmit', 'Gasto registrado: ' + id, tipoGasto + ' | ' + estadoProc);
     return { success: true, id: id };
   } catch (e) {
@@ -862,6 +864,20 @@ function testGastosFase2() {
 }
 
 // ── Privadas ──────────────────────────────────────────────────
+
+/**
+ * Devuelve el número de fila donde debe escribirse el siguiente gasto.
+ * Busca el último ID_Gasto real en la columna A y devuelve fila + 1.
+ * Ignora filas con validaciones pero sin datos (checkboxes vacíos).
+ */
+function _nextEmptyGastosRow_(sheet) {
+  var maxRows = sheet.getMaxRows();
+  var ids     = sheet.getRange(2, COL_GAS.ID_GASTO, maxRows - 1, 1).getValues().flat();
+  for (var i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i]).trim() !== '') return i + 3; // i es base 0, fila = i+2, siguiente = i+3
+  }
+  return 2; // hoja vacía
+}
 
 /**
  * Copia un archivo de Drive (dado por URL) a la carpeta de gastos.
