@@ -1123,43 +1123,27 @@ function testGastosFase3() {
 // ── Privadas FASE 3 ───────────────────────────────────────────
 
 /**
- * Copia el archivo de Drive como Google Doc (activa OCR automáticamente),
- * lee el texto resultante y elimina el doc temporal.
+ * Copia el archivo de Drive como Google Doc usando el servicio avanzado Drive v2
+ * (activa OCR automáticamente sin necesitar UrlFetchApp).
+ * Lee el texto resultante y elimina el doc temporal.
  * Devuelve { texto, exito, error? }.
  */
 function _extraerTextoOCR_(archivoId) {
   if (!archivoId) return { texto: '', exito: false, error: 'Sin archivoId' };
 
-  var token     = ScriptApp.getOAuthToken();
   var tempDocId = null;
 
   try {
-    var resp = UrlFetchApp.fetch(
-      'https://www.googleapis.com/drive/v3/files/' + archivoId + '/copy',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type':  'application/json'
-        },
-        payload: JSON.stringify({
-          name:     '_OCR_TEMP_' + archivoId,
-          mimeType: 'application/vnd.google-apps.document'
-        }),
-        muteHttpExceptions: true
-      }
-    );
+    // Drive.Files.copy con mimeType=Google Docs activa OCR en imágenes y PDFs
+    var resource = {
+      title:    '_OCR_TEMP_' + archivoId,
+      mimeType: 'application/vnd.google-apps.document'
+    };
+    var copied = Drive.Files.copy(resource, archivoId, { ocr: true });
+    tempDocId  = copied.id;
+    if (!tempDocId) return { texto: '', exito: false, error: 'Drive.Files.copy sin ID' };
 
-    if (resp.getResponseCode() !== 200) {
-      return { texto: '', exito: false,
-               error: 'Drive API ' + resp.getResponseCode() + ': ' +
-                      resp.getContentText().substring(0, 200) };
-    }
-
-    tempDocId = JSON.parse(resp.getContentText()).id;
-    if (!tempDocId) return { texto: '', exito: false, error: 'Sin ID en respuesta Drive' };
-
-    // Esperar hasta 10 s a que el doc esté listo
+    // Esperar hasta 10s a que el documento esté listo
     var texto = '';
     for (var i = 0; i < 5; i++) {
       Utilities.sleep(2000);
