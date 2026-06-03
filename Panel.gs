@@ -289,6 +289,8 @@ function onOpen() {
       .addItem('⑬ PANEL_CLIENTE — Exportar historial PDF','exportarHistorialClientePDF')
       .addItem('⑭ PANEL_CLIENTE — Diagnosticar duplicados DOC_TRABAJOS','diagnosticarDocTrabajosDuplicados')
       .addItem('⑮ Instalar módulo Gastos (FASE 1)',     'installGastosModule')
+      .addItem('⑯ PANEL_GASTOS — Crear completo',      'crearPanelGastos')
+      .addItem('⑰ PANEL_GASTOS — Actualizar datos',    'actualizarPanelGastos')
       .addSeparator()
       .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
       .addSeparator()
@@ -359,6 +361,12 @@ function reinstallOnOpenTrigger() {
 function onPanelEdit(e) {
   if (!e) return;
   var sheetName = e.range.getSheet().getName();
+
+  // ── PANEL_GASTOS ──────────────────────────────────────────────
+  if (sheetName === 'PANEL_GASTOS') {
+    onEditPanelGastos_(e);
+    return;
+  }
 
   // ── PANEL_CLIENTE ─────────────────────────────────────────────
   if (sheetName === 'PANEL_CLIENTE') {
