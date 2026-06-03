@@ -595,7 +595,7 @@ function setupPanel() {
 
   // ── Títulos (fila 2) ─────────────────────────────────────────
   sh.getRange(2, 2, 1, 2).merge()
-    .setValue('📄  FACTURAS Y DOCUMENTOS')
+    .setValue('📄  PANEL_FACTURAS')
     .setFontSize(16).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#1a73e8').setFontColor('#ffffff');
@@ -607,7 +607,7 @@ function setupPanel() {
 
   // ── Subtítulos (fila 3) ───────────────────────────────────────
   sh.getRange(3, 2, 1, 2).merge()
-    .setFormula('="Facturas: "&IFERROR(MAX(0,COUNTA(FACTURAS!A:A)-1),0)&"  ·  Proformas: "&IFERROR(MAX(0,COUNTA(PROFORMAS!A:A)-1),0)&"  ·  Informes: "&IFERROR(MAX(0,COUNTA(INFORMES!A:A)-1),0)')
+    .setFormula('="Facturas · Proformas · Informes    |    "&"Facturas: "&IFERROR(MAX(0,COUNTA(FACTURAS!A:A)-1),0)&"  ·  Proformas: "&IFERROR(MAX(0,COUNTA(PROFORMAS!A:A)-1),0)&"  ·  Informes: "&IFERROR(MAX(0,COUNTA(INFORMES!A:A)-1),0)')
     .setFontSize(9).setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground('#e8f0fe').setFontColor('#1a73e8');
   sh.getRange(3, 5, 1, 4).merge()
@@ -930,7 +930,7 @@ function setupPanel() {
 
   SpreadsheetApp.getUi().alert(
     '✅ PANEL listo.\n\n' +
-    '▸ Izquierdo: FACTURAS Y DOCUMENTOS\n' +
+    '▸ Izquierdo: PANEL_FACTURAS\n' +
     '  · Tabla de materiales adicionales (8 filas, fila 10-18)\n' +
     '  · Botón "🔍 BUSCAR TRABAJOS" para cargar trabajos del período\n' +
     '  · Selecciona manualmente qué trabajos incluir en la factura\n\n' +

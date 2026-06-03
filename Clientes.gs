@@ -253,7 +253,7 @@ function _refreshAllClienteDropdowns_() {
   var ss    = SpreadsheetApp.getActive();
   var names = _panelGetClienteNames_(ss);
 
-  // PANEL — dropdowns de cliente en FACTURAS Y DOCUMENTOS (izquierdo y presupuestos)
+  // PANEL — dropdowns de cliente en PANEL_FACTURAS (izquierdo y presupuestos)
   var panelSh = ss.getSheetByName('PANEL');
   if (panelSh && names.length > 0) {
     var val = SpreadsheetApp.newDataValidation()
