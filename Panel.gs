@@ -331,6 +331,11 @@ function onOpen() {
       .addItem('🏠 PANEL_GENERAL — Crear completo',   'crearPanelGeneral')
       .addItem('🏠 PANEL_GENERAL — Actualizar datos', 'actualizarPanelGeneral')
       .addItem('🏠 PANEL_GENERAL — Diagnosticar',     'diagnosticarPanelGeneral')
+      .addItem('📦 PANEL_CONTABLE — Crear completo',    'crearPanelContable')
+      .addItem('📦 PANEL_CONTABLE — Actualizar',        'actualizarPanelContable')
+      .addItem('📦 PANEL_CONTABLE — Generar paquete',   'generarPaqueteContable')
+      .addItem('📦 PANEL_CONTABLE — Enviar al gestor',  'enviarEmailGestor')
+      .addItem('📦 PANEL_CONTABLE — Diagnosticar',      'diagnosticarPanelContable')
       .addToUi();
   } catch (e) {}
 }
@@ -396,6 +401,12 @@ function onPanelEdit(e) {
   // necesario para INF_GASTOS e IVA_TRIMESTRAL.
   if (sheetName === 'PANEL_GENERAL') {
     onEditPanelGeneral_(e);
+    return;
+  }
+
+  // ── PANEL_CONTABLE ────────────────────────────────────────────
+  if (sheetName === 'PANEL_CONTABLE') {
+    onEditPanelContable_(e);
     return;
   }
 

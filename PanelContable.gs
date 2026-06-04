@@ -512,14 +512,14 @@ function _pcnBuildAccesos_(sh) {
 
   var filas = [
     [R.ACCS_R1,
-     '📁  Preparar carpeta contable', C.VERDE,      C.BLANCO,
-     '📊  Generar resumen contable',  C.AZUL_CORP,  C.BLANCO],
+     '📁  Preparar carpeta contable',      C.VERDE,      C.BLANCO,
+     '📊  Generar paquete contable',       C.AZUL_CORP,  C.BLANCO],
     [R.ACCS_R2,
-     '✉️  Enviar email al gestor',    C.MORADO,     C.BLANCO,
-     '🔗  Abrir carpeta Drive',       C.VERDE_BG,   C.VERDE_DARK],
+     '✉️  Enviar email al gestor',         C.MORADO,     C.BLANCO,
+     '🔗  Abrir carpeta Drive',            C.VERDE_BG,   C.VERDE_DARK],
     [R.ACCS_R3,
-     '🔍  Diagnosticar',              C.GRIS_BG,    C.NEGRO,
-     '',                              C.GRIS_BG,    C.GRIS]
+     '🔍  Diagnosticar PANEL_CONTABLE',    C.GRIS_BG,    C.NEGRO,
+     '',                                   C.GRIS_BG,    C.GRIS]
   ];
 
   filas.forEach(function(b) {
@@ -921,7 +921,27 @@ function _diagnosticarPanelContable_() {
     if (gas.hayAnomalias) warns.push('Anomalías en GASTOS (totales negativos)');
   }
 
-  // 5. Carpeta Drive
+  // 5. Validación de columnas clave
+  a.push('');
+  a.push('🔬 COLUMNAS CLAVE:');
+  var facSh2 = ss.getSheetByName('FACTURAS');
+  var gasSh2 = ss.getSheetByName('GASTOS');
+  if (facSh2 && facSh2.getLastRow() >= 1) {
+    var facCols = facSh2.getLastColumn();
+    var marker  = facCols >= 21 ? '✅' : '⚠';
+    a.push('  ' + marker + ' FACTURAS: ' + facCols + ' columnas' +
+      (facCols < 21 ? ' (esperadas ≥21 para todos los campos)' : ''));
+    if (facCols < 21) warns.push('FACTURAS tiene menos columnas de las esperadas (' + facCols + '<21)');
+  }
+  if (gasSh2 && gasSh2.getLastRow() >= 1) {
+    var gasCols = gasSh2.getLastColumn();
+    var markerG = gasCols >= 13 ? '✅' : '⚠';
+    a.push('  ' + markerG + ' GASTOS: ' + gasCols + ' columnas' +
+      (gasCols < 13 ? ' (esperadas ≥13 para todos los campos)' : ''));
+    if (gasCols < 13) warns.push('GASTOS tiene menos columnas de las esperadas (' + gasCols + '<13)');
+  }
+
+  // 6. Carpeta Drive
   if (panelSh) {
     a.push('');
     a.push('📁 CARPETA DRIVE:');
@@ -931,7 +951,18 @@ function _diagnosticarPanelContable_() {
     a.push('  URL:    ' + (urlDrive    || '—'));
   }
 
-  // 6. Estado final
+  // 7. Log de envíos
+  a.push('');
+  a.push('📋 LOG DE ENVÍOS:');
+  var logSh = ss.getSheetByName('ENVIOS_CONTABLE_LOG');
+  if (logSh) {
+    var nEnvios = Math.max(0, logSh.getLastRow() - 1);
+    a.push('  ✅ ENVIOS_CONTABLE_LOG — ' + nEnvios + ' envío(s) registrado(s)');
+  } else {
+    a.push('  ⚪ ENVIOS_CONTABLE_LOG — no existe aún (se crea al enviar el primer email)');
+  }
+
+  // 8. Estado final
   a.push('');
   var resumen = warns.length === 0
     ? '✅ PANEL_CONTABLE listo'
@@ -981,9 +1012,9 @@ function _pcnEjecutarAccion_(row, col) {
   if (row === B.PREP_CARPETA[0] && col === B.PREP_CARPETA[1]) {
     _pcnPrepararCarpetaContable_();
   } else if (row === B.GEN_RESUMEN[0] && col === B.GEN_RESUMEN[1]) {
-    _actualizarPanelContable_();
+    _pcnGenerarPaqueteContable_();
   } else if (row === B.ENVIAR[0] && col === B.ENVIAR[1]) {
-    ui.alert('✉️ Enviar email al gestor\n\nSe implementará en FASE 17.6.');
+    _pcnEnviarEmailGestor_();
   } else if (row === B.ABRIR_DRIVE[0] && col === B.ABRIR_DRIVE[1]) {
     _pcnAbrirCarpetaDrive_();
   } else if (row === B.DIAGNOSTICAR[0] && col === B.DIAGNOSTICAR[1]) {
