@@ -68,39 +68,63 @@ function _pcnGenerarPaqueteContable_() {
         .setFontSize(10).setHorizontalAlignment('left').setVerticalAlignment('middle');
     }
 
-    // 3+4. Leer datos (una sola vez, reutilizados en todos los pasos)
+    // 3+4. Leer datos del periodo
     var facData = _pcnGetFacturasData_(ss, rango);
     var gasData = _pcnGetGastosData_(ss, rango);
 
-    // 3. Copiar PDFs de facturas
-    t('3/7 — Copiando PDFs de facturas (' + facData.rows.length + ')...');
+    // FASE 18.1: Filtrar por selección del usuario
+    var sel = _pcnGetDocumentosSeleccionados_(sh, facData, gasData);
+
+    if (sel.stale) {
+      var ui = SpreadsheetApp.getUi();
+      var cont = ui.alert(
+        '⚠ El selector de documentos no está actualizado para ' + periodo + '.\n\n' +
+        'Se incluirán TODOS los documentos del periodo:\n' +
+        '  · ' + facData.rows.length + ' factura(s)\n' +
+        '  · ' + gasData.rows.length + ' gasto(s)\n\n' +
+        'Para seleccionar individualmente pulsa Cancelar,\n' +
+        'ejecuta "Actualizar" y desmarca los que no quieras.\n\n' +
+        '¿Continuar con todos?',
+        ui.ButtonSet.YES_NO);
+      if (cont !== ui.Button.YES) return;
+    }
+
+    var facFilt = sel.facDataFilt;
+    var gasFilt = sel.gasDataFilt;
+
+    // 3. Copiar PDFs de facturas seleccionadas
+    t('3/7 — Copiando PDFs de facturas (' + sel.facSelCount + '/' +
+      sel.facTotal + ')...');
     var facFolder   = _pcnGetOrCreateFolder_(perFolder, 'Facturas Emitidas');
-    var facDocStats = _pcnCopiarPDFsFacturas_(facData, facFolder);
+    var facDocStats = _pcnCopiarPDFsFacturas_(facFilt, facFolder);
 
-    // 4. Copiar adjuntos/fotos de gastos
-    t('4/7 — Copiando adjuntos de gastos (' + gasData.rows.length + ')...');
+    // 4. Copiar adjuntos de gastos seleccionados
+    t('4/7 — Copiando adjuntos de gastos (' + sel.gasSelCount + '/' +
+      sel.gasTotal + ')...');
     var gasFolder   = _pcnGetOrCreateFolder_(perFolder, 'Gastos');
-    var gasDocStats = _pcnCopiarAdjuntosGastos_(gasData, gasFolder);
+    var gasDocStats = _pcnCopiarAdjuntosGastos_(gasFilt, gasFolder);
 
-    // 5. Hojas-copia de datos (spreadsheets con todos los campos)
+    // 5. Hojas-copia de datos (solo seleccionados)
     t('5/7 — Creando hojas de datos...');
-    _pcnReunirDocumentos_(ss, sh, perFolder, periodo, facData, gasData,
+    _pcnReunirDocumentos_(ss, sh, perFolder, periodo, facFilt, gasFilt,
                           facFolder, gasFolder);
 
-    // 6. Resúmenes y CSV
+    // 6. Resúmenes y CSV (solo seleccionados)
     t('6/7 — Generando resúmenes e IVA...');
-    _pcnGenerarResumenes_(sh, perFolder, periodo, empresa, kpis, facData, gasData);
+    _pcnGenerarResumenes_(sh, perFolder, periodo, empresa, kpis, facFilt, gasFilt);
 
     // 7. Guardar estadísticas y actualizar panel
     t('7/7 — Finalizando...');
     var stats = {
       periodo:      periodo,
       ts:           Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
-      facTotal:     facData.rows.length,
+      facTotal:     sel.facTotal,
+      facSelected:  sel.facSelCount,
       facPdfOk:     facDocStats.ok,
       facPdfSinUrl: facDocStats.sinUrl,
       facPdfError:  facDocStats.errores,
-      gasTotal:     gasData.rows.length,
+      gasTotal:     sel.gasTotal,
+      gasSelected:  sel.gasSelCount,
       gasAdjOk:     gasDocStats.ok,
       gasSinAdj:    gasDocStats.sinAdj,
       gasAdjError:  gasDocStats.errores,
@@ -111,29 +135,32 @@ function _pcnGenerarPaqueteContable_() {
     );
 
     var estadoTexto = '✅ Paquete listo · ' + periodo +
-      ' · PDFs: ' + facDocStats.ok + '/' + facData.rows.length +
-      ' fac · ' + gasDocStats.ok + '/' + gasData.rows.length + ' gas';
+      ' · PDFs: ' + facDocStats.ok + '/' + sel.facSelCount + ' fac' +
+      ' · adj: ' + gasDocStats.ok + '/' + sel.gasSelCount + ' gas';
     _pcnActualizarEstadoDrive_(sh, estadoTexto);
     SpreadsheetApp.flush();
 
     logEvent('INFO', 'generarPaqueteContable', 'Paquete: ' + periodo,
-      'fac=' + facDocStats.ok + '/' + facData.rows.length +
-      ' gas=' + gasDocStats.ok + '/' + gasData.rows.length);
+      'fac=' + facDocStats.ok + '/' + sel.facSelCount +
+      '(' + sel.facTotal + ') gas=' + gasDocStats.ok + '/' + sel.gasSelCount +
+      '(' + sel.gasTotal + ')');
 
     // Resumen final
-    var noLocalizados = facDocStats.errores + gasDocStats.errores;
-    var sinDoc = facDocStats.sinUrl + gasDocStats.sinAdj;
+    var noLoc = facDocStats.errores + gasDocStats.errores;
     SpreadsheetApp.getUi().alert(
       '✅ Paquete contable listo.\n\n' +
-      '  Periodo:        ' + periodo + '\n' +
-      '  PDFs facturas:  ' + facDocStats.ok + ' incluidos' +
+      '  Periodo:             ' + periodo + '\n' +
+      '  Facturas detectadas: ' + sel.facTotal + '\n' +
+      '  Facturas incluidas:  ' + sel.facSelCount + '\n' +
+      '  PDFs copiados:       ' + facDocStats.ok +
         (facDocStats.sinUrl > 0 ? ' · ' + facDocStats.sinUrl + ' sin PDF' : '') + '\n' +
-      '  Fotos/gastos:   ' + gasDocStats.ok + ' incluidos' +
+      '  Gastos detectados:   ' + sel.gasTotal + '\n' +
+      '  Gastos incluidos:    ' + sel.gasSelCount + '\n' +
+      '  Adjuntos copiados:   ' + gasDocStats.ok +
         (gasDocStats.sinAdj > 0 ? ' · ' + gasDocStats.sinAdj + ' sin adjunto' : '') + '\n' +
-      (noLocalizados > 0 ? '  ⚠ No localizados: ' + noLocalizados + ' archivo(s)\n' : '') +
-      '  IVA neto:       ' + _pcnFmtEur_(kpis.ivaNeto) + '\n\n' +
-      'Carpeta Drive preparada.\n' +
-      'Usa ☑ Enviar email al gestor para finalizar.'
+      (noLoc > 0 ? '  ⚠ No localizados:    ' + noLoc + ' archivo(s)\n' : '') +
+      '  IVA neto:            ' + _pcnFmtEur_(kpis.ivaNeto) + '\n\n' +
+      'Carpeta Drive preparada.\nUsa ☑ Enviar email al gestor para finalizar.'
     );
 
   } catch (e) {

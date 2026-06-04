@@ -607,6 +607,10 @@ function _actualizarPanelContable_() {
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
 
   SpreadsheetApp.flush();
+
+  // FASE 18.1: Renderizar selector de documentos
+  _pcnRenderizarSelector_(ss, sh);
+
   logEvent('INFO', 'actualizarPanelContable',
     '✓ Actualizado ' + now + ' — periodo=' + periodo, '');
   Logger.log('=== actualizarPanelContable() OK — periodo=' + periodo + ' ===');
@@ -962,7 +966,41 @@ function _diagnosticarPanelContable_() {
     a.push('  ⚪ ENVIOS_CONTABLE_LOG — no existe aún (se crea al enviar el primer email)');
   }
 
-  // 8. Estado final
+  // 8. Selector y paquete (FASE 18.1)
+  a.push('');
+  a.push('📦 SELECTOR / PAQUETE:');
+  var selRaw  = PropertiesService.getScriptProperties().getProperty(PCN_PROP_SEL);
+  var pkgRaw  = PropertiesService.getScriptProperties().getProperty(PCN_PROP_STATS);
+  if (selRaw) {
+    try {
+      var sel = JSON.parse(selRaw);
+      a.push('  Selector activo para:  ' + sel.periodo);
+      a.push('  Facturas en selector:  ' + sel.facCount);
+      a.push('  Gastos en selector:    ' + sel.gasCount);
+    } catch (e) { a.push('  Selector: error al leer layout'); }
+  } else {
+    a.push('  Selector: no renderizado aún (pulsa "Actualizar")');
+  }
+  if (pkgRaw) {
+    try {
+      var pkg = JSON.parse(pkgRaw);
+      a.push('');
+      a.push('  Último paquete:        ' + pkg.periodo + ' (' + pkg.ts + ')');
+      a.push('  PDFs facturas:         ' + pkg.facPdfOk + ' copiados / ' +
+        (pkg.facSelected || pkg.facTotal || '?') + ' seleccionadas');
+      a.push('  Adjuntos gastos:       ' + pkg.gasAdjOk + ' copiados / ' +
+        (pkg.gasSelected || pkg.gasTotal || '?') + ' seleccionados');
+      if ((pkg.facPdfError || 0) + (pkg.gasAdjError || 0) > 0) {
+        warns.push('Archivos no localizados en el último paquete: ' +
+          ((pkg.facPdfError || 0) + (pkg.gasAdjError || 0)));
+      }
+    } catch (e) { a.push('  Paquete: error al leer stats'); }
+  } else {
+    a.push('  Paquete: no generado aún (pulsa "Generar paquete contable")');
+    warns.push('No se ha generado ningún paquete contable');
+  }
+
+  // 9. Estado final
   a.push('');
   var resumen = warns.length === 0
     ? '✅ PANEL_CONTABLE listo'
@@ -1220,6 +1258,9 @@ function _pcnPrepararCarpetaContable_() {
       .setFontSize(10).setHorizontalAlignment('left').setVerticalAlignment('middle');
 
     SpreadsheetApp.flush();
+
+    // FASE 18.1: Renderizar selector de documentos
+    _pcnRenderizarSelector_(ss, sh);
 
     logEvent('INFO', 'prepararCarpetaContable',
       'Carpeta: ' + PCN_DRIVE_ROOT + '/' + anio + '/' + periodo, url);

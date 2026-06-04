@@ -66,6 +66,33 @@ function _pcnEnviarEmailGestor_() {
   var stats = _pcnLeerStatsUltimoPaquete_();
   var statsPeriodoOk = stats && stats.periodo === periodo;
 
+  // FASE 18.1: Bloquear si no se generó el paquete para este periodo
+  if (!statsPeriodoOk) {
+    SpreadsheetApp.getUi().alert(
+      '⚠ No se puede enviar el email.\n\n' +
+      'No se ha generado el paquete contable para el periodo:\n  ' + periodo + '\n\n' +
+      'Ejecuta primero:  📦 Generar paquete contable\n' +
+      '(Menú ⚙️ Sistema o botón en el panel)'
+    );
+    return;
+  }
+
+  // Bloquear si la carpeta está vacía (0 docs y 0 resúmenes)
+  var totalCopiados = (stats.facPdfOk || 0) + (stats.gasAdjOk || 0);
+  var totalSeleccionados = (stats.facSelected || stats.facTotal || 0) +
+                           (stats.gasSelected || stats.gasTotal || 0);
+  if (totalCopiados === 0 && totalSeleccionados === 0) {
+    SpreadsheetApp.getUi().alert(
+      '⚠ No se puede enviar el email.\n\n' +
+      'El paquete contable está vacío:\n' +
+      '  · 0 facturas seleccionadas\n' +
+      '  · 0 gastos seleccionados\n\n' +
+      'Actualiza el panel, revisa la selección de documentos\n' +
+      'y vuelve a generar el paquete.'
+    );
+    return;
+  }
+
   var asunto = '[' + empresa + '] Contabilidad ' + periodo + ' — Documentación preparada';
 
   // ── Diálogo de confirmación ───────────────────────────────────
@@ -77,27 +104,24 @@ function _pcnEnviarEmailGestor_() {
     ''
   ];
 
-  if (statsPeriodoOk) {
-    var noLoc = (stats.facPdfError || 0) + (stats.gasAdjError || 0);
-    lineas.push('📄 PDFs facturas:  ' + stats.facPdfOk + ' incluidos' +
-      (stats.facPdfSinUrl > 0 ? ' · ' + stats.facPdfSinUrl + ' sin PDF' : ''));
-    lineas.push('🧾 Fotos/gastos:   ' + stats.gasAdjOk + ' incluidos' +
-      (stats.gasSinAdj > 0 ? ' · ' + stats.gasSinAdj + ' sin adjunto' : ''));
-    if (noLoc > 0) {
-      lineas.push('⚠ No localizados:  ' + noLoc + ' archivo(s)');
-    }
-    lineas.push('');
-    lineas.push('Facturas: ' + kpis.facCount + '  Total: ' + _pcnFmtEur_(kpis.facTotal));
-    lineas.push('IVA rep.: ' + _pcnFmtEur_(kpis.ivaRep));
-    lineas.push('Gastos:   ' + kpis.gasCount + '  Total: ' + _pcnFmtEur_(kpis.gasTotal));
-    lineas.push('IVA neto: ' + _pcnFmtEur_(kpis.ivaNeto));
-  } else {
-    lineas.push('⚠ Paquete no generado para este periodo.');
-    lineas.push('Recomendado: ejecuta primero ☑ Generar paquete contable.');
-    lineas.push('');
-    lineas.push('Facturas: ' + kpis.facCount + '  Total: ' + _pcnFmtEur_(kpis.facTotal));
-    lineas.push('IVA neto: ' + _pcnFmtEur_(kpis.ivaNeto));
+  var noLoc = (stats.facPdfError || 0) + (stats.gasAdjError || 0);
+  var facSel = stats.facSelected !== undefined ? stats.facSelected : stats.facTotal;
+  var gasSel = stats.gasSelected !== undefined ? stats.gasSelected : stats.gasTotal;
+
+  lineas.push('📄 Facturas:  ' + facSel + ' seleccionadas / ' +
+    stats.facPdfOk + ' PDFs copiados' +
+    (stats.facPdfSinUrl > 0 ? ' · ' + stats.facPdfSinUrl + ' sin PDF' : ''));
+  lineas.push('🧾 Gastos:    ' + gasSel + ' seleccionados / ' +
+    stats.gasAdjOk + ' adjuntos copiados' +
+    (stats.gasSinAdj > 0 ? ' · ' + stats.gasSinAdj + ' sin adjunto' : ''));
+  if (noLoc > 0) {
+    lineas.push('⚠ No localizados: ' + noLoc + ' archivo(s)');
   }
+  lineas.push('');
+  lineas.push('IVA rep.: ' + _pcnFmtEur_(kpis.ivaRep) +
+    '  Total fac: ' + _pcnFmtEur_(kpis.facTotal));
+  lineas.push('IVA neto: ' + _pcnFmtEur_(kpis.ivaNeto) +
+    '  Total gas: ' + _pcnFmtEur_(kpis.gasTotal));
 
   if (folderUrl) {
     lineas.push('');
