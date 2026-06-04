@@ -72,22 +72,11 @@ function _pcnGenerarPaqueteContable_() {
     var facData = _pcnGetFacturasData_(ss, rango);
     var gasData = _pcnGetGastosData_(ss, rango);
 
-    // FASE 18.1: Filtrar por selección del usuario
+    // FASE 18.1/18.3: Filtrar por selección + confirmación modal
     var sel = _pcnGetDocumentosSeleccionados_(sh, facData, gasData);
 
-    if (sel.stale) {
-      var ui = SpreadsheetApp.getUi();
-      var cont = ui.alert(
-        '⚠ El selector de documentos no está actualizado para ' + periodo + '.\n\n' +
-        'Se incluirán TODOS los documentos del periodo:\n' +
-        '  · ' + facData.rows.length + ' factura(s)\n' +
-        '  · ' + gasData.rows.length + ' gasto(s)\n\n' +
-        'Para seleccionar individualmente pulsa Cancelar,\n' +
-        'ejecuta "Actualizar" y desmarca los que no quieras.\n\n' +
-        '¿Continuar con todos?',
-        ui.ButtonSet.YES_NO);
-      if (cont !== ui.Button.YES) return;
-    }
+    // FASE 18.3: Confirmación con lista de documentos (reemplaza el stale-check simple)
+    if (!_pcnConfirmarSeleccionPreGeneracion_(periodo, sel)) return;
 
     var facFilt = sel.facDataFilt;
     var gasFilt = sel.gasDataFilt;
@@ -140,6 +129,9 @@ function _pcnGenerarPaqueteContable_() {
     _pcnActualizarEstadoDrive_(sh, estadoTexto);
     SpreadsheetApp.flush();
 
+    // FASE 18.3: Registrar en historial qué documentos se incluyeron
+    _pcnLogPaquete_(ss, periodo, facFilt.rows, gasFilt.rows, stats);
+
     logEvent('INFO', 'generarPaqueteContable', 'Paquete: ' + periodo,
       'fac=' + facDocStats.ok + '/' + sel.facSelCount +
       '(' + sel.facTotal + ') gas=' + gasDocStats.ok + '/' + sel.gasSelCount +
@@ -175,14 +167,55 @@ function _pcnGenerarPaqueteContable_() {
 
 // ── Helpers de carpeta ────────────────────────────────────────
 
+/**
+ * Resuelve la carpeta Drive del periodo actual.
+ * Prioridad:
+ *   1. ALVARO_EMPRESA/{AÑO}/CONTABILIDAD/{subfolder}  (si DriveManager configurado)
+ *   2. Raíz/Contabilidad/{AÑO}/{periodo}              (fallback)
+ */
 function _pcnResolvePeriodFolder_(sh) {
   var tipo    = _pcnLeerTipoPeriodo_(sh);
-  var anio    = String(new Date().getFullYear());
+  var anio    = new Date().getFullYear();
   var periodo = _pcnPeriodoEtiqueta_(tipo);
-  var root    = DriveApp.getRootFolder();
-  var cont    = _pcnGetOrCreateFolder_(root, PCN_DRIVE_ROOT);
-  var year    = _pcnGetOrCreateFolder_(cont, anio);
+
+  // Intentar usar estructura ALVARO_EMPRESA vía DriveManager
+  try {
+    var contabId = _dmGetConfig_(getTargetSS_(), 'CONTABILIDAD_FOLDER_ID');
+    if (contabId && String(contabId).trim()) {
+      var contabFolder = DriveApp.getFolderById(String(contabId).trim());
+      var subName = _pcnContabSubFolderName_(tipo, anio);
+      return _pcnGetOrCreateFolder_(contabFolder, subName);
+    }
+  } catch (e) {
+    Logger.log('WARN _pcnResolvePeriodFolder_: DriveManager no disponible — ' + e.message);
+  }
+
+  // Fallback: raíz/Contabilidad/AÑO/PERIODO
+  var root = DriveApp.getRootFolder();
+  var cont = _pcnGetOrCreateFolder_(root, PCN_DRIVE_ROOT);
+  var year = _pcnGetOrCreateFolder_(cont, String(anio));
   return _pcnGetOrCreateFolder_(year, periodo);
+}
+
+/**
+ * Nombre del subfolder dentro de CONTABILIDAD para el tipo de periodo.
+ * Coincide con DM_MONTHS del DriveManager para periodos mensuales.
+ */
+function _pcnContabSubFolderName_(tipo, anio) {
+  var mes   = new Date().getMonth();
+  var trim  = Math.floor(mes / 3) + 1;
+  var meses = [
+    '01_Enero','02_Febrero','03_Marzo','04_Abril',
+    '05_Mayo','06_Junio','07_Julio','08_Agosto',
+    '09_Septiembre','10_Octubre','11_Noviembre','12_Diciembre'
+  ];
+  switch (tipo) {
+    case 'MES_ACTUAL':       return meses[mes];
+    case 'TRIMESTRE_ACTUAL': return 'T' + trim + '_' + anio;
+    case 'ANIO_ACTUAL':      return 'Anio_' + anio;
+    case 'PERSONALIZADO':    return 'Personalizado';
+    default:                 return meses[mes];
+  }
 }
 
 function _pcnActualizarEstadoDrive_(sh, texto) {
@@ -699,6 +732,75 @@ function _pcnRowToCSV_(row, tz) {
     }
     return s;
   }).join(',');
+}
+
+// ============================================================
+// Leer estadísticas del último paquete generado
+// ============================================================
+
+// ============================================================
+// FASE 18.3 — Confirmación modal pre-generación
+// ============================================================
+
+/**
+ * Muestra un diálogo de confirmación bloqueante con la lista de
+ * documentos seleccionados antes de generar el paquete.
+ * Devuelve true si el usuario confirma, false si cancela.
+ */
+function _pcnConfirmarSeleccionPreGeneracion_(periodo, sel) {
+  var ui      = SpreadsheetApp.getUi();
+  var facRows = sel.facDataFilt.rows;
+  var gasRows = sel.gasDataFilt.rows;
+
+  if (facRows.length === 0 && gasRows.length === 0) {
+    ui.alert(
+      '⚠ Sin documentos seleccionados\n\n' +
+      'No hay facturas ni gastos marcados para el periodo «' + periodo + '».\n\n' +
+      'Pulsa "Actualizar" en el panel para refrescar el selector\n' +
+      'y marca los documentos que quieras incluir.'
+    );
+    return false;
+  }
+
+  var lineas = [];
+
+  if (sel.stale) {
+    lineas.push('⚠ SELECTOR DESACTUALIZADO');
+    lineas.push('Se incluirán TODOS los documentos del periodo.');
+    lineas.push('');
+  }
+
+  // Listado de facturas (máx. 12)
+  lineas.push('📄 FACTURAS — ' + facRows.length + ' seleccionada(s):');
+  var facSlice = facRows.slice(0, 12);
+  facSlice.forEach(function(r) {
+    var cli = r[5] ? ' — ' + String(r[5]).substring(0, 22) : '';
+    var tot = typeof r[16] === 'number' ? '  ' + _pcnFmtEur_(r[16]) : '';
+    lineas.push('  · ' + r[0] + cli + tot);
+  });
+  if (facRows.length > 12) lineas.push('  … y ' + (facRows.length - 12) + ' más');
+
+  lineas.push('');
+
+  // Listado de gastos (máx. 12)
+  lineas.push('🧾 GASTOS — ' + gasRows.length + ' seleccionado(s):');
+  var gasSlice = gasRows.slice(0, 12);
+  gasSlice.forEach(function(r) {
+    var prov = r[4] ? ' — ' + String(r[4]).substring(0, 22) : '';
+    var tot  = typeof r[12] === 'number' ? '  ' + _pcnFmtEur_(r[12]) : '';
+    lineas.push('  · ' + r[0] + prov + tot);
+  });
+  if (gasRows.length > 12) lineas.push('  … y ' + (gasRows.length - 12) + ' más');
+
+  lineas.push('');
+  lineas.push('¿Generar el paquete con estos documentos?');
+
+  var resp = ui.alert(
+    '📦 Confirmar selección — ' + periodo,
+    lineas.join('\n'),
+    ui.ButtonSet.YES_NO
+  );
+  return resp === ui.Button.YES;
 }
 
 // ============================================================

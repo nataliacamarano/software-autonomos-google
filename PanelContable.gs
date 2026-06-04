@@ -1364,14 +1364,11 @@ function _pcnPrepararCarpetaContable_() {
   }
 
   var tipo    = _pcnLeerTipoPeriodo_(sh);
-  var anio    = String(new Date().getFullYear());
-  var periodo = _pcnPeriodoEtiqueta_(tipo);  // e.g. "Junio 2026" / "T2 2026" / "Año 2026"
+  var periodo = _pcnPeriodoEtiqueta_(tipo);
 
   try {
-    var rootDrive  = DriveApp.getRootFolder();
-    var contFolder = _pcnGetOrCreateFolder_(rootDrive, PCN_DRIVE_ROOT);
-    var anioFolder = _pcnGetOrCreateFolder_(contFolder, anio);
-    var perFolder  = _pcnGetOrCreateFolder_(anioFolder, periodo);
+    // FASE 18.3: usa DriveManager si está configurado, fallback a Contabilidad/
+    var perFolder = _pcnResolvePeriodFolder_(sh);
 
     PCN_DRIVE_SUBFOLDERS.forEach(function(nombre) {
       _pcnGetOrCreateFolder_(perFolder, nombre);
@@ -1397,19 +1394,17 @@ function _pcnPrepararCarpetaContable_() {
     // FASE 18.1: Renderizar selector de documentos
     _pcnRenderizarSelector_(ss, sh);
 
-    logEvent('INFO', 'prepararCarpetaContable',
-      'Carpeta: ' + PCN_DRIVE_ROOT + '/' + anio + '/' + periodo, url);
+    logEvent('INFO', 'prepararCarpetaContable', 'Carpeta periodo: ' + periodo, url);
 
     var html = HtmlService.createHtmlOutput(
       '<p style="font-family:sans-serif">✅ <b>Carpeta contable preparada.</b></p>' +
-      '<p style="font-family:sans-serif">Ruta: <b>' +
-        PCN_DRIVE_ROOT + ' / ' + anio + ' / ' + periodo + '</b></p>' +
-      '<p style="font-family:sans-serif">Subcarpetas creadas:<br>' +
+      '<p style="font-family:sans-serif">Periodo: <b>' + periodo + '</b></p>' +
+      '<p style="font-family:sans-serif">Subcarpetas: ' +
         PCN_DRIVE_SUBFOLDERS.join(', ') + '</p>' +
       '<p><a href="' + url + '" target="_blank" ' +
         'style="font-family:sans-serif;font-size:14px">' +
         '📂 Abrir carpeta en Drive</a></p>'
-    ).setWidth(440).setHeight(180);
+    ).setWidth(440).setHeight(170);
     SpreadsheetApp.getUi().showModalDialog(html, '📁 Carpeta contable preparada');
 
   } catch (e) {

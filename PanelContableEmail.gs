@@ -165,6 +165,9 @@ function _pcnEnviarEmailGestor_() {
     };
     _pcnRegistrarEnvio_(ss, sh, logData);
 
+    // FASE 18.3: marcar en historial de paquetes
+    _pcnMarcarEnviado_(ss, periodo, emailGestor);
+
     SpreadsheetApp.flush();
     logEvent('INFO', 'enviarEmailGestor', 'Enviado a ' + emailGestor, periodo);
     ui.alert('✅ Email enviado correctamente a:\n' + emailGestor);
