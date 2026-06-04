@@ -293,6 +293,29 @@ function onOpen() {
       .addItem('⑯ PANEL_GASTOS — Crear completo',      'crearPanelGastos')
       .addItem('⑰ PANEL_GASTOS — Actualizar datos',    'actualizarPanelGastos')
       .addItem('⑱ PANEL_GASTOS — Diagnosticar',        'diagnosticarPanelGastos')
+      .addItem('⑱b PANEL_GASTOS — Diagnosticar (test)', 'testDiagnosticoGastos')
+      .addItem('⑲ Enviar gastos al gestor',            'enviarGastosAlGestor')
+      .addItem('📊 Generar informe de gastos',          'generarInformeGastos')
+      .addItem('🔍 Diagnosticar columnas GASTOS',        'diagnosticarColumnasGastos')
+      .addItem('🔍 Diagnosticar filtro fechas GASTOS',  'diagnosticarFiltroGastos')
+      .addItem('📊 Generar IVA trimestral',             'generarIVATrimestral')
+      .addItem('📊 Generar IVA anual',                  'generarIVAAnual')
+      .addItem('🏠 Actualizar dashboard',               'generarDashboard')
+      .addItem('💹 Dashboard financiero',              'generarDashboardFinanciero')
+      .addSeparator()
+      .addItem('⏰ Enviar recordatorios de cobro',           'enviarRecordatoriosPendientes')
+      .addItem('⏰ Instalar trigger recordatorios (diario)', 'instalarTriggerRecordatorios')
+      .addItem('⏰ Desinstalar trigger recordatorios',       'desinstalarTriggerRecordatorios')
+      .addItem('⏰ Ver log recordatorios',                   'verLogRecordatorios')
+      .addItem('⚙️ Configurar recordatorios',               'configurarRecordatorios')
+      .addSeparator()
+      .addItem('📅 Informe mensual — Enviar ahora',          'generarInformeMensual')
+      .addItem('📅 Informe mensual — Instalar trigger (día 1)', 'instalarTriggerMensual')
+      .addItem('📅 Informe mensual — Desinstalar trigger',   'desinstalarTriggerMensual')
+      .addSeparator()
+      .addItem('🚨 Alertas diarias — Enviar ahora',          'enviarAlertasDiarias')
+      .addItem('🚨 Alertas diarias — Instalar trigger',      'instalarTriggerAlertas')
+      .addItem('🚨 Alertas diarias — Desinstalar trigger',   'desinstalarTriggerAlertas')
       .addSeparator()
       .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
       .addSeparator()
@@ -304,6 +327,10 @@ function onOpen() {
       .addItem('🔍 Diagnóstico: PRESUPUESTOS Estado',  'verificarEstadoPresupuestos')
       .addItem('🔧 Reparar filas PRESUPUESTOS',        'runRepairPresupuestosRows')
       .addItem('🔍 Diagnóstico: Panel Factura/Pres.',  'verificarFacturaDesdePresupuestoPanel')
+      .addSeparator()
+      .addItem('🏠 PANEL_GENERAL — Crear completo',   'crearPanelGeneral')
+      .addItem('🏠 PANEL_GENERAL — Actualizar datos', 'actualizarPanelGeneral')
+      .addItem('🏠 PANEL_GENERAL — Diagnosticar',     'diagnosticarPanelGeneral')
       .addToUi();
   } catch (e) {}
 }
@@ -363,6 +390,20 @@ function reinstallOnOpenTrigger() {
 function onPanelEdit(e) {
   if (!e) return;
   var sheetName = e.range.getSheet().getName();
+
+  // ── PANEL_GENERAL ─────────────────────────────────────────────
+  // El instalable tiene OAuth completo (DriveApp, DocumentApp),
+  // necesario para INF_GASTOS e IVA_TRIMESTRAL.
+  if (sheetName === 'PANEL_GENERAL') {
+    onEditPanelGeneral_(e);
+    return;
+  }
+
+  // ── FACTURAS — auto Fecha_Cobro (FASE 15) ─────────────────────
+  if (sheetName === 'FACTURAS') {
+    _onEditFacturasCobro_(e);
+    return;
+  }
 
   // ── PANEL_GASTOS ──────────────────────────────────────────────
   if (sheetName === 'PANEL_GASTOS') {
@@ -511,6 +552,13 @@ function onPanelEdit(e) {
 function onEdit(e) {
   if (!e) return;
   var sh = e.range.getSheet();
+
+  // Delegar al handler de PANEL_GENERAL
+  if (sh.getName() === 'PANEL_GENERAL') {
+    onEditPanelGeneral_(e);
+    return;
+  }
+
   if (sh.getName() !== 'PANEL') return;
 
   var row = e.range.getRow();
@@ -2761,7 +2809,41 @@ function _getSelectedJobs_(sh) {
   return jobs;
 }
 
-// ── PANEL_GASTOS — wrappers públicos (menú + desplegable) ────
-function crearPanelGastos()        { _crearPanelGastos_();        }
-function actualizarPanelGastos()   { _actualizarPanelGastos_();   }
-function diagnosticarPanelGastos() { _diagnosticarPanelGastos_(); }
+// ================================================================
+// FASE 15 — Auto Fecha_Cobro al marcar "Cobrado" en FACTURAS
+// ================================================================
+
+/**
+ * Llamado desde onPanelEdit cuando la hoja editada es FACTURAS.
+ * Si se cambia "Estado Cobro" a "Cobrado", rellena "Fecha Cobro"
+ * con la fecha actual si estaba vacía.
+ */
+function _onEditFacturasCobro_(e) {
+  if (String(e.value || '').trim() !== 'Cobrado') return;
+
+  var sh      = e.range.getSheet();
+  var editCol = e.range.getColumn();
+  var lastCol = sh.getLastColumn();
+  if (lastCol < 1) return;
+
+  var hdrs = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colEstCobro = -1, colFecCobro = -1;
+  for (var i = 0; i < hdrs.length; i++) {
+    var h = String(hdrs[i]).trim();
+    if (h === 'Estado Cobro') colEstCobro = i + 1;
+    if (h === 'Fecha Cobro')  colFecCobro = i + 1;
+  }
+
+  if (colEstCobro < 0 || editCol !== colEstCobro) return;
+  if (colFecCobro < 0) return;
+
+  var row       = e.range.getRow();
+  if (row < 2) return;
+
+  var fechaCell = sh.getRange(row, colFecCobro);
+  if (!fechaCell.getValue()) {
+    fechaCell.setValue(new Date())
+      .setNumberFormat('dd/mm/yyyy');
+    logEvent('INFO', '_onEditFacturasCobro_', 'Fecha Cobro auto-rellenada fila ' + row, '');
+  }
+}

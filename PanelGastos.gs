@@ -43,10 +43,11 @@ var PG_ = {
   TC_ENVIAR:   11,  // K ← checkbox interactivo
   TC_VER_FOTO: 12,  // L ← hyperlink
   TC_VER_OCR:  13,  // M ← checkbox "Ver OCR"
-  TC_OBS:      14   // N
+  TC_OBS:      14,  // N
+  TC_EDITAR:   15   // O ← checkbox "Editar" (abre EditarGasto.html)
 };
 
-var PG_N_COLS = 14;
+var PG_N_COLS = 15;
 
 // Colores de fila según Estado_Procesamiento
 var PG_COLORS = {
@@ -85,7 +86,7 @@ function _crearPanelGastos_() {
   var colWidths = [
     [1, 115], [2, 100], [3, 145], [4, 180], [5, 220],
     [6, 90],  [7, 80],  [8, 105], [9, 145],
-    [10, 80], [11, 80], [12, 75], [13, 75], [14, 200]
+    [10, 80], [11, 80], [12, 75], [13, 75], [14, 200], [15, 65]
   ];
   colWidths.forEach(function(w) { sh.setColumnWidth(w[0], w[1]); });
 
@@ -194,7 +195,7 @@ function _crearPanelGastos_() {
   var hdrs = [
     'ID_Gasto', 'Fecha', 'Tipo_Gasto', 'Proveedor', 'Concepto',
     'Total', 'IVA', 'Estado\nPago', 'Estado\nProc.',
-    'Revisado', 'Enviar\nGestor', 'Ver\nFoto', 'Ver\nOCR', 'Observaciones'
+    'Revisado', 'Enviar\nGestor', 'Ver\nFoto', 'Ver\nOCR', 'Observaciones', 'Editar'
   ];
   sh.getRange(PG_.TABLE_HDR, 1, 1, hdrs.length).setValues([hdrs])
     .setBackground('#202124').setFontColor('#ffffff')
@@ -453,7 +454,8 @@ function _pgEscribirTabla_(sh, gastos) {
       envBool,   // Enviar_Gestor (checkbox)
       '',        // Ver foto (se rellena con rich text abajo)
       false,     // Ver OCR (checkbox)
-      String(row[COL_GAS.OBSERVACIONES - 1]).trim()
+      String(row[COL_GAS.OBSERVACIONES - 1]).trim(),
+      false      // Editar (checkbox)
     ]);
   }
   sh.getRange(PG_.TABLE_START, 1, n, PG_N_COLS).setValues(tableData);
@@ -466,6 +468,7 @@ function _pgEscribirTabla_(sh, gastos) {
   sh.getRange(PG_.TABLE_START, PG_.TC_REVISADO, n, 1).setDataValidation(ruleCheck);
   sh.getRange(PG_.TABLE_START, PG_.TC_ENVIAR,   n, 1).setDataValidation(ruleCheck);
   sh.getRange(PG_.TABLE_START, PG_.TC_VER_OCR,  n, 1).setDataValidation(ruleCheck);
+  sh.getRange(PG_.TABLE_START, PG_.TC_EDITAR,   n, 1).setDataValidation(ruleCheck);
 
   // ── Paso 4: alineaciones en batch ────────────────────────────
   sh.getRange(PG_.TABLE_START, PG_.TC_TOTAL,    n, 1).setHorizontalAlignment('right');
@@ -497,6 +500,7 @@ function _pgEscribirTabla_(sh, gastos) {
     sh.getRange(fila, PG_.TC_REVISADO).setNote(id);
     sh.getRange(fila, PG_.TC_ENVIAR).setNote(id);
     sh.getRange(fila, PG_.TC_VER_OCR).setNote(id);
+    sh.getRange(fila, PG_.TC_EDITAR).setNote(id);
 
     // Color de fila según estado
     sh.getRange(fila, 1, 1, PG_N_COLS)
@@ -523,6 +527,7 @@ function onEditPanelGastos_(e) {
   var row = e.range.getRow();
   var col = e.range.getColumn();
   var val = e.value;
+  Logger.log('onEditPanelGastos_ ejecutado: row=' + row + ' col=' + col + ' value=' + val);
 
   // Botón Actualizar (B10)
   if (row === PG_.BTN_ACTUALIZAR[0] && col === PG_.BTN_ACTUALIZAR[1] && val === 'TRUE') {
@@ -559,6 +564,13 @@ function onEditPanelGastos_(e) {
       gasSheet2.getRange(gasRow2, COL_GAS.ENVIAR_GESTOR).setValue(val === 'TRUE');
       logEvent('INFO', 'onEditPanelGastos_', id + ' Enviar_Gestor → ' + val, '');
     }
+    return;
+  }
+
+  // Checkbox Editar — abre formulario HTML
+  if (col === PG_.TC_EDITAR && val === 'TRUE') {
+    e.range.setValue(false);
+    _pgAbrirEditorGasto_(id);
     return;
   }
 
@@ -721,6 +733,19 @@ function _pgRazonRechazo_(row, f) {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// FASE 5 — Edición manual de gastos
+// ─────────────────────────────────────────────────────────────
+
+function _pgAbrirEditorGasto_(id) {
+  var template = HtmlService.createTemplateFromFile('EditarGasto');
+  template.gastoId = id;
+  var html = template.evaluate().setWidth(620).setHeight(680);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Editar gasto — ' + id);
+}
+
+// obtenerGasto() y guardarCambiosGasto() definidas en Code.gs
 
 // ─────────────────────────────────────────────────────────────
 // Utilidad de estilo

@@ -85,7 +85,8 @@ const DEFAULT_CONFIG_ROWS = [
   ['serie_factura',       'FAC'],
   ['siguiente_numero',    '1'],
   ['carpeta_facturas_id', ''],
-  ['carpeta_trabajos_id', '']
+  ['carpeta_trabajos_id', ''],
+  ['email_gestor',        '']
 ];
 
 // ---- Acceso a configuración ----

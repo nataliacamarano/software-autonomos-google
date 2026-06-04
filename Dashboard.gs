@@ -236,3 +236,443 @@ function validateDashboardData() {
   }
   Logger.log('================================================');
 }
+
+// ============================================================
+// FASE 10 — Dashboard visual en hoja DASHBOARD
+// ============================================================
+
+// ── Entrada pública ──────────────────────────────────────────
+
+function generarDashboard() {
+  Logger.log('=== generarDashboard() ===');
+  var ss   = getTargetSS_();
+  var tz   = Session.getScriptTimeZone();
+  var now  = new Date();
+  var anyo = now.getFullYear();
+
+  var datos = _db_recopilar_(ss, anyo, tz);
+
+  var sh = ss.getSheetByName('DASHBOARD');
+  if (sh) { sh.clearContents(); sh.clearFormats(); sh.clearDataValidations(); }
+  else    { sh = ss.insertSheet('DASHBOARD'); }
+
+  _db_render_(sh, datos, anyo, tz, now);
+  ss.setActiveSheet(sh);
+
+  logEvent('INFO', 'generarDashboard', 'Dashboard generado año=' + anyo, '');
+  Logger.log('=== generarDashboard() OK ===');
+}
+
+// ── Recopilación de datos ────────────────────────────────────
+
+function _db_recopilar_(ss, anyo, tz) {
+  var d = {
+    // Facturación
+    facTotal: 0, facBase: 0, facIva: 0,
+    facCobradoImporte: 0, facPendienteImporte: 0,
+    facCobradas: 0, facPendientes: 0, facAnuladas: 0, nFac: 0,
+    ultFac: [],
+    // Gastos
+    gasTotal: 0, gasBase: 0, gasIva: 0,
+    gasPendienteImporte: 0, gasPendientePago: 0,
+    gasRevisar: 0, gasOCRFallido: 0, gasSinTicket: 0, nGas: 0,
+    ultGas: [],
+    // Trabajos
+    traPendientes: 0, traEnCurso: 0, traCompletados: 0, traFacturados: 0,
+    traHoras: 0, nTra: 0,
+    // Clientes / Operarios
+    nClientes: 0, nOperarios: 0,
+    // IVA anual (de IVA_TRIMESTRAL)
+    ivaNeto: null, ivaResultado: null
+  };
+
+  var desde = new Date(anyo, 0, 1, 0, 0, 0);
+  var hasta = new Date(anyo, 11, 31, 23, 59, 59);
+
+  // ── FACTURAS ──────────────────────────────────────────────────
+  try {
+    var shF = ss.getSheetByName('FACTURAS');
+    if (shF && shF.getLastRow() > 1) {
+      var facRows = shF.getRange(2, 1, shF.getLastRow() - 1, N_COLS_FAC).getValues();
+      var facPool = [];
+
+      facRows.forEach(function(row) {
+        if (!String(row[0]).trim()) return;
+        var fEm    = row[CFAC.FECHA_EMISION - 1];
+        if (!(fEm instanceof Date) || isNaN(fEm.getTime())) return;
+        if (fEm < desde || fEm > hasta) return;
+
+        var estado = String(row[CFAC.ESTADO - 1]).trim();
+        d.nFac++;
+
+        if (estado.toLowerCase() === 'anulada') { d.facAnuladas++; return; }
+
+        var base  = parseFloat(row[CFAC.BASE_IMPONIBLE - 1]) || 0;
+        var iva   = parseFloat(row[CFAC.IVA_IMPORTE    - 1]) || 0;
+        var total = parseFloat(row[CFAC.TOTAL           - 1]) || 0;
+        d.facBase  += base;
+        d.facIva   += iva;
+        d.facTotal += total;
+
+        if (/cobrad|pagad/i.test(estado)) {
+          d.facCobradas++;
+          d.facCobradoImporte += total;
+        } else {
+          d.facPendientes++;
+          d.facPendienteImporte += total;
+        }
+
+        facPool.push({ fecha: fEm, id: String(row[0]).trim(),
+          cliente:  String(row[5]).trim(),
+          concepto: String(row[10]).trim(),
+          total:    total, estado: estado });
+      });
+
+      // Últimas 5 por fecha desc
+      d.ultFac = facPool.sort(function(a, b) { return b.fecha - a.fecha; }).slice(0, 5);
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'FACTURAS: ' + e.message, ''); }
+
+  // ── GASTOS ────────────────────────────────────────────────────
+  try {
+    var shG = ss.getSheetByName('GASTOS');
+    if (shG && shG.getLastRow() > 1) {
+      var gasRows = shG.getRange(2, 1, shG.getLastRow() - 1, HEADERS_GASTOS.length).getValues();
+      var gasPool = [];
+
+      gasRows.forEach(function(row) {
+        if (String(row[COL_GAS.ID_GASTO - 1]).trim().indexOf('GAS-') !== 0) return;
+        var fGas = row[COL_GAS.FECHA_GASTO - 1];
+        var fRef = (fGas instanceof Date && !isNaN(fGas.getTime())) ? fGas : row[COL_GAS.FECHA_ALTA - 1];
+        if (!(fRef instanceof Date) || isNaN(fRef.getTime())) return;
+        if (fRef < desde || fRef > hasta) return;
+
+        var base  = parseFloat(row[COL_GAS.BASE_IMPONIBLE - 1]) || 0;
+        var iva   = parseFloat(row[COL_GAS.IVA_IMPORTE    - 1]) || 0;
+        var total = parseFloat(row[COL_GAS.TOTAL           - 1]) || 0;
+        d.gasBase  += base;
+        d.gasIva   += iva;
+        d.gasTotal += total;
+        d.nGas++;
+
+        var ep = String(row[COL_GAS.ESTADO_PAGO           - 1]).trim();
+        var es = String(row[COL_GAS.ESTADO_PROCESAMIENTO  - 1]).trim();
+        if (!/^pagado$/i.test(ep))    { d.gasPendientePago++;  d.gasPendienteImporte += total; }
+        if (es === 'OCR fallido')       d.gasOCRFallido++;
+        else if (es === 'Revisar')      d.gasRevisar++;
+        if (!String(row[COL_GAS.FOTO_URL   - 1]).trim() &&
+            !String(row[COL_GAS.ARCHIVO_ID - 1]).trim()) d.gasSinTicket++;
+
+        gasPool.push({ fecha: fRef,
+          id:        String(row[COL_GAS.ID_GASTO   - 1]).trim(),
+          tipo:      String(row[COL_GAS.TIPO_GASTO  - 1]).trim(),
+          proveedor: String(row[COL_GAS.PROVEEDOR   - 1]).trim() || '—',
+          total:     total,
+          estado:    ep });
+      });
+
+      d.ultGas = gasPool.sort(function(a, b) { return b.fecha - a.fecha; }).slice(0, 5);
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'GASTOS: ' + e.message, ''); }
+
+  // ── TRABAJOS ──────────────────────────────────────────────────
+  try {
+    var shT = ss.getSheetByName('TRABAJOS');
+    if (shT && shT.getLastRow() > 1) {
+      var nColsT  = Math.min(shT.getLastColumn(), 19);
+      var tHdrs   = shT.getRange(1, 1, 1, nColsT).getValues()[0]
+                       .map(function(h) { return String(h).trim().toLowerCase(); });
+      var cEst    = tHdrs.indexOf('estado');
+      var cHoras  = tHdrs.indexOf('horas_trabajadas');
+      var traRows = shT.getRange(2, 1, shT.getLastRow() - 1, nColsT).getValues();
+
+      traRows.forEach(function(row) {
+        if (!String(row[0]).trim()) return;
+        d.nTra++;
+        if (cEst >= 0) {
+          var est = String(row[cEst]).trim().toLowerCase();
+          if      (est === 'pendiente')               d.traPendientes++;
+          else if (est === 'en curso')                d.traEnCurso++;
+          else if (est.indexOf('complet') !== -1)     d.traCompletados++;
+          else if (est === 'facturado')               d.traFacturados++;
+        }
+        if (cHoras >= 0) d.traHoras += parseFloat(row[cHoras]) || 0;
+      });
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'TRABAJOS: ' + e.message, ''); }
+
+  // ── CLIENTES ─────────────────────────────────────────────────
+  try {
+    var shC = ss.getSheetByName('CLIENTES');
+    if (shC && shC.getLastRow() > 1) {
+      shC.getRange(2, 10, shC.getLastRow() - 1, 1).getValues()
+        .forEach(function(row) {
+          var v = row[0];
+          if (v === true || /^(sí|si|1|true)$/i.test(String(v))) d.nClientes++;
+        });
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'CLIENTES: ' + e.message, ''); }
+
+  // ── OPERARIOS ────────────────────────────────────────────────
+  try {
+    var shO = ss.getSheetByName('OPERARIOS');
+    if (shO && shO.getLastRow() > 1) {
+      shO.getRange(2, 8, shO.getLastRow() - 1, 1).getValues()
+        .forEach(function(row) {
+          var v = row[0];
+          if (v === true || /^(sí|si|1|true)$/i.test(String(v))) d.nOperarios++;
+        });
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'OPERARIOS: ' + e.message, ''); }
+
+  // ── IVA_TRIMESTRAL ────────────────────────────────────────────
+  try {
+    var shI = ss.getSheetByName('IVA_TRIMESTRAL');
+    if (shI && shI.getLastRow() > 1) {
+      var ivaRows = shI.getRange(2, 1, shI.getLastRow() - 1, HEADERS_IVA_TRIM.length).getValues();
+      var acum = 0, cnt = 0;
+      ivaRows.forEach(function(row) {
+        if (Number(row[CIVA.ANYO - 1]) === anyo) { acum += parseFloat(row[CIVA.IVA_NETO - 1]) || 0; cnt++; }
+      });
+      if (cnt > 0) {
+        d.ivaNeto      = Math.round(acum * 100) / 100;
+        d.ivaResultado = acum > 0.005 ? 'A pagar' : acum < -0.005 ? 'A compensar' : 'Sin diferencia';
+      }
+    }
+  } catch (e) { logEvent('WARN', '_db_recopilar_', 'IVA_TRIMESTRAL: ' + e.message, ''); }
+
+  // ── Redondeos finales ─────────────────────────────────────────
+  ['facTotal','facBase','facIva','facCobradoImporte','facPendienteImporte',
+   'gasTotal','gasBase','gasIva','gasPendienteImporte'].forEach(function(k) {
+     d[k] = Math.round(d[k] * 100) / 100;
+   });
+  d.beneficio = Math.round((d.facTotal - d.gasTotal) * 100) / 100;
+  d.traHoras  = Math.round(d.traHoras * 10) / 10;
+
+  Logger.log('[_db_recopilar_] fac=' + d.nFac + ' gas=' + d.nGas
+             + ' tra=' + d.nTra + ' cli=' + d.nClientes + ' ope=' + d.nOperarios);
+  return d;
+}
+
+// ── Renderizado ──────────────────────────────────────────────
+
+function _db_render_(sh, d, anyo, tz, now) {
+  var NC      = 6;
+  var r       = 1;
+  var empresa = getConfig('empresa_nombre') || 'Álvaro Gestión';
+  var EUR     = '#,##0.00 €';
+  var NUM     = '#,##0';
+
+  // Anchos: label(185) valor(115) × 3
+  [185, 115, 185, 115, 185, 115].forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+
+  // ── helpers ─────────────────────────────────────────────────
+  function titulo(val, bg, fg, size) {
+    sh.getRange(r, 1, 1, NC).merge()
+      .setValue(val).setBackground(bg).setFontColor(fg || '#ffffff')
+      .setFontWeight('bold').setFontSize(size || 12)
+      .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  }
+
+  function seccion(val, bg, fg) {
+    titulo(val, bg || '#e8f0fe', fg || '#1a73e8', 11);
+    sh.setRowHeight(r, 28); r++;
+  }
+
+  function spacer(h) { sh.setRowHeight(r, h || 8); r++; }
+
+  function kpiRow(items, bg) {
+    if (bg) sh.getRange(r, 1, 1, NC).setBackground(bg);
+    sh.setRowHeight(r, 32);
+    items.forEach(function(it) {
+      // it = [labelCol, label, val, fmt, fgColor]
+      var lc = it[0], vc = it[0] + 1;
+      sh.getRange(r, lc).setValue(it[1]).setFontSize(9)
+        .setFontColor('#5f6368').setFontWeight('bold')
+        .setVerticalAlignment('bottom');
+      var cell = sh.getRange(r, vc).setFontSize(14).setFontWeight('bold')
+                    .setVerticalAlignment('bottom');
+      if (it[2] === null || it[2] === '') {
+        cell.setValue('');
+      } else if (typeof it[2] === 'number' && it[3]) {
+        cell.setValue(it[2]).setNumberFormat(it[3]);
+      } else {
+        cell.setValue(it[2]);
+      }
+      if (it[4]) cell.setFontColor(it[4]);
+    });
+    r++;
+  }
+
+  function tableHdr(cols) {
+    sh.getRange(r, 1, 1, NC)
+      .setValues([cols])
+      .setBackground('#3c4043').setFontColor('#ffffff')
+      .setFontWeight('bold').setFontSize(10)
+      .setHorizontalAlignment('center');
+    sh.setRowHeight(r, 22); r++;
+  }
+
+  function tableRow(vals, bg) {
+    sh.getRange(r, 1, 1, NC).setBackground(bg || '#ffffff').setFontSize(10);
+    vals.forEach(function(v, i) {
+      var cell = sh.getRange(r, i + 1);
+      if (v && typeof v === 'object' && v.v !== undefined) {
+        cell.setValue(v.v);
+        if (v.fmt)   cell.setNumberFormat(v.fmt);
+        if (v.fg)    cell.setFontColor(v.fg);
+        if (v.bold)  cell.setFontWeight('bold');
+        if (v.align) cell.setHorizontalAlignment(v.align);
+      } else {
+        cell.setValue(v === null || v === undefined ? '' : v);
+      }
+    });
+    r++;
+  }
+
+  // ── CABECERA ─────────────────────────────────────────────────
+  titulo('🏠  DASHBOARD — ' + empresa.toUpperCase(), '#1a73e8', '#ffffff', 16);
+  sh.setRowHeight(r, 46); r++;
+
+  titulo('Año ' + anyo + '   ·   Actualizado: '
+    + Utilities.formatDate(now, tz, 'dd/MM/yyyy HH:mm'), '#f8f9fa', '#5f6368', 10);
+  sh.setRowHeight(r, 20); r++;
+  spacer(6);
+
+  // ── FACTURACIÓN ───────────────────────────────────────────────
+  seccion('💰  FACTURACIÓN — ' + anyo);
+  kpiRow([
+    [1, 'Total facturado',     d.facTotal,            EUR, '#137333'],
+    [3, 'Cobrado',             d.facCobradoImporte,   EUR, '#137333'],
+    [5, 'Pendiente de cobro',  d.facPendienteImporte, EUR,
+        d.facPendienteImporte > 0 ? '#f29900' : '#202124']
+  ], '#f8f9fa');
+  kpiRow([
+    [1, 'Base imponible',      d.facBase,        EUR],
+    [3, 'IVA repercutido',     d.facIva,         EUR],
+    [5, 'Anuladas',            d.facAnuladas,    NUM]
+  ]);
+  kpiRow([
+    [1, 'Nº facturas',         d.nFac,           NUM],
+    [3, 'Cobradas',            d.facCobradas,    NUM, '#137333'],
+    [5, 'Pendientes',          d.facPendientes,  NUM,
+        d.facPendientes > 0 ? '#f29900' : '#202124']
+  ], '#f8f9fa');
+  spacer(6);
+
+  // ── GASTOS ────────────────────────────────────────────────────
+  seccion('🧾  GASTOS — ' + anyo);
+  kpiRow([
+    [1, 'Total gastos',       d.gasTotal,            EUR, '#c5221f'],
+    [3, 'Pendiente de pago',  d.gasPendienteImporte, EUR,
+        d.gasPendienteImporte > 0 ? '#f29900' : '#202124'],
+    [5, 'Nº gastos',          d.nGas,                NUM]
+  ], '#f8f9fa');
+  kpiRow([
+    [1, 'Base imponible', d.gasBase,          EUR],
+    [3, 'IVA soportado',  d.gasIva,           EUR],
+    [5, 'Pend. de pago',  d.gasPendientePago, NUM,
+        d.gasPendientePago > 0 ? '#f29900' : '#202124']
+  ]);
+  kpiRow([
+    [1, 'Por revisar',   d.gasRevisar,    NUM, d.gasRevisar    > 0 ? '#f29900' : '#202124'],
+    [3, 'OCR fallido',   d.gasOCRFallido, NUM, d.gasOCRFallido > 0 ? '#c5221f' : '#202124'],
+    [5, 'Sin ticket',    d.gasSinTicket,  NUM, d.gasSinTicket  > 0 ? '#c5221f' : '#202124']
+  ], '#f8f9fa');
+  spacer(6);
+
+  // ── RESULTADO ESTIMADO ────────────────────────────────────────
+  seccion('📈  RESULTADO ESTIMADO — ' + anyo);
+  var bColor = d.beneficio >= 0 ? '#137333' : '#c5221f';
+  kpiRow([
+    [1, 'Beneficio estimado', d.beneficio,  EUR, bColor],
+    [3, 'Ingresos brutos',    d.facTotal,   EUR],
+    [5, 'Gastos totales',     d.gasTotal,   EUR]
+  ], '#f8f9fa');
+
+  if (d.ivaNeto !== null) {
+    var ivaFg = d.ivaResultado === 'A pagar' ? '#c5221f'
+              : d.ivaResultado === 'A compensar' ? '#137333' : '#5f6368';
+    kpiRow([
+      [1, 'IVA neto acumulado', d.ivaNeto,       EUR, ivaFg],
+      [3, 'Resultado IVA',      d.ivaResultado,  null, ivaFg],
+      [5, '', '']
+    ]);
+  }
+  spacer(6);
+
+  // ── TRABAJOS ─────────────────────────────────────────────────
+  seccion('🔧  TRABAJOS');
+  kpiRow([
+    [1, 'Pendientes',   d.traPendientes,  NUM, d.traPendientes > 0 ? '#f29900' : '#202124'],
+    [3, 'En curso',     d.traEnCurso,     NUM, d.traEnCurso    > 0 ? '#1a73e8' : '#202124'],
+    [5, 'Completados',  d.traCompletados, NUM]
+  ], '#f8f9fa');
+  kpiRow([
+    [1, 'Facturados',    d.traFacturados, NUM],
+    [3, 'Total',         d.nTra,          NUM],
+    [5, 'Horas totales', d.traHoras,      '#,##0.0 h']
+  ]);
+  spacer(6);
+
+  // ── CLIENTES Y OPERARIOS ─────────────────────────────────────
+  seccion('👥  CLIENTES Y OPERARIOS');
+  kpiRow([
+    [1, 'Clientes activos',  d.nClientes,  NUM],
+    [3, 'Operarios activos', d.nOperarios, NUM],
+    [5, '', '']
+  ], '#f8f9fa');
+  spacer(6);
+
+  // ── ÚLTIMAS 5 FACTURAS ────────────────────────────────────────
+  if (d.ultFac.length > 0) {
+    seccion('📄  ÚLTIMAS FACTURAS', '#202124', '#ffffff');
+    tableHdr(['ID Factura', 'Fecha', 'Cliente', 'Concepto', 'Total', 'Estado']);
+
+    d.ultFac.forEach(function(f, i) {
+      var bg = i % 2 === 0 ? '#ffffff' : '#f8f9fa';
+      var ec = /cobrad|pagad/i.test(f.estado) ? '#137333' : '#f29900';
+      tableRow([
+        f.id,
+        Utilities.formatDate(f.fecha, tz, 'dd/MM/yyyy'),
+        f.cliente,
+        f.concepto || '—',
+        { v: f.total, fmt: EUR, align: 'right' },
+        { v: f.estado, fg: ec, align: 'center' }
+      ], bg);
+    });
+    spacer(6);
+  }
+
+  // ── ÚLTIMOS 5 GASTOS ─────────────────────────────────────────
+  if (d.ultGas.length > 0) {
+    seccion('🧾  ÚLTIMOS GASTOS', '#202124', '#ffffff');
+    tableHdr(['ID Gasto', 'Fecha', 'Tipo', 'Proveedor', 'Total', 'Pago']);
+
+    d.ultGas.forEach(function(g, i) {
+      var bg = i % 2 === 0 ? '#ffffff' : '#f8f9fa';
+      var pc = /^pagado$/i.test(g.estado) ? '#137333' : '#c5221f';
+      tableRow([
+        g.id,
+        Utilities.formatDate(g.fecha, tz, 'dd/MM/yyyy'),
+        g.tipo,
+        g.proveedor,
+        { v: g.total, fmt: EUR, align: 'right' },
+        { v: g.estado, fg: pc, align: 'center' }
+      ], bg);
+    });
+    spacer(6);
+  }
+
+  // ── PIE ───────────────────────────────────────────────────────
+  sh.getRange(r, 1, 1, NC).merge()
+    .setValue('Beneficio estimado = ingresos − gastos (excluye IRPF). '
+              + 'IVA neto requiere haber generado IVA_TRIMESTRAL. '
+              + 'Actualizar: ⚙️ Sistema → 🏠 Actualizar dashboard.')
+    .setFontColor('#9aa0a6').setFontSize(9).setHorizontalAlignment('center');
+  sh.setRowHeight(r, 28);
+
+  sh.setFrozenRows(2);
+  SpreadsheetApp.flush();
+  Logger.log('[_db_render_] ' + r + ' filas totales.');
+}

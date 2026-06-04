@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Google Sans', Arial, sans-serif; font-size: 13px;
+           color: #202124; background: #fff; padding: 16px; }
+    h3 { font-size: 15px; font-weight: 600; color: #1a73e8;
+         margin-bottom: 12px; border-bottom: 2px solid #1a73e8; padding-bottom: 6px; }
+    .id-badge { display: inline-block; background: #e8f0fe; color: #1a73e8;
+                border-radius: 4px; padding: 2px 10px; font-weight: 600;
+                font-size: 13px; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-weight: 600; color: #5f6368;
+            font-size: 11px; text-transform: uppercase; margin-bottom: 3px; }
+    input, select, textarea {
+      width: 100%; border: 1px solid #dadce0; border-radius: 4px;
+      padding: 7px 10px; font-size: 13px; color: #202124;
+      background: #fff; transition: border-color .15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #e8f0fe;
+    }
+    input[readonly] { background: #f8f9fa; color: #5f6368; }
+    textarea { resize: vertical; min-height: 60px; }
+    .sep { grid-column: 1 / -1; border: none; border-top: 1px solid #e8eaed;
+           margin: 4px 0; }
+    .actions { margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; }
+    button { padding: 8px 20px; border: none; border-radius: 4px;
+             font-size: 13px; font-weight: 600; cursor: pointer; }
+    #btnGuardar { background: #1a73e8; color: #fff; }
+    #btnGuardar:hover { background: #1557b0; }
+    #btnGuardar:disabled { background: #9aa0a6; cursor: default; }
+    #btnCancelar { background: #f1f3f4; color: #202124; }
+    #btnCancelar:hover { background: #e8eaed; }
+    #msg { margin-top: 10px; font-size: 12px; text-align: right; min-height: 16px; }
+    #msg.ok  { color: #137333; }
+    #msg.err { color: #c5221f; }
+    .loading { color: #5f6368; font-style: italic; padding: 40px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="cargando" class="loading">Cargando datos del gasto…</div>
+  <div id="contenido" style="display:none">
+    <h3>Editar gasto</h3>
+    <div class="id-badge" id="idBadge"></div>
+    <div class="grid">
+
+      <div>
+        <label>Fecha gasto</label>
+        <input type="date" id="fechaGasto">
+      </div>
+      <div>
+        <label>Tipo de gasto</label>
+        <select id="tipoGasto">
+          <option value="">— selecciona —</option>
+          <option>Combustible</option>
+          <option>Materiales</option>
+          <option>Herramientas</option>
+          <option>Recambios</option>
+          <option>Productos químicos</option>
+          <option>Transporte</option>
+          <option>Parking</option>
+          <option>Peajes</option>
+          <option>Comidas</option>
+          <option>Alojamiento</option>
+          <option>Telefonía</option>
+          <option>Internet</option>
+          <option>Seguros</option>
+          <option>Gestoría</option>
+          <option>Alquiler maquinaria</option>
+          <option>Vehículos</option>
+          <option>Ropa laboral</option>
+          <option>Publicidad</option>
+          <option>Formación</option>
+          <option>Gasto recurrente</option>
+          <option>Otros</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Proveedor</label>
+        <input type="text" id="proveedor">
+      </div>
+      <div>
+        <label>CIF / NIF proveedor</label>
+        <input type="text" id="cifNif">
+      </div>
+
+      <div>
+        <label>Nº factura / ticket</label>
+        <input type="text" id="numFactura">
+      </div>
+      <div>
+        <label>Categoría</label>
+        <input type="text" id="categoria">
+      </div>
+
+      <div class="full">
+        <label>Concepto</label>
+        <input type="text" id="concepto">
+      </div>
+
+      <hr class="sep">
+
+      <div>
+        <label>Base imponible (€)</label>
+        <input type="number" id="baseImponible" step="0.01" min="0"
+               oninput="recalcularIVA()">
+      </div>
+      <div>
+        <label>IVA (%)</label>
+        <input type="number" id="ivaPorcentaje" step="0.01" min="0" max="100"
+               oninput="recalcularIVA()">
+      </div>
+      <div>
+        <label>IVA importe (€)</label>
+        <input type="number" id="ivaImporte" step="0.01" min="0" readonly>
+      </div>
+      <div>
+        <label>Total (€)</label>
+        <input type="number" id="total" step="0.01" min="0" readonly>
+      </div>
+
+      <hr class="sep">
+
+      <div>
+        <label>Método de pago</label>
+        <input type="text" id="metodoPago">
+      </div>
+      <div>
+        <label>Estado pago</label>
+        <select id="estadoPago">
+          <option>Pendiente</option>
+          <option>Pagado</option>
+        </select>
+      </div>
+      <div class="full">
+        <label>Estado procesamiento</label>
+        <select id="estadoProc">
+          <option>Pendiente OCR</option>
+          <option>Procesado</option>
+          <option>Revisar</option>
+          <option>OCR fallido</option>
+          <option>Revisado manualmente</option>
+        </select>
+      </div>
+
+      <div class="full">
+        <label>Observaciones</label>
+        <textarea id="observaciones" rows="3"></textarea>
+      </div>
+
+    </div>
+    <div class="actions">
+      <button id="btnCancelar" onclick="google.script.host.close()">Cancelar</button>
+      <button id="btnGuardar"  onclick="guardar()">Guardar</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <script>
+    var gastoId = '<?= gastoId ?>';
+
+    // ── Carga inicial ───────────────────────────────────────────
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(rellenar)
+        .withFailureHandler(onError)
+        .obtenerGasto(gastoId);
+    };
+
+    function rellenar(d) {
+      document.getElementById('cargando').style.display  = 'none';
+      document.getElementById('contenido').style.display = 'block';
+      if (!d) {
+        showMsg('Gasto no encontrado: ' + gastoId, true);
+        return;
+      }
+      document.getElementById('idBadge').textContent  = d.id;
+      document.getElementById('fechaGasto').value     = d.fechaGasto    || '';
+      document.getElementById('tipoGasto').value      = d.tipoGasto     || '';
+      document.getElementById('proveedor').value      = d.proveedor     || '';
+      document.getElementById('cifNif').value         = d.cifNif        || '';
+      document.getElementById('numFactura').value     = d.numFactura    || '';
+      document.getElementById('concepto').value       = d.concepto      || '';
+      document.getElementById('categoria').value      = d.categoria     || '';
+      document.getElementById('baseImponible').value  = d.baseImponible !== '' ? d.baseImponible : '';
+      document.getElementById('ivaPorcentaje').value  = d.ivaPorcentaje !== '' ? d.ivaPorcentaje : '';
+      document.getElementById('ivaImporte').value     = d.ivaImporte    !== '' ? d.ivaImporte    : '';
+      document.getElementById('total').value          = d.total         !== '' ? d.total         : '';
+      document.getElementById('metodoPago').value     = d.metodoPago    || '';
+      document.getElementById('estadoPago').value     = d.estadoPago    || 'Pendiente';
+      document.getElementById('estadoProc').value     = d.estadoProc    || 'Pendiente OCR';
+      document.getElementById('observaciones').value  = d.observaciones || '';
+    }
+
+    // ── Recálculo automático de IVA y Total ─────────────────────
+    function recalcularIVA() {
+      var base = parseFloat(document.getElementById('baseImponible').value) || 0;
+      var pct  = parseFloat(document.getElementById('ivaPorcentaje').value) || 0;
+      var imp  = Math.round(base * pct) / 100;
+      var tot  = Math.round((base + imp) * 100) / 100;
+      document.getElementById('ivaImporte').value = imp > 0 ? imp.toFixed(2) : '';
+      document.getElementById('total').value      = tot > 0 ? tot.toFixed(2) : '';
+    }
+
+    // ── Guardar ─────────────────────────────────────────────────
+    function guardar() {
+      var btn = document.getElementById('btnGuardar');
+      btn.disabled = true;
+      showMsg('Guardando…', false);
+
+      var data = {
+        id:            gastoId,
+        fechaGasto:    document.getElementById('fechaGasto').value,
+        tipoGasto:     document.getElementById('tipoGasto').value,
+        proveedor:     document.getElementById('proveedor').value,
+        cifNif:        document.getElementById('cifNif').value,
+        numFactura:    document.getElementById('numFactura').value,
+        concepto:      document.getElementById('concepto').value,
+        categoria:     document.getElementById('categoria').value,
+        baseImponible: document.getElementById('baseImponible').value,
+        ivaPorcentaje: document.getElementById('ivaPorcentaje').value,
+        ivaImporte:    document.getElementById('ivaImporte').value,
+        total:         document.getElementById('total').value,
+        metodoPago:    document.getElementById('metodoPago').value,
+        estadoPago:    document.getElementById('estadoPago').value,
+        estadoProc:    document.getElementById('estadoProc').value,
+        observaciones: document.getElementById('observaciones').value
+      };
+
+      google.script.run
+        .withSuccessHandler(onGuardado)
+        .withFailureHandler(onError)
+        .guardarCambiosGasto(data);
+    }
+
+    function onGuardado(result) {
+      if (result && result.success) {
+        showMsg('✓ Guardado. Recargando panel…', false);
+        google.script.run
+          .withSuccessHandler(function() { google.script.host.close(); })
+          .withFailureHandler(function()  { google.script.host.close(); })
+          .actualizarPanelGastos();
+      } else {
+        showMsg('Error: ' + (result ? result.error : 'desconocido'), true);
+        document.getElementById('btnGuardar').disabled = false;
+      }
+    }
+
+    function onError(e) {
+      showMsg('Error: ' + (e && e.message ? e.message : String(e)), true);
+      document.getElementById('btnGuardar').disabled = false;
+    }
+
+    function showMsg(text, isError) {
+      var el       = document.getElementById('msg');
+      el.textContent = text;
+      el.className   = isError ? 'err' : 'ok';
+    }
+  </script>
+</body>
+</html>

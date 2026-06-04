@@ -404,7 +404,38 @@ function onGastoFormSubmit(namedValues) {
     var targetRow = _nextEmptyGastosRow_(sheet);
     Logger.log('[onGastoFormSubmit] escribiendo en fila ' + targetRow);
     sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    SpreadsheetApp.flush();
     logEvent('INFO', 'onGastoFormSubmit', 'Gasto registrado: ' + id, tipoGasto + ' | ' + estadoProc);
+
+    // ── FASE 8: OCR automático inmediato ──────────────────────────
+    if (archivoId) {
+      try {
+        logEvent('INFO', 'onGastoFormSubmit', id + ' — iniciando OCR automático', archivoId);
+        var ocrRes = procesarOCRGasto(id);
+        logEvent('INFO', 'onGastoFormSubmit',
+          id + ' — OCR finalizado: ' + (ocrRes.estado || (ocrRes.skipped ? 'skipped' : ocrRes.error || 'desconocido')),
+          'confianza=' + (ocrRes.confianza || 0));
+      } catch (ocrErr) {
+        logEvent('ERROR', 'onGastoFormSubmit', 'OCR fallido para ' + id + ': ' + ocrErr.message, ocrErr.stack);
+        try {
+          sheet.getRange(targetRow, COL_GAS.ESTADO_PROCESAMIENTO).setValue('OCR fallido');
+          SpreadsheetApp.flush();
+        } catch (_) {}
+      }
+    } else {
+      logEvent('INFO', 'onGastoFormSubmit', id + ' — sin archivo, OCR omitido', '');
+    }
+
+    // ── Refrescar PANEL_GASTOS si existe ──────────────────────────
+    try {
+      if (getTargetSS_().getSheetByName('PANEL_GASTOS')) {
+        _actualizarPanelGastos_();
+        logEvent('INFO', 'onGastoFormSubmit', id + ' — PANEL_GASTOS actualizado', '');
+      }
+    } catch (panelErr) {
+      logEvent('WARN', 'onGastoFormSubmit', 'Panel no actualizado: ' + panelErr.message, '');
+    }
+
     return { success: true, id: id };
   } catch (e) {
     logEvent('ERROR', 'onGastoFormSubmit', e.message, JSON.stringify(namedValues));
