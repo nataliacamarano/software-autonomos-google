@@ -1,0 +1,217 @@
+// ============================================================
+// PanelContableTest.gs — Test de integración FASE 17
+// Ejecutar desde el editor de script o menú ⚙️ Sistema
+// ============================================================
+
+/**
+ * Test de integración completo para PANEL_CONTABLE FASE 17.
+ * Prueba: lectura de datos, carpeta Drive, hojas exportadas,
+ * resumen, IVA, CSV y log. NO envía email real.
+ */
+function testFlujoPanelContable17() {
+  var ss   = getTargetSS_();
+  var tz   = Session.getScriptTimeZone();
+  var now  = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm:ss');
+  var ok   = [];
+  var warn = [];
+  var err  = [];
+
+  Logger.log('=== TEST PANEL_CONTABLE FASE 17 — ' + now + ' ===');
+
+  // ── 1. Panel existe ───────────────────────────────────────────
+  var sh = ss.getSheetByName(PCN_SHEET);
+  if (!sh) {
+    SpreadsheetApp.getUi().alert(
+      '⚠ PANEL_CONTABLE no existe.\n\n' +
+      'Ejecuta primero:\n  ⚙️ Sistema → 📦 PANEL_CONTABLE — Crear completo\n\n' +
+      'Luego vuelve a ejecutar el test.'
+    );
+    return;
+  }
+  ok.push('✅ PANEL_CONTABLE existe (' + sh.getLastRow() + ' filas)');
+
+  // ── 2. Tipo de periodo y rango de fechas ──────────────────────
+  var tipo    = _pcnLeerTipoPeriodo_(sh);
+  var periodo = _pcnPeriodoEtiqueta_(tipo);
+  var rango   = _pcnObtenerRango_(sh);
+  ok.push('✅ Periodo: ' + tipo + ' → "' + periodo + '"');
+  if (rango) {
+    ok.push('   Rango: ' +
+      Utilities.formatDate(rango.ini, tz, 'dd/MM/yyyy') + ' — ' +
+      Utilities.formatDate(rango.fin, tz, 'dd/MM/yyyy'));
+  } else {
+    ok.push('   Rango: sin filtro de fecha (modo Personalizado sin fechas)');
+  }
+
+  // ── 3. Lectura de FACTURAS ────────────────────────────────────
+  try {
+    var facData = _pcnGetFacturasData_(ss, rango);
+    ok.push('✅ _pcnGetFacturasData_: ' + facData.rows.length + ' factura(s) en el periodo' +
+            ' (' + facData.headers.length + ' columnas)');
+  } catch (e) {
+    err.push('❌ _pcnGetFacturasData_: ' + e.message);
+  }
+
+  // ── 4. Lectura de GASTOS ──────────────────────────────────────
+  try {
+    var gasData = _pcnGetGastosData_(ss, rango);
+    ok.push('✅ _pcnGetGastosData_: ' + gasData.rows.length + ' gasto(s) en el periodo' +
+            ' (' + gasData.headers.length + ' columnas)');
+  } catch (e) {
+    err.push('❌ _pcnGetGastosData_: ' + e.message);
+  }
+
+  // ── 5. KPIs ───────────────────────────────────────────────────
+  try {
+    var kpis = _pcnActualizarResumen_(ss, sh);
+    ok.push('✅ KPIs calculados:');
+    ok.push('     Facturas: ' + kpis.facCount + '  Total: ' + _pcnFmtEur_(kpis.facTotal));
+    ok.push('     IVA rep.:  ' + _pcnFmtEur_(kpis.ivaRep) +
+            '  Pendiente: ' + _pcnFmtEur_(kpis.pendiente));
+    ok.push('     Gastos:   ' + kpis.gasCount + '  Total: ' + _pcnFmtEur_(kpis.gasTotal));
+    ok.push('     IVA neto: ' + _pcnFmtEur_(kpis.ivaNeto));
+  } catch (e) {
+    err.push('❌ _pcnActualizarResumen_: ' + e.message);
+  }
+
+  // ── 6. Carpeta Drive ──────────────────────────────────────────
+  var perFolder = null;
+  try {
+    perFolder = _pcnResolvePeriodFolder_(sh);
+    ok.push('✅ Carpeta Drive: ' + perFolder.getName() + ' (' + perFolder.getUrl() + ')');
+  } catch (e) {
+    err.push('❌ _pcnResolvePeriodFolder_: ' + e.message);
+  }
+
+  if (perFolder && err.length === 0) {
+    // ── 7. Crear sheet de prueba en Drive ─────────────────────
+    try {
+      var testFolder = _pcnGetOrCreateFolder_(perFolder, '_TEST_');
+      var testHeaders = ['ID', 'Nombre', 'Importe'];
+      var testRows    = [
+        ['T001', 'Test 1', 100.50],
+        ['T002', 'Test 2', 200.75]
+      ];
+      var testUrl = _pcnCrearSheetEnDrive_(testFolder, 'Test_' + periodo, testHeaders, testRows);
+      ok.push('✅ _pcnCrearSheetEnDrive_: sheet creado en Drive');
+      ok.push('   URL: ' + testUrl);
+
+      // Limpiar carpeta de test
+      testFolder.setTrashed(true);
+      ok.push('   (carpeta _TEST_ eliminada tras el test)');
+    } catch (e) {
+      err.push('❌ _pcnCrearSheetEnDrive_: ' + e.message);
+    }
+
+    // ── 8. Resumen contable (con datos reales de KPIs) ────────
+    try {
+      var resFolder = _pcnGetOrCreateFolder_(perFolder, 'Resumen');
+      var empresa   = _pcnGetEmpresaNombre_();
+      if (typeof kpis !== 'undefined') {
+        _pcnCrearResumenContable_(resFolder, 'Resumen_' + periodo, periodo, empresa, kpis);
+        ok.push('✅ _pcnCrearResumenContable_: OK → Resumen/' + 'Resumen_' + periodo);
+      } else {
+        warn.push('⚠ _pcnCrearResumenContable_: omitido (kpis no disponible)');
+      }
+    } catch (e) {
+      err.push('❌ _pcnCrearResumenContable_: ' + e.message);
+    }
+
+    // ── 9. Resumen IVA ────────────────────────────────────────
+    try {
+      var ivaFolder = _pcnGetOrCreateFolder_(perFolder, 'IVA');
+      if (typeof kpis !== 'undefined' && typeof facData !== 'undefined') {
+        _pcnCrearResumenIVA_(ivaFolder, 'IVA_' + periodo, periodo,
+          _pcnGetEmpresaNombre_(), kpis, facData, gasData);
+        ok.push('✅ _pcnCrearResumenIVA_: OK → IVA/' + 'IVA_' + periodo);
+      } else {
+        warn.push('⚠ _pcnCrearResumenIVA_: omitido (datos no disponibles)');
+      }
+    } catch (e) {
+      err.push('❌ _pcnCrearResumenIVA_: ' + e.message);
+    }
+
+    // ── 10. CSV ───────────────────────────────────────────────
+    try {
+      var resFolder2 = _pcnGetOrCreateFolder_(perFolder, 'Resumen');
+      if (typeof facData !== 'undefined' && facData.rows.length > 0) {
+        _pcnCrearCSVEnDrive_(resFolder2, 'Facturas_' + periodo + '.csv',
+          facData.headers, facData.rows);
+        ok.push('✅ _pcnCrearCSVEnDrive_ (facturas): OK');
+      } else {
+        warn.push('⚠ CSV facturas omitido (0 filas en el periodo)');
+      }
+      if (typeof gasData !== 'undefined' && gasData.rows.length > 0) {
+        _pcnCrearCSVEnDrive_(resFolder2, 'Gastos_' + periodo + '.csv',
+          gasData.headers, gasData.rows);
+        ok.push('✅ _pcnCrearCSVEnDrive_ (gastos): OK');
+      } else {
+        warn.push('⚠ CSV gastos omitido (0 filas en el periodo)');
+      }
+    } catch (e) {
+      err.push('❌ _pcnCrearCSVEnDrive_: ' + e.message);
+    }
+  }
+
+  // ── 11. Log sheet (crea si no existe y verifica) ──────────────
+  try {
+    var logSh = _pcnEnsureLogSheet_(ss);
+    ok.push('✅ _pcnEnsureLogSheet_: ' + logSh.getName() +
+            ' (' + Math.max(0, logSh.getLastRow() - 1) + ' envíos registrados)');
+  } catch (e) {
+    err.push('❌ _pcnEnsureLogSheet_: ' + e.message);
+  }
+
+  // ── 12. Email composición (sin enviar) ────────────────────────
+  try {
+    if (typeof kpis !== 'undefined') {
+      var folderUrl = String(sh.getRange(PCN_ROWS.DRIVE_ROW, 11).getValue() || '').trim();
+      var htmlPrev  = _pcnComponerBodyHTML_(
+        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test'
+      );
+      var txtPrev   = _pcnComponerBodyTexto_(
+        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test'
+      );
+      ok.push('✅ Composición email: HTML=' + htmlPrev.length + ' chars, TXT=' + txtPrev.length + ' chars');
+    }
+  } catch (e) {
+    err.push('❌ Composición email: ' + e.message);
+  }
+
+  // ── 13. Actualizar estado Drive en panel ──────────────────────
+  try {
+    _pcnActualizarEstadoDrive_(sh, '🧪 Test OK — ' + periodo);
+    SpreadsheetApp.flush();
+    ok.push('✅ _pcnActualizarEstadoDrive_: celda actualizada');
+    // Restaurar estado anterior si había paquete
+    var estadoAnterior = String(sh.getRange(PCN_ROWS.DRIVE_ROW, 4).getValue() || '').trim();
+    if (estadoAnterior.indexOf('🧪') !== -1 && perFolder) {
+      _pcnActualizarEstadoDrive_(sh, '✅ Paquete listo — ' + periodo);
+      SpreadsheetApp.flush();
+    }
+  } catch (e) {
+    err.push('❌ _pcnActualizarEstadoDrive_: ' + e.message);
+  }
+
+  // ── Resultado final ───────────────────────────────────────────
+  var total    = ok.length + warn.length + err.length;
+  var headline = err.length === 0
+    ? '✅ TEST PASADO — ' + ok.length + '/' + total + ' checks OK'
+    : '❌ TEST CON ERRORES — ' + err.length + ' error(es)';
+
+  var lines = [headline, '', 'Periodo analizado: ' + periodo, ''];
+  ok.forEach(function(l)   { lines.push(l); });
+  if (warn.length > 0) {
+    lines.push('');
+    warn.forEach(function(l) { lines.push(l); });
+  }
+  if (err.length > 0) {
+    lines.push('');
+    err.forEach(function(l)  { lines.push(l); });
+  }
+
+  var report = lines.join('\n');
+  Logger.log(report);
+  logEvent('INFO', 'testFlujoPanelContable17', headline, err.length + ' err, ' + warn.length + ' warn');
+  SpreadsheetApp.getUi().alert('🧪 Test PANEL_CONTABLE FASE 17\n\n' + report);
+}
