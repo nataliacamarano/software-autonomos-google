@@ -131,6 +131,78 @@ function testFlujoPanelContable17() {
       err.push('❌ _pcnCrearResumenIVA_: ' + e.message);
     }
 
+    // ── 10a. _pcnExtraerFileId_ (unit test con URLs conocidas) ───
+    try {
+      var urlTests = [
+        ['https://drive.google.com/file/d/1aBcDeFgHiJkLmNoPqRsTuVwX/view', '1aBcDeFgHiJkLmNoPqRsTuVwX'],
+        ['https://drive.google.com/open?id=1aBcDeFgHiJkLmNoPqRsTuVwX',     '1aBcDeFgHiJkLmNoPqRsTuVwX'],
+        ['https://docs.google.com/document/d/1aBcDeFgHiJkLmNoPqRsTuVwX/edit','1aBcDeFgHiJkLmNoPqRsTuVwX'],
+        ['1aBcDeFgHiJkLmNoPqRsTuVwXyz12',                                   '1aBcDeFgHiJkLmNoPqRsTuVwXyz12'],
+        ['',  null],
+        ['—', null]
+      ];
+      var extFail = 0;
+      urlTests.forEach(function(pair) {
+        var got = _pcnExtraerFileId_(pair[0]);
+        if (got !== pair[1]) extFail++;
+      });
+      if (extFail === 0) {
+        ok.push('✅ _pcnExtraerFileId_: ' + urlTests.length + '/'+urlTests.length+' formatos OK');
+      } else {
+        err.push('❌ _pcnExtraerFileId_: ' + extFail + ' formato(s) fallaron');
+      }
+    } catch (e) {
+      err.push('❌ _pcnExtraerFileId_: ' + e.message);
+    }
+
+    // ── 10b. Copia PDFs facturas (dry-run con datos reales) ───────
+    try {
+      if (typeof facData !== 'undefined') {
+        var facDocF  = _pcnGetOrCreateFolder_(perFolder, 'Facturas Emitidas');
+        var facStats = _pcnCopiarPDFsFacturas_(facData, facDocF);
+        ok.push('✅ _pcnCopiarPDFsFacturas_: ' + facStats.ok + ' copiados · ' +
+                facStats.sinUrl + ' sin URL · ' + facStats.errores + ' error(es)');
+        if (facStats.listaErr.length > 0) {
+          warn.push('⚠ PDFs no localizados: ' + facStats.listaErr.join(', '));
+        }
+      } else {
+        warn.push('⚠ _pcnCopiarPDFsFacturas_: omitido (facData no disponible)');
+      }
+    } catch (e) {
+      err.push('❌ _pcnCopiarPDFsFacturas_: ' + e.message);
+    }
+
+    // ── 10c. Copia adjuntos gastos (dry-run con datos reales) ─────
+    try {
+      if (typeof gasData !== 'undefined') {
+        var gasDocF  = _pcnGetOrCreateFolder_(perFolder, 'Gastos');
+        var gasStats = _pcnCopiarAdjuntosGastos_(gasData, gasDocF);
+        ok.push('✅ _pcnCopiarAdjuntosGastos_: ' + gasStats.ok + ' copiados · ' +
+                gasStats.sinAdj + ' sin adjunto · ' + gasStats.errores + ' error(es)');
+        if (gasStats.listaErr.length > 0) {
+          warn.push('⚠ Adjuntos no localizados: ' + gasStats.listaErr.join(', '));
+        }
+      } else {
+        warn.push('⚠ _pcnCopiarAdjuntosGastos_: omitido (gasData no disponible)');
+      }
+    } catch (e) {
+      err.push('❌ _pcnCopiarAdjuntosGastos_: ' + e.message);
+    }
+
+    // ── 10d. Stats PropertiesService ──────────────────────────────
+    try {
+      var savedStats = _pcnLeerStatsUltimoPaquete_();
+      if (savedStats) {
+        ok.push('✅ _pcnLeerStatsUltimoPaquete_: OK (periodo guardado: ' +
+                savedStats.periodo + ')');
+      } else {
+        warn.push('⚠ _pcnLeerStatsUltimoPaquete_: sin stats guardadas ' +
+                  '(ejecuta primero "Generar paquete")');
+      }
+    } catch (e) {
+      err.push('❌ _pcnLeerStatsUltimoPaquete_: ' + e.message);
+    }
+
     // ── 10. CSV ───────────────────────────────────────────────
     try {
       var resFolder2 = _pcnGetOrCreateFolder_(perFolder, 'Resumen');
@@ -166,11 +238,15 @@ function testFlujoPanelContable17() {
   try {
     if (typeof kpis !== 'undefined') {
       var folderUrl = String(sh.getRange(PCN_ROWS.DRIVE_ROW, 11).getValue() || '').trim();
+      var testStats   = _pcnLeerStatsUltimoPaquete_();
+      var testPeriOk  = testStats && testStats.periodo === periodo;
       var htmlPrev  = _pcnComponerBodyHTML_(
-        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test'
+        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test',
+        testStats, testPeriOk
       );
       var txtPrev   = _pcnComponerBodyTexto_(
-        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test'
+        _pcnGetEmpresaNombre_(), periodo, kpis, folderUrl, 'Gestor Test',
+        testStats, testPeriOk
       );
       ok.push('✅ Composición email: HTML=' + htmlPrev.length + ' chars, TXT=' + txtPrev.length + ' chars');
     }
