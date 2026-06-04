@@ -743,7 +743,10 @@ function _pcnLeerGastos_(ss, rango) {
     var idGas = String(row[0]).trim();
     if (!idGas) return;
 
-    var fecha  = row[3];                   // col 4  Fecha_Gasto
+    // Fecha_Gasto con fallback a Fecha_Alta
+    var fechaGasto = row[3];
+    var fecha = (fechaGasto instanceof Date && !isNaN(fechaGasto.getTime()))
+                ? fechaGasto : row[1];
     var ivaImp = parseFloat(row[11]) || 0; // col 12 IVA_Importe
     var total  = parseFloat(row[12]) || 0; // col 13 Total
 
@@ -1058,6 +1061,138 @@ function _pcnEjecutarAccion_(row, col) {
   } else if (row === B.DIAGNOSTICAR[0] && col === B.DIAGNOSTICAR[1]) {
     _diagnosticarPanelContable_();
   }
+}
+
+// ============================================================
+// DIAGNÓSTICO GASTOS — _pcnDiagnosticarGastos_
+// ============================================================
+
+/** Wrapper público para menú y test. */
+function diagnosticarGastos() {
+  _pcnDiagnosticarGastos_();
+}
+
+/**
+ * Diagnóstico detallado de la hoja GASTOS.
+ * Muestra por cada fila: ID, Fecha_Alta, Fecha_Gasto, Total, archivos,
+ * si entra en el periodo y motivo de exclusión si no entra.
+ */
+function _pcnDiagnosticarGastos_() {
+  var ss  = getTargetSS_();
+  var sh  = ss.getSheetByName(PCN_SHEET);
+  var tz  = Session.getScriptTimeZone();
+  var a   = [];
+
+  a.push('=== DIAGNÓSTICO GASTOS ===');
+
+  // 1. Hoja disponible
+  var src = ss.getSheetByName('GASTOS');
+  if (!src) {
+    SpreadsheetApp.getUi().alert('❌ Hoja GASTOS no encontrada.');
+    return;
+  }
+  var lastRow = src.getLastRow();
+  var lastCol = src.getLastColumn();
+  a.push('Hoja: GASTOS  |  Filas: ' + (lastRow - 1) + '  |  Columnas: ' + lastCol);
+
+  // 2. Periodo y rango activo
+  var tipo    = sh ? _pcnLeerTipoPeriodo_(sh)   : 'N/A';
+  var periodo = sh ? _pcnPeriodoEtiqueta_(tipo)  : 'N/A';
+  var rango   = sh ? _pcnObtenerRango_(sh)       : null;
+  a.push('Periodo: ' + periodo);
+  if (rango) {
+    a.push('Rango:   ' + Utilities.formatDate(rango.ini, tz, 'dd/MM/yyyy') +
+           ' — ' + Utilities.formatDate(rango.fin, tz, 'dd/MM/yyyy'));
+  } else {
+    a.push('Rango:   sin filtro de fecha');
+  }
+
+  // 3. Cabeceras detectadas
+  if (lastRow < 1) { a.push('⚠ Hoja vacía.'); }
+  else {
+    var hdrs = src.getRange(1, 1, 1, lastCol).getValues()[0];
+    a.push('');
+    a.push('Columnas detectadas:');
+    var campos = ['ID_Gasto','Fecha_Alta','Tipo_Gasto','Fecha_Gasto','Proveedor',
+                  'CIF','Nº Ticket','Concepto','Categoría','Base','IVA%','IVA€','Total',
+                  'Método Pago','Estado_Pago','Foto_URL','Archivo_ID'];
+    campos.forEach(function(c, i) {
+      var encontrado = hdrs.indexOf(c.replace(' ','_')) >= 0 ||
+                       hdrs.some(function(h) { return String(h).trim() === c; });
+      a.push('  ' + (encontrado ? '✅' : '⚠') + ' col ' + (i+1) + ': ' +
+             String(hdrs[i] || '—'));
+    });
+  }
+
+  // 4. Primeras 20 filas con análisis
+  if (lastRow >= 2) {
+    var data = src.getRange(2, 1, Math.min(lastRow - 1, 20), lastCol).getValues();
+    a.push('');
+    a.push('─── FILAS (máx. 20) ─────────────────────────────────────');
+
+    data.forEach(function(r, idx) {
+      var id        = String(r[0]  || '').trim();
+      if (!id) { a.push('  Fila ' + (idx+2) + ': [vacía]'); return; }
+
+      var fechaAlta  = r[1];
+      var fechaGasto = r[3];
+      var total      = r[12];
+      var archId     = String(r[16] || '').trim();
+      var fotoUrl    = String(r[15] || '').trim();
+
+      var fmtAlta  = (fechaAlta  instanceof Date && !isNaN(fechaAlta))
+                     ? Utilities.formatDate(fechaAlta,  tz, 'dd/MM/yyyy') : '(vacía)';
+      var fmtGasto = (fechaGasto instanceof Date && !isNaN(fechaGasto))
+                     ? Utilities.formatDate(fechaGasto, tz, 'dd/MM/yyyy') : '(vacía)';
+      var fmtTotal = (typeof total === 'number') ? total.toFixed(2) + '€' : String(total || '—');
+      var archivo  = archId ? 'ID:' + archId.substring(0,12) + '…' :
+                    (fotoUrl ? 'URL' : '—');
+
+      // ¿Entra en periodo?
+      var fechaEfectiva = (fechaGasto instanceof Date && !isNaN(fechaGasto))
+                          ? fechaGasto : fechaAlta;
+      var entra   = _pcnEnRango_(fechaEfectiva, rango);
+      var motivo  = '';
+      if (!entra) {
+        if (!(fechaEfectiva instanceof Date) || isNaN(fechaEfectiva.getTime())) {
+          motivo = 'Fecha_Gasto y Fecha_Alta vacías o inválidas';
+        } else {
+          motivo = 'Fuera de rango (' +
+            Utilities.formatDate(fechaEfectiva, tz, 'dd/MM/yyyy') + ')';
+        }
+      }
+
+      a.push('  ' + (entra ? '✅' : '❌') +
+             '  ' + id +
+             '  Alta:' + fmtAlta +
+             '  Gasto:' + fmtGasto +
+             '  ' + fmtTotal +
+             '  Arch:' + archivo +
+             (entra ? '' : '  ← ' + motivo));
+    });
+  }
+
+  // 5. Resumen de cuántos entran
+  if (lastRow >= 2) {
+    var allData = src.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    var entran  = 0, noEntran = 0, sinFecha = 0;
+    allData.forEach(function(r) {
+      if (!String(r[0]).trim()) return;
+      var fg = r[3]; var fa = r[1];
+      var fe = (fg instanceof Date && !isNaN(fg)) ? fg : fa;
+      if (!(fe instanceof Date) || isNaN(fe.getTime())) { sinFecha++; return; }
+      if (_pcnEnRango_(fe, rango)) entran++; else noEntran++;
+    });
+    a.push('');
+    a.push('RESUMEN:  ✅ ' + entran + ' en periodo  |  ❌ ' + noEntran +
+           ' fuera de rango  |  ⚠ ' + sinFecha + ' sin fecha válida');
+  }
+
+  var report = a.join('\n');
+  Logger.log(report);
+  var entranLog = typeof entran !== 'undefined' ? entran : 0;
+  logEvent('INFO', 'diagnosticarGastos', entranLog + ' gastos en periodo', periodo);
+  SpreadsheetApp.getUi().alert('🔍 Diagnóstico GASTOS\n\n' + report);
 }
 
 // ============================================================

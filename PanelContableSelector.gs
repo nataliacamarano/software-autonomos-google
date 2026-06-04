@@ -353,8 +353,7 @@ function _pcnDefaultCheckFac_(r) {
 }
 
 function _pcnDefaultCheckGas_(r) {
-  var tot = typeof r[PCN_IDX_GAS_TOTAL_S] === 'number' ? r[PCN_IDX_GAS_TOTAL_S] : 0;
-  if (tot <= 0) return false;
+  // Pre-marcar solo si tiene archivo; los demás se muestran sin marcar para revisión
   return _pcnFilesStatusGas_(r).hasFile;
 }
 

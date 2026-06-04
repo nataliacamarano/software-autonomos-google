@@ -401,8 +401,12 @@ function _pcnGetGastosData_(ss, rango) {
 
   var all  = src.getRange(2, 1, src.getLastRow() - 1, lastCol).getValues();
   var rows = all.filter(function(r) {
-    if (!String(r[0]).trim()) return false;
-    return _pcnEnRango_(r[3], rango);
+    if (!String(r[0]).trim()) return false;  // fila vacía
+    // Fecha_Gasto (r[3]) con fallback a Fecha_Alta (r[1])
+    var fechaGasto = r[3];
+    var fecha = (fechaGasto instanceof Date && !isNaN(fechaGasto.getTime()))
+                ? fechaGasto : r[1];
+    return _pcnEnRango_(fecha, rango);
   });
 
   return { headers: headers, rows: rows };

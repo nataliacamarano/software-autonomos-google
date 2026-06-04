@@ -335,8 +335,9 @@ function onOpen() {
       .addItem('📦 PANEL_CONTABLE — Actualizar',        'actualizarPanelContable')
       .addItem('📦 PANEL_CONTABLE — Generar paquete',   'generarPaqueteContable')
       .addItem('📦 PANEL_CONTABLE — Enviar al gestor',  'enviarEmailGestor')
-      .addItem('📦 PANEL_CONTABLE — Diagnosticar',      'diagnosticarPanelContable')
-      .addItem('🧪 PANEL_CONTABLE — Test integración',  'testFlujoPanelContable17')
+      .addItem('📦 PANEL_CONTABLE — Diagnosticar',        'diagnosticarPanelContable')
+      .addItem('📦 PANEL_CONTABLE — Diagnosticar GASTOS', 'diagnosticarGastos')
+      .addItem('🧪 PANEL_CONTABLE — Test integración',    'testFlujoPanelContable17')
       .addToUi();
   } catch (e) {}
 }
