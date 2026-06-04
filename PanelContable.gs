@@ -812,7 +812,7 @@ function _pcnEstadoIndicador_(kpis) {
 }
 
 // ============================================================
-// _diagnosticarPanelContable_ — comprobación básica FASE 17.1
+// _diagnosticarPanelContable_ — diagnóstico completo FASE 17.2+
 // ============================================================
 
 function _diagnosticarPanelContable_() {
@@ -889,7 +889,49 @@ function _diagnosticarPanelContable_() {
     a.push('  (panel no existe — crear primero)');
   }
 
-  // 4. Estado final
+  // 4. KPIs del periodo
+  if (panelSh) {
+    a.push('');
+    a.push('📊 KPIs DEL PERIODO:');
+
+    var rango = _pcnObtenerRango_(panelSh);
+    if (rango) {
+      var fmtIni = Utilities.formatDate(rango.ini, tz, 'dd/MM/yyyy');
+      var fmtFin = Utilities.formatDate(rango.fin, tz, 'dd/MM/yyyy');
+      a.push('  Rango detectado:    ' + fmtIni + ' — ' + fmtFin);
+    } else {
+      a.push('  Rango detectado:    Todo el historial (sin filtro de fecha)');
+    }
+
+    var fac = _pcnLeerFacturas_(ss, rango);
+    var gas = _pcnLeerGastos_(ss, rango);
+
+    a.push('  Facturas incluidas: ' + fac.count);
+    a.push('  Total facturas:     ' + _pcnFmtEur_(fac.total));
+    a.push('  IVA repercutido:    ' + _pcnFmtEur_(fac.ivaRep));
+    a.push('  Pendiente cobro:    ' + _pcnFmtEur_(fac.pendiente));
+    a.push('');
+    a.push('  Gastos incluidos:   ' + gas.count);
+    a.push('  Total gastos:       ' + _pcnFmtEur_(gas.total));
+    a.push('  IVA soportado:      ' + _pcnFmtEur_(gas.ivaSop));
+    a.push('');
+    a.push('  IVA neto (a pagar): ' + _pcnFmtEur_(fac.ivaRep - gas.ivaSop));
+
+    if (fac.hayAnomalias) warns.push('Anomalías en FACTURAS (totales negativos)');
+    if (gas.hayAnomalias) warns.push('Anomalías en GASTOS (totales negativos)');
+  }
+
+  // 5. Carpeta Drive
+  if (panelSh) {
+    a.push('');
+    a.push('📁 CARPETA DRIVE:');
+    var estadoDrive = String(panelSh.getRange(PCN_ROWS.DRIVE_ROW, 4).getValue() || '').trim();
+    var urlDrive    = String(panelSh.getRange(PCN_ROWS.DRIVE_ROW, 11).getValue() || '').trim();
+    a.push('  Estado: ' + (estadoDrive || '—'));
+    a.push('  URL:    ' + (urlDrive    || '—'));
+  }
+
+  // 6. Estado final
   a.push('');
   var resumen = warns.length === 0
     ? '✅ PANEL_CONTABLE listo'
@@ -937,13 +979,13 @@ function _pcnEjecutarAccion_(row, col) {
   var B  = PCN_BTNS;
 
   if (row === B.PREP_CARPETA[0] && col === B.PREP_CARPETA[1]) {
-    ui.alert('📁 Preparar carpeta contable\n\nSe implementará en FASE 17.3.');
+    _pcnPrepararCarpetaContable_();
   } else if (row === B.GEN_RESUMEN[0] && col === B.GEN_RESUMEN[1]) {
     _actualizarPanelContable_();
   } else if (row === B.ENVIAR[0] && col === B.ENVIAR[1]) {
     ui.alert('✉️ Enviar email al gestor\n\nSe implementará en FASE 17.6.');
   } else if (row === B.ABRIR_DRIVE[0] && col === B.ABRIR_DRIVE[1]) {
-    ui.alert('🔗 Abrir carpeta Drive\n\nSe implementará en FASE 17.3.');
+    _pcnAbrirCarpetaDrive_();
   } else if (row === B.DIAGNOSTICAR[0] && col === B.DIAGNOSTICAR[1]) {
     _diagnosticarPanelContable_();
   }
@@ -1079,4 +1121,130 @@ function _pcnFmtEur_(val) {
   var abs = Math.abs(n).toFixed(2).split('.');
   var int = abs[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return sgn + int + ',' + abs[1] + ' €';
+}
+
+// ============================================================
+// FASE 17.3 — Carpeta contable en Google Drive
+// ============================================================
+
+var PCN_DRIVE_ROOT      = 'Contabilidad';
+var PCN_DRIVE_SUBFOLDERS = [
+  'Facturas Emitidas',
+  'Gastos',
+  'IVA',
+  'Presupuestos',
+  'Proformas',
+  'Resumen'
+];
+
+/**
+ * Wrapper público (menú y test directo).
+ */
+function prepararCarpetaContable() {
+  _pcnPrepararCarpetaContable_();
+}
+
+/**
+ * Crea (o localiza si ya existe) la estructura de carpetas en Drive:
+ *   Contabilidad / AÑO / PERIODO / [Facturas Emitidas, Gastos, IVA, ...]
+ * Actualiza las celdas Estado y URL en la sección CARPETA DRIVE del panel.
+ */
+function _pcnPrepararCarpetaContable_() {
+  var ss = getTargetSS_();
+  var sh = ss.getSheetByName(PCN_SHEET);
+  if (!sh) {
+    SpreadsheetApp.getUi().alert(
+      '⚠ PANEL_CONTABLE no existe.\nEjecuta primero: ⚙️ Sistema → 📦 PANEL_CONTABLE — Crear completo.'
+    );
+    return;
+  }
+
+  var tipo    = _pcnLeerTipoPeriodo_(sh);
+  var anio    = String(new Date().getFullYear());
+  var periodo = _pcnPeriodoEtiqueta_(tipo);  // e.g. "Junio 2026" / "T2 2026" / "Año 2026"
+
+  try {
+    var rootDrive  = DriveApp.getRootFolder();
+    var contFolder = _pcnGetOrCreateFolder_(rootDrive, PCN_DRIVE_ROOT);
+    var anioFolder = _pcnGetOrCreateFolder_(contFolder, anio);
+    var perFolder  = _pcnGetOrCreateFolder_(anioFolder, periodo);
+
+    PCN_DRIVE_SUBFOLDERS.forEach(function(nombre) {
+      _pcnGetOrCreateFolder_(perFolder, nombre);
+    });
+
+    var url = perFolder.getUrl();
+
+    // Actualizar sección CARPETA DRIVE en el panel
+    var C = PCN_C;
+    var R = PCN_ROWS;
+    sh.getRange(R.DRIVE_ROW, 4, 1, 4).merge()
+      .setValue('✅ Preparada — ' + periodo)
+      .setBackground(C.VERDE_BG).setFontColor(C.VERDE_DARK)
+      .setFontSize(11).setFontWeight('bold')
+      .setHorizontalAlignment('left').setVerticalAlignment('middle');
+    sh.getRange(R.DRIVE_ROW, 11, 1, 4).merge()
+      .setValue(url)
+      .setBackground(C.AZUL_LIGHT).setFontColor(C.AZUL_CORP)
+      .setFontSize(10).setHorizontalAlignment('left').setVerticalAlignment('middle');
+
+    SpreadsheetApp.flush();
+
+    logEvent('INFO', 'prepararCarpetaContable',
+      'Carpeta: ' + PCN_DRIVE_ROOT + '/' + anio + '/' + periodo, url);
+
+    var html = HtmlService.createHtmlOutput(
+      '<p style="font-family:sans-serif">✅ <b>Carpeta contable preparada.</b></p>' +
+      '<p style="font-family:sans-serif">Ruta: <b>' +
+        PCN_DRIVE_ROOT + ' / ' + anio + ' / ' + periodo + '</b></p>' +
+      '<p style="font-family:sans-serif">Subcarpetas creadas:<br>' +
+        PCN_DRIVE_SUBFOLDERS.join(', ') + '</p>' +
+      '<p><a href="' + url + '" target="_blank" ' +
+        'style="font-family:sans-serif;font-size:14px">' +
+        '📂 Abrir carpeta en Drive</a></p>'
+    ).setWidth(440).setHeight(180);
+    SpreadsheetApp.getUi().showModalDialog(html, '📁 Carpeta contable preparada');
+
+  } catch (e) {
+    Logger.log('ERROR _pcnPrepararCarpetaContable_: ' + e.message);
+    logEvent('ERROR', 'prepararCarpetaContable', e.message, '');
+    SpreadsheetApp.getUi().alert('❌ Error al preparar la carpeta:\n\n' + e.message);
+  }
+}
+
+/**
+ * Abre un modal con el enlace a la carpeta Drive del periodo actual.
+ * Si todavía no está preparada, avisa al usuario.
+ */
+function _pcnAbrirCarpetaDrive_() {
+  var ss = getTargetSS_();
+  var sh = ss.getSheetByName(PCN_SHEET);
+  if (!sh) {
+    SpreadsheetApp.getUi().alert('⚠ PANEL_CONTABLE no existe.');
+    return;
+  }
+
+  var urlVal = String(sh.getRange(PCN_ROWS.DRIVE_ROW, 11).getValue() || '').trim();
+
+  if (!urlVal || urlVal === '—') {
+    SpreadsheetApp.getUi().alert(
+      '⚠ La carpeta contable aún no ha sido preparada.\n\n' +
+      'Ejecuta primero: ☑ Preparar carpeta contable'
+    );
+    return;
+  }
+
+  var html = HtmlService.createHtmlOutput(
+    '<p style="font-family:sans-serif">📂 Carpeta contable del periodo:</p>' +
+    '<p><a href="' + urlVal + '" target="_blank" ' +
+      'style="font-family:sans-serif;font-size:14px">Abrir en Google Drive</a></p>'
+  ).setWidth(360).setHeight(100);
+  SpreadsheetApp.getUi().showModalDialog(html, '🔗 Carpeta Drive');
+}
+
+/** Obtiene una subcarpeta por nombre o la crea si no existe. */
+function _pcnGetOrCreateFolder_(parent, nombre) {
+  var iter = parent.getFoldersByName(nombre);
+  if (iter.hasNext()) return iter.next();
+  return parent.createFolder(nombre);
 }
