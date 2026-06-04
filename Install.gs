@@ -1,4 +1,11 @@
 // ============================================================
+// LEGACY — NO USAR
+// Install.gs contenía las rutinas de instalación inicial del sistema.
+// Ya no está conectado al menú ni es llamado por ningún módulo activo.
+// Conservado como referencia histórica. Desactivado en FASE 18.4 (2026-06-04).
+// ============================================================
+
+// ============================================================
 // Install.gs — Backup del sistema antiguo e instalación limpia
 // ============================================================
 

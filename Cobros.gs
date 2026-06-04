@@ -1,4 +1,11 @@
 // ============================================================
+// LEGACY — NO USAR
+// Cobros.gs fue diseñado para gestionar cobros sobre FACTURAS.
+// No está conectado al menú ni es llamado por ningún módulo activo.
+// Conservado como referencia. Desactivado en FASE 18.4 (2026-06-04).
+// ============================================================
+
+// ============================================================
 // Cobros.gs — Gestión de cobros sobre la hoja FACTURAS
 // ============================================================
 //
