@@ -345,6 +345,7 @@ function onOpen() {
       .addItem('📁 DRIVE — Diagnosticar',                 'diagnosticarDriveAlvaro')
       .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
       .addItem('🔍 DRIVE — Diagnóstico migración 18.5',   'diagnosticarMigracionDrive185')
+      .addItem('📦 DRIVE — Migrar archivos M1–M4',        'migrarDriveM1M2M3M4')
       .addToUi();
   } catch (e) {}
 }
