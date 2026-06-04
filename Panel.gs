@@ -338,6 +338,10 @@ function onOpen() {
       .addItem('📦 PANEL_CONTABLE — Diagnosticar',        'diagnosticarPanelContable')
       .addItem('📦 PANEL_CONTABLE — Diagnosticar GASTOS', 'diagnosticarGastos')
       .addItem('🧪 PANEL_CONTABLE — Test integración',    'testFlujoPanelContable17')
+      .addSeparator()
+      .addItem('📁 DRIVE — Crear estructura segura',      'crearEstructuraDriveAlvaro')
+      .addItem('📁 DRIVE — Diagnosticar',                 'diagnosticarDriveAlvaro')
+      .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
       .addToUi();
   } catch (e) {}
 }
