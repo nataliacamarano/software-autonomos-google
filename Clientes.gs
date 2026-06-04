@@ -254,7 +254,7 @@ function _refreshAllClienteDropdowns_() {
   var names = _panelGetClienteNames_(ss);
 
   // PANEL — dropdowns de cliente en PANEL_FACTURAS (izquierdo y presupuestos)
-  var panelSh = ss.getSheetByName('PANEL');
+  var panelSh = ss.getSheetByName('PANEL_FACTURAS');
   if (panelSh && names.length > 0) {
     var val = SpreadsheetApp.newDataValidation()
       .requireValueInList(names, true).setAllowInvalid(false).build();

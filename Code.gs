@@ -890,6 +890,22 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'peek_sheet' && token === DM185_WEB_TOKEN) {
+      var ss6   = getTargetSS_();
+      var name6 = body.name || '';
+      var sh6   = ss6.getSheetByName(name6);
+      if (!sh6) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'not found: ' + name6 })).setMimeType(ContentService.MimeType.JSON);
+      var lastRow = sh6.getLastRow();
+      var lastCol = sh6.getLastColumn();
+      var sample  = [];
+      if (lastRow > 0 && lastCol > 0) {
+        var nRow = Math.min(lastRow, 3);
+        var nCol = Math.min(lastCol, 5);
+        sample = sh6.getRange(1, 1, nRow, nCol).getValues();
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, name: name6, lastRow: lastRow, lastCol: lastCol, sample: sample, hidden: sh6.isSheetHidden() })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'list_sheets' && token === DM185_WEB_TOKEN) {
       var ss4   = getTargetSS_();
       var sheets4 = ss4.getSheets();

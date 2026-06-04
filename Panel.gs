@@ -155,7 +155,7 @@ function _applyPFPImpFormulas_(sh) {
  */
 function repairPreImpFormulas() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) { SpreadsheetApp.getUi().alert('No se encontró la hoja PANEL.'); return; }
   _applyPreImpFormulas_(sh);
   _applyPFPImpFormulas_(sh);
@@ -477,7 +477,7 @@ function onPanelEdit(e) {
     return;
   }
 
-  if (sheetName !== 'PANEL') return;
+  if (sheetName !== 'PANEL_FACTURAS') return;
   var row = e.range.getRow();
   var col = e.range.getColumn();
   var sh  = e.range.getSheet();
@@ -580,7 +580,7 @@ function onEdit(e) {
     return;
   }
 
-  if (sh.getName() !== 'PANEL') return;
+  if (sh.getName() !== 'PANEL_FACTURAS') return;
 
   var row = e.range.getRow();
   var col = e.range.getColumn();
@@ -620,8 +620,8 @@ function onEdit(e) {
 
 function setupPanel() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
-  if (!sh) sh = ss.insertSheet('PANEL', 0);
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
+  if (!sh) sh = ss.insertSheet('PANEL_FACTURAS', 0);
   else {
     sh.clear();
     var _full = sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns());
@@ -1029,7 +1029,7 @@ function setupPanel() {
 
 function panelAgregarConcepto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var hiddenStart = PRE_TABLE.START_ROW + PRE_TABLE.ROWS_VISIBLE; // 19
@@ -1054,7 +1054,7 @@ function panelAgregarConcepto() {
 
 function panelVistaPrevia() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var cliente    = String(sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).getValue()     || '').trim();
@@ -1193,7 +1193,7 @@ function _panelClearPreview_(sh) {
 
 function panelVistaPreviaPresupuesto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var cliente     = String(sh.getRange(P_.PRE_CLIENTE[0],   P_.PRE_CLIENTE[1]).getValue()   || '').trim();
@@ -1271,7 +1271,7 @@ function _panelClearPresupuestoPreview_(sh) {
 
 function panelRefreshClientes() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) { SpreadsheetApp.getUi().alert('Primero crea el PANEL.'); return; }
 
   var nombres = _panelGetClienteNames_(ss);
@@ -1293,7 +1293,7 @@ function panelRefreshClientes() {
 
 function panelGenerarDocumento() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) { Logger.log('Hoja PANEL no encontrada'); return; }
 
   var previewOk = String(sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).getValue()).trim();
@@ -1344,7 +1344,7 @@ function panelGenerarDocumento() {
 
 function panelGenerarPresupuesto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var previewOk = String(sh.getRange(P_.PRE_PREVIEW_OK[0], P_.PRE_PREVIEW_OK[1]).getValue()).trim();
@@ -1974,7 +1974,7 @@ function _fpRefreshPresupuestoDropdown_(sh, cliente) {
 
 function panelCargarPresupuesto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var cliente = String(sh.getRange(PF_.CLIENTE[0], PF_.CLIENTE[1]).getValue() || '').trim();
@@ -2082,7 +2082,7 @@ function panelCargarPresupuesto() {
 
 function panelVistaPreviaFacturaPresupuesto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var cargarOk = String(sh.getRange(PF_.CARGAR_OK[0], PF_.CARGAR_OK[1]).getValue()).trim();
@@ -2142,7 +2142,7 @@ function panelVistaPreviaFacturaPresupuesto() {
 
 function panelGenerarFacturaPresupuesto() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var previewOk = String(sh.getRange(PF_.PREVIEW_OK[0], PF_.PREVIEW_OK[1]).getValue()).trim();
@@ -2227,7 +2227,7 @@ function _fpEstado_(sh, msg, color) {
  * de presupuestos y el panel ya está abierto.
  */
 function panelRefrescarDropdownsFP() {
-  var sh = SpreadsheetApp.getActive().getSheetByName('PANEL');
+  var sh = SpreadsheetApp.getActive().getSheetByName('PANEL_FACTURAS');
   if (!sh) {
     SpreadsheetApp.getUi().alert('❌ No existe la hoja PANEL. Ejecuta primero ① Crear/Reconfigurar PANEL.');
     return;
@@ -2375,7 +2375,7 @@ function verificarFacturaDesdePresupuestoPanel() {
 
   // ── 2. Hoja PANEL ────────────────────────────────────────────
   Logger.log('\n[1] Hoja PANEL:');
-  var sh = ssActive.getSheetByName('PANEL');
+  var sh = ssActive.getSheetByName('PANEL_FACTURAS');
   if (!sh) { Logger.log('  ❌ NO existe.'); return; }
   Logger.log('  ✓ Existe. Filas: ' + sh.getMaxRows() + ', Cols: ' + sh.getMaxColumns());
 
@@ -2531,7 +2531,7 @@ function _buildJobsSection_(sh) {
 
 function panelBuscarTrabajos() {
   var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) return;
 
   var cliente  = String(sh.getRange(P_.CLIENTE[0],   P_.CLIENTE[1]).getValue()   || '').trim();

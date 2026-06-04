@@ -687,7 +687,7 @@ function diagnosticaTRA006() {
   Logger.log('================================================');
 
   // ── 1. Parámetros del panel (tal como los lee panelBuscarTrabajos) ──
-  var sh = ss.getSheetByName('PANEL');
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
   var clientePanel = '';
   var fechaIniStr  = '';
   var fechaFinStr  = '';
