@@ -844,3 +844,58 @@ function doGet(e) {
     )
     .setTitle('Sistema de Gestión — Álvaro');
 }
+
+function doPost(e) {
+  try {
+    var body   = JSON.parse(e.postData.contents);
+    var action = body.action || '';
+    var token  = body.token  || '';
+
+    if (action === 'migrate_m1m4' && token === DM185_WEB_TOKEN) {
+      var result = _dm185_runSilent_();
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'migrate_explicit' && token === DM185_WEB_TOKEN) {
+      var result2 = _dm185_runExplicit_(body.facSourceId || '', body.gasSourceId || '');
+      return ContentService
+        .createTextOutput(JSON.stringify(result2))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'list_folder' && token === DM185_WEB_TOKEN) {
+      var fid = body.folderId || '';
+      var out = { folderId: fid, files: [], error: null };
+      try {
+        var folder = DriveApp.getFolderById(fid);
+        out.folderName = folder.getName();
+        var iter = folder.getFiles();
+        while (iter.hasNext()) {
+          var ff = iter.next();
+          out.files.push({ id: ff.getId(), name: ff.getName(), mime: ff.getMimeType() });
+        }
+      } catch(e) { out.error = e.message; }
+      return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'read_config' && token === DM185_WEB_TOKEN) {
+      var ss2   = getTargetSS_();
+      var keys  = ['carpeta_facturas_id', 'gastos_folder_id'];
+      var vals  = {};
+      keys.forEach(function(k) { vals[k] = getConfig(k) || null; });
+      vals['FACTURAS_FOLDER_ID']  = String(_dmGetConfig_(ss2, 'FACTURAS_FOLDER_ID')  || '');
+      vals['GASTOS_FOLDER_ID']    = String(_dmGetConfig_(ss2, 'GASTOS_FOLDER_ID')    || '');
+      return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized or unknown action' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(e) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: e.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
