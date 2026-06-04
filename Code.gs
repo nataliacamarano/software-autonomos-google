@@ -890,6 +890,48 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'trash_items' && token === DM185_WEB_TOKEN) {
+      var ids  = body.ids  || [];
+      var log3 = [];
+      ids.forEach(function(fid) {
+        try {
+          var f = DriveApp.getFileById(fid);
+          f.setTrashed(true);
+          log3.push({ id: fid, ok: true,  name: f.getName() });
+        } catch(fe) {
+          try {
+            var fo = DriveApp.getFolderById(fid);
+            fo.setTrashed(true);
+            log3.push({ id: fid, ok: true,  name: fo.getName() });
+          } catch(fe2) {
+            log3.push({ id: fid, ok: false, error: fe2.message });
+          }
+        }
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, log: log3 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'dump_sheets' && token === DM185_WEB_TOKEN) {
+      var ss3 = getTargetSS_();
+      var out3 = { driveConfig: [], historial: [], ok: true };
+      var dcSh = ss3.getSheetByName('DRIVE_CONFIG');
+      if (dcSh) {
+        var dcRows = dcSh.getDataRange().getValues();
+        dcRows.forEach(function(r) { out3.driveConfig.push(r.map(String)); });
+      }
+      var hSh = ss3.getSheetByName('HISTORIAL_PAQUETES');
+      if (hSh) {
+        var hLast = hSh.getLastRow();
+        var hCols = hSh.getLastColumn();
+        if (hLast >= 2 && hCols >= 1) {
+          var hStart = Math.max(2, hLast - 9);
+          var hRows  = hSh.getRange(hStart, 1, hLast - hStart + 1, hCols).getValues();
+          hRows.forEach(function(r) { out3.historial.push(r.map(String)); });
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify(out3)).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized or unknown action' }))
       .setMimeType(ContentService.MimeType.JSON);
