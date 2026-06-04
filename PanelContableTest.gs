@@ -16,7 +16,7 @@ function testFlujoPanelContable17() {
   var warn = [];
   var err  = [];
 
-  Logger.log('=== TEST PANEL_CONTABLE FASE 17 — ' + now + ' ===');
+  Logger.log('=== TEST PANEL_CONTABLE FASE 17-18 — ' + now + ' ===');
 
   // ── 1. Panel existe ───────────────────────────────────────────
   var sh = ss.getSheetByName(PCN_SHEET);
@@ -259,7 +259,6 @@ function testFlujoPanelContable17() {
     _pcnActualizarEstadoDrive_(sh, '🧪 Test OK — ' + periodo);
     SpreadsheetApp.flush();
     ok.push('✅ _pcnActualizarEstadoDrive_: celda actualizada');
-    // Restaurar estado anterior si había paquete
     var estadoAnterior = String(sh.getRange(PCN_ROWS.DRIVE_ROW, 4).getValue() || '').trim();
     if (estadoAnterior.indexOf('🧪') !== -1 && perFolder) {
       _pcnActualizarEstadoDrive_(sh, '✅ Paquete listo — ' + periodo);
@@ -267,6 +266,104 @@ function testFlujoPanelContable17() {
     }
   } catch (e) {
     err.push('❌ _pcnActualizarEstadoDrive_: ' + e.message);
+  }
+
+  // ── 14. FASE 18.3: HISTORIAL_PAQUETES ─────────────────────────
+  try {
+    var histSh   = _pcnEnsureHistorialSheet_(ss);
+    var histRows = Math.max(0, histSh.getLastRow() - 1);
+    ok.push('✅ HISTORIAL_PAQUETES: ' + histRows + ' paquete(s) registrado(s)');
+    if (histRows > 0) {
+      var ld = histSh.getRange(histSh.getLastRow(), 1, 1, 10).getValues()[0];
+      var tz2 = Session.getScriptTimeZone();
+      var ldFecha = ld[0] instanceof Date
+        ? Utilities.formatDate(ld[0], tz2, 'dd/MM/yyyy HH:mm') : String(ld[0] || '—');
+      ok.push('   Último paquete: ' + ldFecha + ' · ' + (ld[1] || '?'));
+      ok.push('   Docs: ' + (ld[3] || 0) + ' fac · ' + (ld[5] || 0) + ' gas' +
+              ' · PDFs: ' + (ld[6] || 0) + ' · Adj: ' + (ld[7] || 0));
+      ok.push('   Enviado: ' + (String(ld[9] || '') || '—'));
+    }
+  } catch (e) {
+    err.push('❌ HISTORIAL_PAQUETES: ' + e.message);
+  }
+
+  // ── 15. FASE 18.3: _pcnContabSubFolderName_ unit test ─────────
+  try {
+    var anioNow = new Date().getFullYear();
+    var mesNow  = new Date().getMonth();
+    var trimNow = Math.floor(mesNow / 3) + 1;
+    var mesesDM = ['01_Enero','02_Febrero','03_Marzo','04_Abril',
+                   '05_Mayo','06_Junio','07_Julio','08_Agosto',
+                   '09_Septiembre','10_Octubre','11_Noviembre','12_Diciembre'];
+    var subTests = [
+      ['MES_ACTUAL',       mesesDM[mesNow]],
+      ['TRIMESTRE_ACTUAL', 'T' + trimNow + '_' + anioNow],
+      ['ANIO_ACTUAL',      'Anio_' + anioNow],
+      ['PERSONALIZADO',    'Personalizado']
+    ];
+    var subFails = 0;
+    subTests.forEach(function(p) {
+      if (_pcnContabSubFolderName_(p[0], anioNow) !== p[1]) subFails++;
+    });
+    if (subFails === 0) {
+      ok.push('✅ _pcnContabSubFolderName_: 4/4 tipos OK · MES_ACTUAL → ' +
+        mesesDM[mesNow]);
+    } else {
+      err.push('❌ _pcnContabSubFolderName_: ' + subFails + ' tipo(s) incorrecto(s)');
+    }
+  } catch (e) {
+    err.push('❌ _pcnContabSubFolderName_: ' + e.message);
+  }
+
+  // ── 16. FASE 18.3: _pcnBuildSeleccionHtml_ ────────────────────
+  try {
+    var selMock = {
+      facTotal:    (typeof facData !== 'undefined') ? facData.rows.length : 0,
+      gasTotal:    (typeof gasData !== 'undefined') ? gasData.rows.length : 0,
+      hasSelector: false,
+      stale:       false
+    };
+    var facR = (typeof facData !== 'undefined') ? facData.rows : [];
+    var gasR = (typeof gasData !== 'undefined') ? gasData.rows : [];
+    var html18 = _pcnBuildSeleccionHtml_(facR, gasR, periodo, selMock, tz);
+    if (html18 && html18.indexOf('<!DOCTYPE') === 0 && html18.length > 200) {
+      ok.push('✅ _pcnBuildSeleccionHtml_: HTML correcto · ' +
+        html18.length + ' chars · ' + facR.length + ' fac · ' + gasR.length + ' gas');
+    } else {
+      err.push('❌ _pcnBuildSeleccionHtml_: HTML incorrecto o vacío');
+    }
+  } catch (e) {
+    err.push('❌ _pcnBuildSeleccionHtml_: ' + e.message);
+  }
+
+  // ── 17. FASE 18.3: _pcnLogPaquete_ (escribe y limpia) ─────────
+  try {
+    var histShLog  = _pcnEnsureHistorialSheet_(ss);
+    var beforeRows = histShLog.getLastRow();
+    _pcnLogPaquete_(ss, '__TEST__', [], [], { facPdfOk: 0, gasAdjOk: 0, folderUrl: '' });
+    var afterRows  = histShLog.getLastRow();
+    if (afterRows === beforeRows + 1) {
+      histShLog.deleteRow(afterRows);  // limpiar fila de test
+      ok.push('✅ _pcnLogPaquete_: escribe en historial · fila de test eliminada');
+    } else {
+      err.push('❌ _pcnLogPaquete_: no se escribió la fila esperada');
+    }
+  } catch (e) {
+    err.push('❌ _pcnLogPaquete_: ' + e.message);
+  }
+
+  // ── 18. FASE 18.3: DriveManager routing ───────────────────────
+  try {
+    var contabId18 = _dmGetConfig_(ss, 'CONTABILIDAD_FOLDER_ID');
+    if (contabId18 && String(contabId18).trim()) {
+      ok.push('✅ DriveManager routing: CONTABILIDAD_FOLDER_ID configurado → ' +
+        'carpetas van a ALVARO_EMPRESA/CONTABILIDAD');
+    } else {
+      warn.push('⚠ DriveManager routing: CONTABILIDAD_FOLDER_ID no configurado → ' +
+        'usando ruta fallback Contabilidad/ (ejecuta "DRIVE — Crear estructura" para activar)');
+    }
+  } catch (e) {
+    warn.push('⚠ DriveManager routing: no comprobado (' + e.message + ')');
   }
 
   // ── Resultado final ───────────────────────────────────────────
@@ -289,5 +386,5 @@ function testFlujoPanelContable17() {
   var report = lines.join('\n');
   Logger.log(report);
   logEvent('INFO', 'testFlujoPanelContable17', headline, err.length + ' err, ' + warn.length + ' warn');
-  SpreadsheetApp.getUi().alert('🧪 Test PANEL_CONTABLE FASE 17\n\n' + report);
+  SpreadsheetApp.getUi().alert('🧪 Test PANEL_CONTABLE FASE 17-18\n\n' + report);
 }
