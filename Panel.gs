@@ -344,6 +344,7 @@ function onOpen() {
       .addItem('📁 DRIVE — Crear estructura segura',      'crearEstructuraDriveAlvaro')
       .addItem('📁 DRIVE — Diagnosticar',                 'diagnosticarDriveAlvaro')
       .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
+      .addItem('🔍 DRIVE — Diagnóstico migración 18.5',   'diagnosticarMigracionDrive185')
       .addToUi();
   } catch (e) {}
 }
