@@ -890,6 +890,62 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'list_sheets' && token === DM185_WEB_TOKEN) {
+      var ss4   = getTargetSS_();
+      var sheets4 = ss4.getSheets();
+      var out4  = sheets4.map(function(s) {
+        return { name: s.getName(), index: s.getIndex(), hidden: s.isSheetHidden() };
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, sheets: out4 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'hide_reorder_sheets' && token === DM185_WEB_TOKEN) {
+      var ss5      = getTargetSS_();
+      var toHide   = body.hide   || [];
+      var toShow   = body.show   || [];
+      var order    = body.order  || [];
+      var renamed  = body.rename || {};
+      var log5     = { renamed: [], shown: [], hidden: [], ordered: [], errors: [] };
+
+      // 1. Rename sheets
+      Object.keys(renamed).forEach(function(oldName) {
+        var newName = renamed[oldName];
+        var s = ss5.getSheetByName(oldName);
+        if (s) { s.setName(newName); log5.renamed.push(oldName + ' → ' + newName); }
+        else    { log5.errors.push('rename: not found: ' + oldName); }
+      });
+
+      // 2. Show sheets
+      toShow.forEach(function(name) {
+        var s = ss5.getSheetByName(name);
+        if (s) { s.showSheet(); log5.shown.push(name); }
+        else   { log5.errors.push('show: not found: ' + name); }
+      });
+
+      // 3. Hide sheets
+      toHide.forEach(function(name) {
+        var s = ss5.getSheetByName(name);
+        if (s) {
+          try { s.hideSheet(); log5.hidden.push(name); }
+          catch(he) { log5.errors.push('hide ' + name + ': ' + he.message); }
+        } else { log5.errors.push('hide: not found: ' + name); }
+      });
+
+      // 4. Reorder visible sheets (order = array of names in desired order)
+      if (order.length > 0) {
+        order.forEach(function(name, pos) {
+          var s = ss5.getSheetByName(name);
+          if (s) {
+            try { ss5.moveActiveSheet; ss5.setActiveSheet(s); ss5.moveActiveSheet(pos + 1); log5.ordered.push(name); }
+            catch(oe) { log5.errors.push('order ' + name + ': ' + oe.message); }
+          } else { log5.errors.push('order: not found: ' + name); }
+        });
+      }
+
+      SpreadsheetApp.flush();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, log: log5 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'move_items' && token === DM185_WEB_TOKEN) {
       var moves = body.moves || [];
       var log4  = [];
