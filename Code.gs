@@ -890,6 +890,35 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'move_items' && token === DM185_WEB_TOKEN) {
+      var moves = body.moves || [];
+      var log4  = [];
+      moves.forEach(function(m) {
+        var srcId = m.id || '';
+        var dstId = m.targetParentId || '';
+        if (!srcId || !dstId) {
+          log4.push({ id: srcId, ok: false, error: 'missing id or targetParentId' });
+          return;
+        }
+        try {
+          var dst = DriveApp.getFolderById(dstId);
+          var moved;
+          try {
+            var folder = DriveApp.getFolderById(srcId);
+            moved = folder.moveTo(dst);
+            log4.push({ id: srcId, ok: true, name: folder.getName(), type: 'folder' });
+          } catch(_) {
+            var file = DriveApp.getFileById(srcId);
+            moved = file.moveTo(dst);
+            log4.push({ id: srcId, ok: true, name: file.getName(), type: 'file' });
+          }
+        } catch(me) {
+          log4.push({ id: srcId, ok: false, error: me.message });
+        }
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, log: log4 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'trash_items' && token === DM185_WEB_TOKEN) {
       var ids  = body.ids  || [];
       var log3 = [];
