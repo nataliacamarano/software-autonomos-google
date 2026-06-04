@@ -247,13 +247,13 @@ function limpiarClientesDuplicados() {
 }
 
 /**
- * Refresca los dropdowns de cliente en PANEL, PANEL_CLIENTE y formulario de trabajos.
+ * Refresca los dropdowns de cliente en PANEL_FACTURAS, PANEL_CLIENTE y formulario de trabajos.
  */
 function _refreshAllClienteDropdowns_() {
   var ss    = SpreadsheetApp.getActive();
   var names = _panelGetClienteNames_(ss);
 
-  // PANEL — dropdowns de cliente en PANEL_FACTURAS (izquierdo y presupuestos)
+  // PANEL_FACTURAS — dropdowns de cliente (izquierdo y presupuestos)
   var panelSh = ss.getSheetByName('PANEL_FACTURAS');
   if (panelSh && names.length > 0) {
     var val = SpreadsheetApp.newDataValidation()

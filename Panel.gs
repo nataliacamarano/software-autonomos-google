@@ -1,5 +1,5 @@
 // ================================================================
-// Panel.gs — Interfaz visual PANEL (Documentos + Presupuestos)
+// Panel.gs — Interfaz visual PANEL_FACTURAS (Documentos + Presupuestos)
 // ================================================================
 
 var P_ = {
@@ -156,7 +156,7 @@ function _applyPFPImpFormulas_(sh) {
 function repairPreImpFormulas() {
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName('PANEL_FACTURAS');
-  if (!sh) { SpreadsheetApp.getUi().alert('No se encontró la hoja PANEL.'); return; }
+  if (!sh) { SpreadsheetApp.getUi().alert('No se encontró la hoja PANEL_FACTURAS.'); return; }
   _applyPreImpFormulas_(sh);
   _applyPFPImpFormulas_(sh);
   sh.setColumnWidth(10, 2);  // col J — auxiliares
@@ -274,7 +274,7 @@ function onOpen() {
   try {
     SpreadsheetApp.getUi()
       .createMenu('⚙️ Sistema')
-      .addItem('① Crear / Reconfigurar PANEL',        'setupPanel')
+      .addItem('① Crear / Reconfigurar PANEL_FACTURAS', 'setupPanel')
       .addItem('② Instalar trigger (1ª vez)',          'installPanelTrigger')
       .addItem('③ Actualizar lista de clientes',       'panelRefreshClientes')
       .addItem('④ Instalar módulo Presupuestos',       'installPresupuestosModule')
@@ -1009,7 +1009,7 @@ function setupPanel() {
   _buildJobsSection_(sh);
 
   SpreadsheetApp.getUi().alert(
-    '✅ PANEL listo.\n\n' +
+    '✅ PANEL_FACTURAS listo.\n\n' +
     '▸ Izquierdo: PANEL_FACTURAS\n' +
     '  · Tabla de materiales adicionales (8 filas, fila 10-18)\n' +
     '  · Botón "🔍 BUSCAR TRABAJOS" para cargar trabajos del período\n' +
@@ -1272,7 +1272,7 @@ function _panelClearPresupuestoPreview_(sh) {
 function panelRefreshClientes() {
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName('PANEL_FACTURAS');
-  if (!sh) { SpreadsheetApp.getUi().alert('Primero crea el PANEL.'); return; }
+  if (!sh) { SpreadsheetApp.getUi().alert('Primero crea el PANEL_FACTURAS.'); return; }
 
   var nombres = _panelGetClienteNames_(ss);
   if (!nombres.length) {
@@ -1294,7 +1294,7 @@ function panelRefreshClientes() {
 function panelGenerarDocumento() {
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName('PANEL_FACTURAS');
-  if (!sh) { Logger.log('Hoja PANEL no encontrada'); return; }
+  if (!sh) { Logger.log('Hoja PANEL_FACTURAS no encontrada'); return; }
 
   var previewOk = String(sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).getValue()).trim();
   if (previewOk !== 'OK') {
@@ -2229,7 +2229,7 @@ function _fpEstado_(sh, msg, color) {
 function panelRefrescarDropdownsFP() {
   var sh = SpreadsheetApp.getActive().getSheetByName('PANEL_FACTURAS');
   if (!sh) {
-    SpreadsheetApp.getUi().alert('❌ No existe la hoja PANEL. Ejecuta primero ① Crear/Reconfigurar PANEL.');
+    SpreadsheetApp.getUi().alert('❌ No existe la hoja PANEL_FACTURAS. Ejecuta primero ① Crear/Reconfigurar PANEL_FACTURAS.');
     return;
   }
   _fpRefreshClienteDropdown_(sh);
@@ -2359,7 +2359,7 @@ function runRepairPresupuestosRows() {
 }
 
 /**
- * Diagnóstico de la sección Factura desde Presupuesto en el PANEL:
+ * Diagnóstico de la sección Factura desde Presupuesto en el PANEL_FACTURAS:
  * verifica coordenadas, validaciones y estado de los dropdowns.
  * Resultados visibles en: Ver → Registros de ejecución.
  */
@@ -2373,8 +2373,8 @@ function verificarFacturaDesdePresupuestoPanel() {
   var ssActive = SpreadsheetApp.getActiveSpreadsheet();
   Logger.log('\n[0] getActive() ID: ' + ssActive.getId());
 
-  // ── 2. Hoja PANEL ────────────────────────────────────────────
-  Logger.log('\n[1] Hoja PANEL:');
+  // ── 2. Hoja PANEL_FACTURAS ───────────────────────────────────
+  Logger.log('\n[1] Hoja PANEL_FACTURAS:');
   var sh = ssActive.getSheetByName('PANEL_FACTURAS');
   if (!sh) { Logger.log('  ❌ NO existe.'); return; }
   Logger.log('  ✓ Existe. Filas: ' + sh.getMaxRows() + ', Cols: ' + sh.getMaxColumns());
@@ -2441,7 +2441,7 @@ function _logCeldaDiag_(sh, row, col) {
 // ================================================================
 
 /**
- * Construye la sección "TRABAJOS DISPONIBLES PARA FACTURAR" en la hoja PANEL.
+ * Construye la sección "TRABAJOS DISPONIBLES PARA FACTURAR" en la hoja PANEL_FACTURAS.
  * Llamado desde setupPanel(). Crea cabecera, encabezados y 30 filas de datos
  * inicialmente colapsadas (altura 2px). panelBuscarTrabajos() las expande.
  */

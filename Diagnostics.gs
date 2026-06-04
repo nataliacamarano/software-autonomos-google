@@ -696,15 +696,15 @@ function diagnosticaTRA006() {
     fechaIniStr  = sh.getRange(6, 3).getDisplayValue().trim();
     fechaFinStr  = sh.getRange(7, 3).getDisplayValue().trim();
   }
-  Logger.log('\n[PANEL] cliente   : "' + clientePanel + '"');
-  Logger.log('[PANEL] fechaIni  : "' + fechaIniStr + '"');
-  Logger.log('[PANEL] fechaFin  : "' + fechaFinStr + '"');
+  Logger.log('\n[PANEL_FACTURAS] cliente   : "' + clientePanel + '"');
+  Logger.log('[PANEL_FACTURAS] fechaIni  : "' + fechaIniStr + '"');
+  Logger.log('[PANEL_FACTURAS] fechaFin  : "' + fechaFinStr + '"');
 
   var fi = _parseReportDate_(fechaIniStr);
   var ff = _parseReportDate_(fechaFinStr);
   if (ff) ff.setHours(23, 59, 59, 999);
-  Logger.log('[PANEL] fi parsed : ' + (fi ? fi.toISOString() : 'null — fecha inicio INVÁLIDA'));
-  Logger.log('[PANEL] ff parsed : ' + (ff ? ff.toISOString() : 'null — fecha fin INVÁLIDA'));
+  Logger.log('[PANEL_FACTURAS] fi parsed : ' + (fi ? fi.toISOString() : 'null — fecha inicio INVÁLIDA'));
+  Logger.log('[PANEL_FACTURAS] ff parsed : ' + (ff ? ff.toISOString() : 'null — fecha fin INVÁLIDA'));
 
   // ── 2. Localizar la fila de TRA-006 en TRABAJOS ──────────────────
   Logger.log('\n================================================');
