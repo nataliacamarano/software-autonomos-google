@@ -783,3 +783,31 @@ function _pgSectionHeader_(sh, row, col, numCols) {
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
   sh.setRowHeight(row, 26);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Funciones públicas — ejecutables desde el editor de Apps Script
+// ─────────────────────────────────────────────────────────────
+
+function crearPanelGastosPublico() {
+  _crearPanelGastos_();
+}
+
+function actualizarPanelGastosPublico() {
+  _actualizarPanelGastos_();
+}
+
+function diagnosticarColumnasPanelGastos() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('PANEL_GASTOS');
+  if (!sh) { Logger.log('PANEL_GASTOS no existe'); return; }
+  Logger.log('maxColumns: ' + sh.getMaxColumns());
+  Logger.log('lastColumn:  ' + sh.getLastColumn());
+  var hdrs = sh.getRange(13, 1, 1, sh.getMaxColumns()).getValues()[0];
+  var filled = hdrs.filter(function(h) { return String(h).trim() !== ''; });
+  Logger.log('Fila 13 (' + filled.length + ' cabeceras): ' + filled.join(' | '));
+  Logger.log('PG_N_COLS actual = ' + PG_N_COLS);
+  Logger.log(filled.length >= 19 ? '✅ Las 19 columnas están presentes.' : '❌ Faltan columnas — solo hay ' + filled.length);
+}
+
+function diagnosticarPanelGastosPublico() {
+  diagnosticarColumnasPanelGastos();
+}
