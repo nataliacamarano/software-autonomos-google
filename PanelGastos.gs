@@ -789,23 +789,43 @@ function _pgSectionHeader_(sh, row, col, numCols) {
 // ─────────────────────────────────────────────────────────────
 
 function crearPanelGastosPublico() {
+  Logger.log('>>> crearPanelGastosPublico INICIO');
   _crearPanelGastos_();
+  Logger.log('>>> crearPanelGastosPublico FIN');
 }
 
 function actualizarPanelGastosPublico() {
+  Logger.log('>>> actualizarPanelGastosPublico INICIO');
   _actualizarPanelGastos_();
+  Logger.log('>>> actualizarPanelGastosPublico FIN');
+}
+
+// Crea el panel Y carga datos en una sola ejecución
+function instalarPanelGastos() {
+  Logger.log('=== instalarPanelGastos INICIO ===');
+  Logger.log('PG_N_COLS = ' + PG_N_COLS);
+  _crearPanelGastos_();
+  Logger.log('--- Panel creado, cargando datos ---');
+  _actualizarPanelGastos_();
+  Logger.log('=== instalarPanelGastos FIN ===');
+  diagnosticarColumnasPanelGastos();
 }
 
 function diagnosticarColumnasPanelGastos() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('PANEL_GASTOS');
-  if (!sh) { Logger.log('PANEL_GASTOS no existe'); return; }
+  // Usa getTargetSS_() igual que _crearPanelGastos_ para leer el mismo spreadsheet
+  var ss = getTargetSS_();
+  Logger.log('Spreadsheet: ' + ss.getName() + '  ID: ' + ss.getId());
+  var sh = ss.getSheetByName('PANEL_GASTOS');
+  if (!sh) { Logger.log('❌ PANEL_GASTOS no existe en este spreadsheet'); return; }
   Logger.log('maxColumns: ' + sh.getMaxColumns());
   Logger.log('lastColumn:  ' + sh.getLastColumn());
   var hdrs = sh.getRange(13, 1, 1, sh.getMaxColumns()).getValues()[0];
   var filled = hdrs.filter(function(h) { return String(h).trim() !== ''; });
   Logger.log('Fila 13 (' + filled.length + ' cabeceras): ' + filled.join(' | '));
   Logger.log('PG_N_COLS actual = ' + PG_N_COLS);
-  Logger.log(filled.length >= 19 ? '✅ Las 19 columnas están presentes.' : '❌ Faltan columnas — solo hay ' + filled.length);
+  Logger.log(filled.length >= 19
+    ? '✅ Las 19 columnas están presentes.'
+    : '❌ Faltan columnas — solo hay ' + filled.length);
 }
 
 function diagnosticarPanelGastosPublico() {
