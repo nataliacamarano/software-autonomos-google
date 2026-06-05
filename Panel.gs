@@ -294,6 +294,7 @@ function onOpen() {
       .addItem('⑰ PANEL_GASTOS — Actualizar datos',    'actualizarPanelGastos')
       .addItem('⑱ PANEL_GASTOS — Diagnosticar',        'diagnosticarPanelGastos')
       .addItem('📎 PANEL_GASTOS — Adjuntar PDF (fila seleccionada)', 'adjuntarPdfGastoSeleccionado')
+      .addItem('📥 PANEL_GASTOS — Subir factura PDF recibida',     'abrirSubirFacturaPdfDesdeMenu')
       .addItem('⑱b PANEL_GASTOS — Diagnosticar (test)', 'testDiagnosticoGastos')
       .addItem('⑲ Enviar gastos al gestor',            'enviarGastosAlGestor')
       .addItem('📊 Generar informe de gastos',          'generarInformeGastos')
@@ -608,6 +609,10 @@ function onEdit(e) {
       e.range.setValue(false);
       _actualizarPanelGastos_();
       return;
+    }
+    // BTN_SUBIR_FAC (A12) necesita trigger instalable para modal — se gestiona en onPanelEdit
+    if (pgRow === PG_.BTN_SUBIR_FAC[0] && pgCol === PG_.BTN_SUBIR_FAC[1] && e.value === 'TRUE') {
+      return; // no hacer nada en simple trigger (modal requiere instalable)
     }
     if (pgRow >= PG_.TABLE_START && (pgCol === PG_.TC_REVISADO || pgCol === PG_.TC_ENVIAR)) {
       var pgId = String(sh.getRange(pgRow, PG_.TC_ID).getValue()).trim();

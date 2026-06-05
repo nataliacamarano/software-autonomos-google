@@ -25,9 +25,15 @@ var PG_ = {
   S_N_PAGO: [8, 5],
   S_N_GES:  [9, 5],
 
-  // Tabla
-  TABLE_HDR:   13,   // fila de cabeceras
-  TABLE_START: 14,   // primera fila de datos
+  // Sección "📥 Facturas recibidas por email / PDF" (filas 11-12)
+  SEC_FAC:       11,          // fila: encabezado sección
+  BTN_SUBIR_FAC: [12, 1],    // A12: botón checkbox
+  FAC_ESTADO:    [12, 9],    // I12: estado último procesamiento (merged I12:L12)
+  FAC_RESULT:    [12, 14],   // N12: resultado OCR (merged N12:T12)
+
+  // Tabla (desplazada +2 filas respecto a la versión anterior)
+  TABLE_HDR:   15,   // fila de cabeceras  (era 13)
+  TABLE_START: 16,   // primera fila de datos (era 14)
 
   // Columnas de la tabla (números de columna absolutos)
   TC_ID:       1,   // A
@@ -191,13 +197,68 @@ function _crearPanelGastos_() {
   sh.getRange(PG_.S_BASE[0],  PG_.S_BASE[1]).setNumberFormat('#,##0.00 €');
   sh.getRange(PG_.S_IVA[0],   PG_.S_IVA[1]).setNumberFormat('#,##0.00 €');
 
-  // ── Fila 11: espaciador, Fila 12: encabezado tabla ───────────
-  sh.getRange(11, 1, 1, PG_N_COLS).merge().setBackground('#ffffff');
-  sh.getRange(12, 1, 1, PG_N_COLS).merge()
-    .setValue('TABLA DE GASTOS FILTRADOS');
-  _pgSectionHeader_(sh, 12, 1, PG_N_COLS);
+  // ── Fila 11: sección Facturas recibidas ──────────────────────
+  sh.getRange(PG_.SEC_FAC, 1, 1, PG_N_COLS).merge()
+    .setValue('📥 FACTURAS RECIBIDAS POR EMAIL / PDF')
+    .setBackground('#0d47a1').setFontColor('#ffffff')
+    .setFontWeight('bold').setFontSize(11)
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  sh.setRowHeight(PG_.SEC_FAC, 28);
 
-  // ── Fila 13: cabeceras de la tabla ───────────────────────────
+  // ── Fila 12: botón + ayuda + estado + resultado ───────────────
+  sh.setRowHeight(12, 34);
+
+  // A12: botón "📎 Subir factura PDF"
+  sh.getRange(12, 1)
+    .setBackground('#1a73e8').setFontColor('#ffffff')
+    .setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setFontSize(11)
+    .setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build())
+    .setValue(false)
+    .setNote('Haz clic para subir una factura PDF recibida por email');
+  sh.setColumnWidth(1, 180);
+
+  // B12:G12: texto de ayuda
+  sh.getRange(12, 2, 1, 6).merge()
+    .setValue('Usa esta opción para subir facturas recibidas por email en PDF. El sistema extraerá automáticamente los datos.')
+    .setBackground('#e8f0fe').setFontColor('#1a73e8').setFontSize(10)
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP)
+    .setVerticalAlignment('middle');
+
+  // G12:H12: etiqueta estado
+  sh.getRange(12, 8, 1, 1)
+    .setValue('Último proceso:')
+    .setBackground('#f1f3f4').setFontWeight('bold').setFontSize(9)
+    .setHorizontalAlignment('right').setVerticalAlignment('middle');
+
+  // I12:M12: valor estado
+  sh.getRange(12, PG_.FAC_ESTADO[1], 1, 5).merge()
+    .setValue('—')
+    .setBackground('#ffffff').setFontSize(9).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, false, false, '#cccccc', SpreadsheetApp.BorderStyle.SOLID);
+
+  // N12: etiqueta resultado
+  sh.getRange(12, 13)
+    .setValue('Resultado OCR:')
+    .setBackground('#f1f3f4').setFontWeight('bold').setFontSize(9)
+    .setHorizontalAlignment('right').setVerticalAlignment('middle');
+
+  // N12:T12: valor resultado
+  sh.getRange(12, PG_.FAC_RESULT[1], 1, 7).merge()
+    .setValue('—')
+    .setBackground('#ffffff').setFontSize(9).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, false, false, '#cccccc', SpreadsheetApp.BorderStyle.SOLID);
+
+  // ── Fila 13: espaciador ───────────────────────────────────────
+  sh.getRange(13, 1, 1, PG_N_COLS).merge().setBackground('#ffffff');
+  sh.setRowHeight(13, 8);
+
+  // ── Fila 14: encabezado tabla ─────────────────────────────────
+  sh.getRange(14, 1, 1, PG_N_COLS).merge()
+    .setValue('TABLA DE GASTOS FILTRADOS');
+  _pgSectionHeader_(sh, 14, 1, PG_N_COLS);
+
+  // ── Fila 15: cabeceras de la tabla ───────────────────────────
   var hdrs = [
     'ID_Gasto', 'Fecha', 'Tipo_Gasto', 'Proveedor', 'Concepto',
     'Total', 'IVA', 'Estado\nPago', 'Estado\nProc.',
@@ -563,6 +624,13 @@ function onEditPanelGastos_(e) {
   if (row === PG_.BTN_ACTUALIZAR[0] && col === PG_.BTN_ACTUALIZAR[1] && val === 'TRUE') {
     e.range.setValue(false);
     _actualizarPanelGastos_();
+    return;
+  }
+
+  // Botón Subir factura PDF (A12)
+  if (row === PG_.BTN_SUBIR_FAC[0] && col === PG_.BTN_SUBIR_FAC[1] && val === 'TRUE') {
+    e.range.setValue(false);
+    mostrarModalSubirFacturaPdfGasto_();
     return;
   }
 
