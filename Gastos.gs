@@ -2,7 +2,7 @@
 // Gastos.gs — Módulo de gastos FASE 2: Recepción y normalización
 // ============================================================
 
-// Columnas de la hoja GASTOS (base 1) — 23 columnas
+// Columnas de la hoja GASTOS (base 1) — 25 columnas
 var COL_GAS = {
   ID_GASTO:              1,
   FECHA_ALTA:            2,
@@ -26,7 +26,9 @@ var COL_GAS = {
   REVISADO:              20,
   ENVIAR_GESTOR:         21,
   OBSERVACIONES:         22,
-  ESTADO_PROCESAMIENTO:  23
+  ESTADO_PROCESAMIENTO:  23,
+  CLIENTE:               24,
+  DOCUMENTO:             25
 };
 
 var HEADERS_GASTOS = [
@@ -35,7 +37,8 @@ var HEADERS_GASTOS = [
   'Base_Imponible', 'IVA_Porcentaje', 'IVA_Importe', 'Total',
   'Metodo_Pago', 'Estado_Pago',
   'Foto_URL', 'Archivo_ID', 'OCR_Texto', 'Confianza_OCR',
-  'Revisado', 'Enviar_Gestor', 'Observaciones', 'Estado_Procesamiento'
+  'Revisado', 'Enviar_Gestor', 'Observaciones', 'Estado_Procesamiento',
+  'Cliente', 'Documento'
 ];
 
 var TIPOS_GASTO = [
@@ -130,7 +133,9 @@ function installGastosModule() {
     [COL_GAS.REVISADO,               80],
     [COL_GAS.ENVIAR_GESTOR,         100],
     [COL_GAS.OBSERVACIONES,         200],
-    [COL_GAS.ESTADO_PROCESAMIENTO,  150]
+    [COL_GAS.ESTADO_PROCESAMIENTO,  150],
+    [COL_GAS.CLIENTE,               140],
+    [COL_GAS.DOCUMENTO,             220]
   ];
   for (var w = 0; w < widths.length; w++) {
     sheet.setColumnWidth(widths[w][0], widths[w][1]);
@@ -612,7 +617,8 @@ function repararGastosFase1() {
     [COL_GAS.TOTAL,90],[COL_GAS.METODO_PAGO,130],[COL_GAS.ESTADO_PAGO,100],
     [COL_GAS.FOTO_URL,220],[COL_GAS.ARCHIVO_ID,160],[COL_GAS.OCR_TEXTO,200],
     [COL_GAS.CONFIANZA_OCR,100],[COL_GAS.REVISADO,80],[COL_GAS.ENVIAR_GESTOR,100],
-    [COL_GAS.OBSERVACIONES,200],[COL_GAS.ESTADO_PROCESAMIENTO,150]
+    [COL_GAS.OBSERVACIONES,200],[COL_GAS.ESTADO_PROCESAMIENTO,150],
+    [COL_GAS.CLIENTE,140],[COL_GAS.DOCUMENTO,220]
   ];
   widths.forEach(function(w) { sheet.setColumnWidth(w[0], w[1]); });
 

@@ -44,10 +44,14 @@ var PG_ = {
   TC_VER_FOTO: 12,  // L ← hyperlink
   TC_VER_OCR:  13,  // M ← checkbox "Ver OCR"
   TC_OBS:      14,  // N
-  TC_EDITAR:   15   // O ← checkbox "Editar" (abre EditarGasto.html)
+  TC_EDITAR:   15,  // O ← checkbox "Editar" (abre EditarGasto.html)
+  TC_CAT:      16,  // P
+  TC_BASE:     17,  // Q
+  TC_CLIENTE:  18,  // R
+  TC_DOC:      19   // S ← hyperlink documento
 };
 
-var PG_N_COLS = 15;
+var PG_N_COLS = 19;
 
 // Colores de fila según Estado_Procesamiento
 var PG_COLORS = {
@@ -86,7 +90,8 @@ function _crearPanelGastos_() {
   var colWidths = [
     [1, 115], [2, 100], [3, 145], [4, 180], [5, 220],
     [6, 90],  [7, 80],  [8, 105], [9, 145],
-    [10, 80], [11, 80], [12, 75], [13, 75], [14, 200], [15, 65]
+    [10, 80], [11, 80], [12, 75], [13, 75], [14, 200], [15, 65],
+    [16, 120], [17, 90], [18, 140], [19, 100]
   ];
   colWidths.forEach(function(w) { sh.setColumnWidth(w[0], w[1]); });
 
@@ -195,7 +200,8 @@ function _crearPanelGastos_() {
   var hdrs = [
     'ID_Gasto', 'Fecha', 'Tipo_Gasto', 'Proveedor', 'Concepto',
     'Total', 'IVA', 'Estado\nPago', 'Estado\nProc.',
-    'Revisado', 'Enviar\nGestor', 'Ver\nFoto', 'Ver\nOCR', 'Observaciones', 'Editar'
+    'Revisado', 'Enviar\nGestor', 'Ver\nFoto', 'Ver\nOCR', 'Observaciones', 'Editar',
+    'Categoría', 'Base', 'Cliente', 'Documento'
   ];
   sh.getRange(PG_.TABLE_HDR, 1, 1, hdrs.length).setValues([hdrs])
     .setBackground('#202124').setFontColor('#ffffff')
@@ -440,6 +446,7 @@ function _pgEscribirTabla_(sh, gastos) {
     var total   = parseFloat(row[COL_GAS.TOTAL       - 1]);
     var iva     = parseFloat(row[COL_GAS.IVA_IMPORTE - 1]);
 
+    var base = parseFloat(row[COL_GAS.BASE_IMPONIBLE - 1]);
     tableData.push([
       String(row[COL_GAS.ID_GASTO    - 1]).trim(),
       fechaStr,
@@ -455,7 +462,11 @@ function _pgEscribirTabla_(sh, gastos) {
       '',        // Ver foto (se rellena con rich text abajo)
       false,     // Ver OCR (checkbox)
       String(row[COL_GAS.OBSERVACIONES - 1]).trim(),
-      false      // Editar (checkbox)
+      false,     // Editar (checkbox)
+      String(row[COL_GAS.CATEGORIA  - 1]).trim(),
+      isNaN(base) ? '' : base,
+      String(row[COL_GAS.CLIENTE    - 1]).trim(),
+      ''         // Documento (se rellena con rich text abajo)
     ]);
   }
   sh.getRange(PG_.TABLE_START, 1, n, PG_N_COLS).setValues(tableData);
@@ -463,6 +474,7 @@ function _pgEscribirTabla_(sh, gastos) {
   // ── Paso 2: formatos de número ────────────────────────────────
   sh.getRange(PG_.TABLE_START, PG_.TC_TOTAL, n, 1).setNumberFormat('#,##0.00 €');
   sh.getRange(PG_.TABLE_START, PG_.TC_IVA,   n, 1).setNumberFormat('#,##0.00 €');
+  sh.getRange(PG_.TABLE_START, PG_.TC_BASE,  n, 1).setNumberFormat('#,##0.00 €');
 
   // ── Paso 3: validaciones checkbox en batch ────────────────────
   sh.getRange(PG_.TABLE_START, PG_.TC_REVISADO, n, 1).setDataValidation(ruleCheck);
@@ -477,6 +489,8 @@ function _pgEscribirTabla_(sh, gastos) {
   sh.getRange(PG_.TABLE_START, PG_.TC_ENVIAR,   n, 1).setHorizontalAlignment('center');
   sh.getRange(PG_.TABLE_START, PG_.TC_VER_FOTO, n, 1).setHorizontalAlignment('center');
   sh.getRange(PG_.TABLE_START, PG_.TC_VER_OCR,  n, 1).setHorizontalAlignment('center');
+  sh.getRange(PG_.TABLE_START, PG_.TC_BASE,     n, 1).setHorizontalAlignment('right');
+  sh.getRange(PG_.TABLE_START, PG_.TC_DOC,      n, 1).setHorizontalAlignment('center');
 
   // ── Paso 5: por fila — rich text (foto), notas, color ────────
   for (var j = 0; j < n; j++) {
@@ -494,6 +508,17 @@ function _pgEscribirTabla_(sh, gastos) {
       ).setFontColor('#1a73e8');
     } else {
       fotoCell.setValue('—').setFontColor('#999999');
+    }
+
+    // Hyperlink Documento
+    var docUrl  = String(row2[COL_GAS.DOCUMENTO - 1]).trim();
+    var docCell = sh.getRange(fila, PG_.TC_DOC);
+    if (docUrl) {
+      docCell.setRichTextValue(
+        SpreadsheetApp.newRichTextValue().setText('Ver doc').setLinkUrl(docUrl).build()
+      ).setFontColor('#1a73e8');
+    } else {
+      docCell.setValue('—').setFontColor('#999999');
     }
 
     // Notas con ID para identificar la fila en onEdit
