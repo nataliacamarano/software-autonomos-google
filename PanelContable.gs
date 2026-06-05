@@ -249,7 +249,7 @@ function _pcnBuildConfig_(sh) {
     .setBackground(C.MORADO_BG).setFontColor(C.NEGRO).setFontSize(10)
     .setHorizontalAlignment('left').setVerticalAlignment('middle');
   sh.getRange(R.CFG_TIPO, 4, 1, 4).merge()
-    .setValue('Mes actual').setDataValidation(dvTipo)
+    .setValue('Año actual').setDataValidation(dvTipo)
     .setBackground(C.BLANCO).setFontColor(C.MORADO_DARK)
     .setFontSize(11).setFontWeight('bold')
     .setHorizontalAlignment('left').setVerticalAlignment('middle');
@@ -750,7 +750,9 @@ function _pcnLeerGastos_(ss, rango) {
     var ivaImp = parseFloat(row[11]) || 0; // col 12 IVA_Importe
     var total  = parseFloat(row[12]) || 0; // col 13 Total
 
-    if (!_pcnEnRango_(fecha, rango)) return;
+    // Sin fecha válida → incluir siempre (sin fecha = sin filtro de fecha)
+    var fechaValida = fecha instanceof Date && !isNaN(fecha.getTime());
+    if (fechaValida && !_pcnEnRango_(fecha, rango)) return;
 
     result.count++;
     result.total  += total;
@@ -1290,16 +1292,16 @@ function _pcnCalcularRango_(tipo) {
 
   switch (tipo) {
     case 'MES_ACTUAL':
-      ini = new Date(anio, mes, 1);
-      fin = new Date(anio, mes + 1, 0);
+      ini = new Date(anio, mes, 1, 0, 0, 0);
+      fin = new Date(anio, mes + 1, 0, 23, 59, 59);
       break;
     case 'TRIMESTRE_ACTUAL':
-      ini = new Date(anio, trim * 3, 1);
-      fin = new Date(anio, trim * 3 + 3, 0);
+      ini = new Date(anio, trim * 3, 1, 0, 0, 0);
+      fin = new Date(anio, trim * 3 + 3, 0, 23, 59, 59);
       break;
     case 'ANIO_ACTUAL':
-      ini = new Date(anio, 0, 1);
-      fin = new Date(anio, 11, 31);
+      ini = new Date(anio, 0, 1, 0, 0, 0);
+      fin = new Date(anio, 11, 31, 23, 59, 59);
       break;
     default:
       ini = new Date(anio, mes, 1);
