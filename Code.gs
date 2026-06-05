@@ -952,6 +952,29 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ ok: true, updated: updates.length })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'read_pcn_visual' && token === DM185_WEB_TOKEN) {
+      var ssV = getTargetSS_();
+      var shV = ssV.getSheetByName('PANEL_CONTABLE');
+      if (!shV) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'PANEL_CONTABLE no encontrado' })).setMimeType(ContentService.MimeType.JSON);
+      var g = function(r,c,nr,nc){ return shV.getRange(r,c,nr,nc).getValues(); };
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        titulo:        shV.getRange(1,1).getValue(),
+        estado:        shV.getRange(2,6).getValue(),   // fila 2 cols 6-9 (indicador)
+        timestamp:     shV.getRange(2,10).getValue(),  // fila 2 cols 10-14
+        tipoPeriodo:   shV.getRange(5,4).getValue(),   // dropdown
+        periodoLabel:  shV.getRange(5,11).getValue(),  // periodo detectado
+        fechaIni:      shV.getRange(6,4).getValue(),
+        fechaFin:      shV.getRange(6,11).getValue(),
+        kpi1_lbls:     g(17,2,1,12)[0].filter(function(v){return v!==''}),
+        kpi1_vals:     g(18,2,1,12)[0].filter(function(v){return v!==''}),
+        kpi2_lbls:     g(19,2,1,12)[0].filter(function(v){return v!==''}),
+        kpi2_vals:     g(20,2,1,12)[0].filter(function(v){return v!==''}),
+        driveEstado:   shV.getRange(23,4).getValue(),
+        emailUltimo:   shV.getRange(26,4).getValue()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'read_gastos_fin' && token === DM185_WEB_TOKEN) {
       var ssG = getTargetSS_();
       var shG = ssG.getSheetByName('GASTOS');
