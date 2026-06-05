@@ -901,9 +901,10 @@ function doPost(e) {
             if (rows7 < 10 || cols7 < 5) throw new Error('PANEL_FACTURAS parece vacía (' + rows7 + 'r × ' + cols7 + 'c)');
           }
         },
-        { name: 'PANEL_CLIENTE',   fn: function() { refreshPanelCliente(); } },
-        { name: 'PANEL_GASTOS',    fn: function() { _actualizarPanelGastos_(); } },
-        { name: 'PANEL_CONTABLE',  fn: function() { _actualizarPanelContable_(); } }
+        { name: 'PANEL_CLIENTE',     fn: function() { refreshPanelCliente(); } },
+        { name: 'PANEL_PENDIENTES', fn: function() { refreshPanelPendientes(); } },
+        { name: 'PANEL_GASTOS',     fn: function() { _actualizarPanelGastos_(); } },
+        { name: 'PANEL_CONTABLE',   fn: function() { _actualizarPanelContable_(); } }
       ];
       var results7 = checks.map(function(c) {
         try   { c.fn(); return { name: c.name, ok: true };  }

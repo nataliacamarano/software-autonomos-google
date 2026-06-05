@@ -341,6 +341,10 @@ function onOpen() {
       .addItem('📦 PANEL_CONTABLE — Ver historial paquetes',   'verHistorialPaquetes')
       .addItem('🧪 PANEL_CONTABLE — Test integración',          'testFlujoPanelContable17')
       .addSeparator()
+      .addSeparator()
+      .addItem('🔴 PANEL_PENDIENTES — Crear',             'setupPanelPendientes')
+      .addItem('🔴 PANEL_PENDIENTES — Actualizar',        'refreshPanelPendientes')
+      .addSeparator()
       .addItem('📁 DRIVE — Crear estructura segura',      'crearEstructuraDriveAlvaro')
       .addItem('📁 DRIVE — Diagnosticar',                 'diagnosticarDriveAlvaro')
       .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
@@ -472,6 +476,18 @@ function onPanelEdit(e) {
       var tId  = e.range.getNote().trim();
       var docA = String(e.range.getSheet().getRange(pcRow, 9).getValue() || '').trim(); // col I = Factura
       if (tId) mostrarDetalleTrabajoPC(tId, docA);
+      return;
+    }
+    return;
+  }
+
+  // ── PANEL_PENDIENTES ──────────────────────────────────────────
+  if (sheetName === 'PANEL_PENDIENTES') {
+    if (e.value === 'TRUE' &&
+        e.range.getRow()    === PP_.BOTON[0] &&
+        e.range.getColumn() === PP_.BOTON[1]) {
+      e.range.setValue(false);
+      refreshPanelPendientes();
       return;
     }
     return;
