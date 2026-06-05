@@ -368,7 +368,12 @@ function refreshPanelCliente() {
           var trabajoStr = String(trow[COL_TRA.TRABAJO_REALIZADO - 1] || '').trim();
           if (tId && ft) {
             allTrabajosMap[tId] = { fecha: ft, trabajo: trabajoStr, horas: horasTra };
-            allTrabajos.push({ id: tId, fecha: ft, horas: horasTra, trabajo: trabajoStr });
+            allTrabajos.push({
+              id: tId, fecha: ft, horas: horasTra, trabajo: trabajoStr,
+              operario:   String(trow[COL_TRA.OPERARIO           - 1] || '').trim(),
+              estado:     String(trow[COL_TRA.ESTADO             - 1] || '').trim(),
+              materiales: Number(trow[COL_TRA.MATERIALES         - 1] || 0)
+            });
           }
           if (!ft || ft < fi || ft > ff) continue;
           trabajos.push({
@@ -592,11 +597,13 @@ function refreshPanelCliente() {
       ? allFacturas.reduce(function(a, b) { return a.fecha >= b.fecha ? a : b; }) : null;
 
     // ── 9b. Trabajos pendientes de facturar (FASE 19.5) ──────────
-    var trabajosPendFac     = trabajos.filter(function(t) { return !facturaPorTrabajo[t.id]; });
+    // Usa allTrabajos (histórico completo, sin filtro de fechas) para que la sección
+    // sea visible independientemente del rango de fechas seleccionado en el panel.
+    var trabajosPendFac = allTrabajos.filter(function(t) { return !facturaPorTrabajo[t.id]; });
+    trabajosPendFac.sort(function(a, b) { return a.fecha - b.fecha; });
     var pendFacCount        = trabajosPendFac.length;
     var pendFacHoras        = trabajosPendFac.reduce(function(s, t) { return s + t.horas; }, 0);
     var pendFacImporte      = trabajosPendFac.reduce(function(s, t) { return s + (t.materiales || 0); }, 0);
-    var traFacturadosCount  = trabajos.length - pendFacCount;
     var pfSemaforoClaro     = pendFacCount === 0 ? '#34a853' : pendFacCount <= 3 ? '#ef6c00' : '#c62828';
     var pfSemaforoOscuro    = pendFacCount === 0 ? '#2d8e47' : pendFacCount <= 3 ? '#e65100' : '#b71c1c';
 
@@ -606,7 +613,7 @@ function refreshPanelCliente() {
       '🧾 Facturas emitidas', '✅ Pagado', '⏳ Pendiente cobro', '📄 Documentos', '⚠ Sin facturar'
     ]]).setFontColor('#ffffff').setFontWeight('bold').setFontSize(9)
        .setHorizontalAlignment('center').setVerticalAlignment('middle');
-    var pendFacLabel = pendFacCount + ' de ' + trabajos.length
+    var pendFacLabel = pendFacCount + ' de ' + allTrabajos.length
                      + (pendFacCount === 0 ? '  ✅' : pendFacCount <= 3 ? '  🟠' : '  🔴');
     sh.getRange(PC_.KPI_ROW_VAL, 2, 1, 5).setValues([[
       formatCurrency(totalFacturado), formatCurrency(cobradoPeriodo),
@@ -860,68 +867,79 @@ function refreshPanelCliente() {
     currentRow++;
 
     // ── PENDIENTES DE FACTURAR (FASE 19.5) ───────────────────────
-    sh.getRange(currentRow, 2, 1, 9).setBackground(pfSemaforoClaro);
-    sh.setRowHeight(currentRow, 6);
-    currentRow++;
-    currentRow = _pcSectionHeader_(sh, currentRow,
-      '⚠  TRABAJOS PENDIENTES DE FACTURAR (' + pendFacCount + ')', pfSemaforoClaro, 9);
+    // Nota: usa allTrabajos (histórico completo) → visible con cualquier rango de fechas.
+    try {
+      sh.getRange(currentRow, 2, 1, 9).setBackground(pfSemaforoClaro);
+      sh.setRowHeight(currentRow, 6);
+      currentRow++;
+      currentRow = _pcSectionHeader_(sh, currentRow,
+        '⚠  TRABAJOS PENDIENTES DE FACTURAR (' + pendFacCount + ')', pfSemaforoClaro, 9);
 
-    // Mini KPIs: 3 tarjetas (pendientes · horas · importe)
-    var pfKpiDefs = [
-      { lbl: 'Sin facturar',         val: pendFacCount + ' trabajo(s)' },
-      { lbl: 'Horas pendientes',     val: pendFacHoras.toFixed(1).replace('.', ',') + ' h' },
-      { lbl: 'Importe estimado',     val: pendFacImporte > 0 ? formatCurrency(pendFacImporte) : '—' }
-    ];
-    var pfKpiCols = [2, 5, 8];
-    pfKpiDefs.forEach(function(k, i) {
-      var col = pfKpiCols[i];
-      sh.getRange(currentRow, col, 1, 2).merge()
-        .setValue(k.lbl)
-        .setBackground(pfSemaforoClaro).setFontColor('#ffffff')
-        .setFontSize(9).setFontWeight('bold')
-        .setHorizontalAlignment('center').setVerticalAlignment('middle');
-    });
-    sh.setRowHeight(currentRow, 20);
-    currentRow++;
-    pfKpiDefs.forEach(function(k, i) {
-      var col = pfKpiCols[i];
-      sh.getRange(currentRow, col, 1, 2).merge()
-        .setValue(k.val)
-        .setBackground(pfSemaforoOscuro).setFontColor('#ffffff')
-        .setFontSize(16).setFontWeight('bold')
-        .setHorizontalAlignment('center').setVerticalAlignment('middle');
-    });
-    sh.setRowHeight(currentRow, 42);
-    currentRow++;
-    currentRow++; // spacer
+      // Mini KPIs: 3 tarjetas (pendientes · horas · importe)
+      var pfKpiDefs = [
+        { lbl: 'Sin facturar',         val: pendFacCount + ' trabajo(s)' },
+        { lbl: 'Horas pendientes',     val: pendFacHoras.toFixed(1).replace('.', ',') + ' h' },
+        { lbl: 'Importe estimado',     val: pendFacImporte > 0 ? formatCurrency(pendFacImporte) : '—' }
+      ];
+      var pfKpiCols = [2, 5, 8];
+      pfKpiDefs.forEach(function(k, i) {
+        var col = pfKpiCols[i];
+        sh.getRange(currentRow, col, 1, 2).merge()
+          .setValue(k.lbl)
+          .setBackground(pfSemaforoClaro).setFontColor('#ffffff')
+          .setFontSize(9).setFontWeight('bold')
+          .setHorizontalAlignment('center').setVerticalAlignment('middle');
+      });
+      sh.setRowHeight(currentRow, 20);
+      currentRow++;
+      pfKpiDefs.forEach(function(k, i) {
+        var col = pfKpiCols[i];
+        sh.getRange(currentRow, col, 1, 2).merge()
+          .setValue(k.val)
+          .setBackground(pfSemaforoOscuro).setFontColor('#ffffff')
+          .setFontSize(16).setFontWeight('bold')
+          .setHorizontalAlignment('center').setVerticalAlignment('middle');
+      });
+      sh.setRowHeight(currentRow, 42);
+      currentRow++;
+      currentRow++; // spacer
 
-    if (pendFacCount === 0) {
+      if (pendFacCount === 0) {
+        sh.getRange(currentRow, 2, 1, 8).merge()
+          .setValue('✅  Todos los trabajos del cliente están facturados.')
+          .setFontSize(10).setFontColor('#2d8e47').setFontWeight('bold')
+          .setFontStyle('normal').setVerticalAlignment('middle').setBackground('#e8f5e9');
+        sh.setRowHeight(currentRow, 28);
+        currentRow++;
+      } else {
+        _pcTableHeader_(sh, currentRow++,
+          ['Fecha', 'Operario', 'Trabajo realizado', 'Horas', 'Estado', 'Mat. €', 'Factura'], pfSemaforoClaro);
+        for (var pfi = 0; pfi < trabajosPendFac.length; pfi++) {
+          var pt  = trabajosPendFac[pfi];
+          var pbg = pfi % 2 === 0 ? '#fff3e0' : '#ffe0b2';
+          sh.getRange(currentRow, 2, 1, 7).setValues([[
+            formatDate(pt.fecha),
+            pt.operario || '—',
+            pt.trabajo.substring(0, 55) || '—',
+            pt.horas > 0 ? pt.horas.toFixed(1).replace('.', ',') + ' h' : '0 h',
+            pt.estado || '—',
+            pt.materiales > 0 ? formatCurrency(pt.materiales) : '—',
+            '—'
+          ]]).setBackground(pbg).setFontSize(10).setVerticalAlignment('middle');
+          sh.setRowHeight(currentRow, 26);
+          currentRow++;
+        }
+      }
+      currentRow++; // spacer post-sección
+    } catch (pfErr) {
       sh.getRange(currentRow, 2, 1, 8).merge()
-        .setValue('✅  Todos los trabajos del periodo están facturados.')
-        .setFontSize(10).setFontColor('#2d8e47').setFontWeight('bold')
-        .setFontStyle('normal').setVerticalAlignment('middle').setBackground('#e8f5e9');
+        .setValue('⚠ Error sección pendientes: ' + pfErr.message)
+        .setBackground('#ffccbc').setFontColor('#b71c1c').setFontSize(10)
+        .setFontWeight('bold').setVerticalAlignment('middle');
       sh.setRowHeight(currentRow, 28);
       currentRow++;
-    } else {
-      _pcTableHeader_(sh, currentRow++,
-        ['Fecha', 'Operario', 'Trabajo realizado', 'Horas', 'Estado', 'Mat. €', 'Factura'], pfSemaforoClaro);
-      for (var pfi = 0; pfi < trabajosPendFac.length; pfi++) {
-        var pt  = trabajosPendFac[pfi];
-        var pbg = pfi % 2 === 0 ? '#fff3e0' : '#ffe0b2';
-        sh.getRange(currentRow, 2, 1, 7).setValues([[
-          formatDate(pt.fecha),
-          pt.operario || '—',
-          pt.trabajo.substring(0, 55) || '—',
-          pt.horas > 0 ? pt.horas.toFixed(1).replace('.', ',') + ' h' : '0 h',
-          pt.estado || '—',
-          pt.materiales > 0 ? formatCurrency(pt.materiales) : '—',
-          '—'
-        ]]).setBackground(pbg).setFontSize(10).setVerticalAlignment('middle');
-        sh.setRowHeight(currentRow, 26);
-        currentRow++;
-      }
+      logEvent('ERROR', 'refreshPanelCliente:pendFac', pfErr.message, pfErr.stack || '');
     }
-    currentRow++; // spacer post-sección
 
     // ── FACTURAS ─────────────────────────────────────────────────
     currentRow = _pcSectionHeader_(sh, currentRow, 'FACTURAS', '#1a73e8');

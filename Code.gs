@@ -975,6 +975,29 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'diag_pcl' && token === DM185_WEB_TOKEN) {
+      var ssD = getTargetSS_();
+      var shD = ssD.getSheetByName('PANEL_CLIENTE');
+      if (!shD) return ContentService.createTextOutput(JSON.stringify({ ok:false, error:'no sheet' })).setMimeType(ContentService.MimeType.JSON);
+      // Leer filas 27-90, cols 1-3 para ver qué hay escrito
+      var lastR = Math.min(shD.getMaxRows(), 100);
+      var rows = shD.getRange(27, 1, lastR - 26, 3).getValues();
+      var out = [];
+      rows.forEach(function(r, i) {
+        var txt = String(r[0] || '') + ' | ' + String(r[1] || '') + ' | ' + String(r[2] || '');
+        if (txt.replace(/[\s|]/g,'')) out.push({ row: i + 27, c1: String(r[0]||''), c2: String(r[1]||''), c3: String(r[2]||'') });
+      });
+      // También leer cliente y fechas actuales
+      var cliente = shD.getRange(4, 3).getValue();
+      var fIni    = shD.getRange(5, 3).getDisplayValue();
+      var fFin    = shD.getRange(6, 3).getDisplayValue();
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true, cliente: cliente, fIni: fIni, fFin: fFin,
+        maxRows: shD.getMaxRows(), lastRow: shD.getLastRow(),
+        rows: out
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'read_gastos_fin' && token === DM185_WEB_TOKEN) {
       var ssG = getTargetSS_();
       var shG = ssG.getSheetByName('GASTOS');
