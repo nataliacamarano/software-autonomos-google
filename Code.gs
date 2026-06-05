@@ -913,6 +913,18 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ ok: true, results: results7 })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'set_periodo_contable' && token === DM185_WEB_TOKEN) {
+      var ss8  = getTargetSS_();
+      var sh8  = ss8.getSheetByName('PANEL_CONTABLE');
+      if (!sh8) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'PANEL_CONTABLE no encontrado' })).setMimeType(ContentService.MimeType.JSON);
+      var periodo8 = body.periodo || 'Año actual';
+      sh8.getRange(5, 4, 1, 4).merge().setValue(periodo8);
+      SpreadsheetApp.flush();
+      _actualizarPanelContable_();
+      SpreadsheetApp.flush();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, periodo: periodo8 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'peek_sheet' && token === DM185_WEB_TOKEN) {
       var ss6   = getTargetSS_();
       var name6 = body.name || '';
