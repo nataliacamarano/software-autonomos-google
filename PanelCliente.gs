@@ -591,22 +591,33 @@ function refreshPanelCliente() {
     var ultimaFacAll = allFacturas.length > 0
       ? allFacturas.reduce(function(a, b) { return a.fecha >= b.fecha ? a : b; }) : null;
 
+    // ── 9b. Trabajos pendientes de facturar (FASE 19.5) ──────────
+    var trabajosPendFac     = trabajos.filter(function(t) { return !facturaPorTrabajo[t.id]; });
+    var pendFacCount        = trabajosPendFac.length;
+    var pendFacHoras        = trabajosPendFac.reduce(function(s, t) { return s + t.horas; }, 0);
+    var pendFacImporte      = trabajosPendFac.reduce(function(s, t) { return s + (t.materiales || 0); }, 0);
+    var traFacturadosCount  = trabajos.length - pendFacCount;
+    var pfSemaforoClaro     = pendFacCount === 0 ? '#34a853' : pendFacCount <= 3 ? '#ef6c00' : '#c62828';
+    var pfSemaforoOscuro    = pendFacCount === 0 ? '#2d8e47' : pendFacCount <= 3 ? '#e65100' : '#b71c1c';
+
     // ── 9. KPIs ───────────────────────────────────────────────────
     var docsText = facturas.length + ' F  ·  ' + proformas.length + ' P  ·  ' + informes.length + ' I';
     sh.getRange(PC_.KPI_ROW_LBL, 2, 1, 5).setValues([[
-      '🧾 Facturas emitidas', '✅ Pagado', '⏳ Pendiente cobro', '📄 Documentos', '🔧 Trabajos'
+      '🧾 Facturas emitidas', '✅ Pagado', '⏳ Pendiente cobro', '📄 Documentos', '⚠ Sin facturar'
     ]]).setFontColor('#ffffff').setFontWeight('bold').setFontSize(9)
        .setHorizontalAlignment('center').setVerticalAlignment('middle');
+    var pendFacLabel = pendFacCount + ' de ' + trabajos.length
+                     + (pendFacCount === 0 ? '  ✅' : pendFacCount <= 3 ? '  🟠' : '  🔴');
     sh.getRange(PC_.KPI_ROW_VAL, 2, 1, 5).setValues([[
       formatCurrency(totalFacturado), formatCurrency(cobradoPeriodo),
-      formatCurrency(totalPendiente), docsText, trabajos.length
+      formatCurrency(totalPendiente), docsText, pendFacLabel
     ]]);
     var kpiLblBgs = totalPendiente > 0
-      ? ['#34a853', '#1a73e8', KPI_COLORS_.PTE_ALERT[0], '#7b1fa2', '#00695c']
-      : ['#34a853', '#1a73e8', KPI_COLORS_.PTE[0],        '#7b1fa2', '#00695c'];
+      ? ['#34a853', '#1a73e8', KPI_COLORS_.PTE_ALERT[0], '#7b1fa2', pfSemaforoClaro]
+      : ['#34a853', '#1a73e8', KPI_COLORS_.PTE[0],        '#7b1fa2', pfSemaforoClaro];
     var kpiValBgs = totalPendiente > 0
-      ? ['#2d8e47', '#1565c0', KPI_COLORS_.PTE_ALERT[1], '#6a1b9a', '#004d40']
-      : ['#2d8e47', '#1565c0', KPI_COLORS_.PTE[1],        '#6a1b9a', '#004d40'];
+      ? ['#2d8e47', '#1565c0', KPI_COLORS_.PTE_ALERT[1], '#6a1b9a', pfSemaforoOscuro]
+      : ['#2d8e47', '#1565c0', KPI_COLORS_.PTE[1],        '#6a1b9a', pfSemaforoOscuro];
     sh.getRange(PC_.KPI_ROW_LBL, 2, 1, 5).setBackgrounds([kpiLblBgs]);
     sh.getRange(PC_.KPI_ROW_VAL, 2, 1, 5).setBackgrounds([kpiValBgs]);
 
@@ -847,6 +858,70 @@ function refreshPanelCliente() {
       currentRow += traRows.length;
     }
     currentRow++;
+
+    // ── PENDIENTES DE FACTURAR (FASE 19.5) ───────────────────────
+    sh.getRange(currentRow, 2, 1, 9).setBackground(pfSemaforoClaro);
+    sh.setRowHeight(currentRow, 6);
+    currentRow++;
+    currentRow = _pcSectionHeader_(sh, currentRow,
+      '⚠  TRABAJOS PENDIENTES DE FACTURAR (' + pendFacCount + ')', pfSemaforoClaro, 9);
+
+    // Mini KPIs: 3 tarjetas (pendientes · horas · importe)
+    var pfKpiDefs = [
+      { lbl: 'Sin facturar',         val: pendFacCount + ' trabajo(s)' },
+      { lbl: 'Horas pendientes',     val: pendFacHoras.toFixed(1).replace('.', ',') + ' h' },
+      { lbl: 'Importe estimado',     val: pendFacImporte > 0 ? formatCurrency(pendFacImporte) : '—' }
+    ];
+    var pfKpiCols = [2, 5, 8];
+    pfKpiDefs.forEach(function(k, i) {
+      var col = pfKpiCols[i];
+      sh.getRange(currentRow, col, 1, 2).merge()
+        .setValue(k.lbl)
+        .setBackground(pfSemaforoClaro).setFontColor('#ffffff')
+        .setFontSize(9).setFontWeight('bold')
+        .setHorizontalAlignment('center').setVerticalAlignment('middle');
+    });
+    sh.setRowHeight(currentRow, 20);
+    currentRow++;
+    pfKpiDefs.forEach(function(k, i) {
+      var col = pfKpiCols[i];
+      sh.getRange(currentRow, col, 1, 2).merge()
+        .setValue(k.val)
+        .setBackground(pfSemaforoOscuro).setFontColor('#ffffff')
+        .setFontSize(16).setFontWeight('bold')
+        .setHorizontalAlignment('center').setVerticalAlignment('middle');
+    });
+    sh.setRowHeight(currentRow, 42);
+    currentRow++;
+    currentRow++; // spacer
+
+    if (pendFacCount === 0) {
+      sh.getRange(currentRow, 2, 1, 8).merge()
+        .setValue('✅  Todos los trabajos del periodo están facturados.')
+        .setFontSize(10).setFontColor('#2d8e47').setFontWeight('bold')
+        .setFontStyle('normal').setVerticalAlignment('middle').setBackground('#e8f5e9');
+      sh.setRowHeight(currentRow, 28);
+      currentRow++;
+    } else {
+      _pcTableHeader_(sh, currentRow++,
+        ['Fecha', 'Operario', 'Trabajo realizado', 'Horas', 'Estado', 'Mat. €', 'Factura'], pfSemaforoClaro);
+      for (var pfi = 0; pfi < trabajosPendFac.length; pfi++) {
+        var pt  = trabajosPendFac[pfi];
+        var pbg = pfi % 2 === 0 ? '#fff3e0' : '#ffe0b2';
+        sh.getRange(currentRow, 2, 1, 7).setValues([[
+          formatDate(pt.fecha),
+          pt.operario || '—',
+          pt.trabajo.substring(0, 55) || '—',
+          pt.horas > 0 ? pt.horas.toFixed(1).replace('.', ',') + ' h' : '0 h',
+          pt.estado || '—',
+          pt.materiales > 0 ? formatCurrency(pt.materiales) : '—',
+          '—'
+        ]]).setBackground(pbg).setFontSize(10).setVerticalAlignment('middle');
+        sh.setRowHeight(currentRow, 26);
+        currentRow++;
+      }
+    }
+    currentRow++; // spacer post-sección
 
     // ── FACTURAS ─────────────────────────────────────────────────
     currentRow = _pcSectionHeader_(sh, currentRow, 'FACTURAS', '#1a73e8');
