@@ -750,8 +750,14 @@ function refreshPanelCliente() {
     }
 
     // ── TRABAJOS ─────────────────────────────────────────────────
+    // Separador visual + cabecera de sección con contador
+    sh.getRange(currentRow, 2, 1, 9).setBackground('#ffe0b2');
+    sh.setRowHeight(currentRow, 6);
+    currentRow++;
+    currentRow = _pcSectionHeader_(sh, currentRow,
+      '🔧  TRABAJOS DEL CLIENTE (' + trabajos.length + ')', '#e65100', 9);
     _pcTableHeader_(sh, currentRow++,
-      ['Fecha', 'Operario', 'Trabajo realizado', 'Horas', 'Estado', 'Informe', 'Proforma', 'Factura', '🔍 Ver'], '#ef6c00');
+      ['Fecha', 'Operario', 'Trabajo realizado', 'Horas', 'Estado', 'Informe', 'Proforma', 'Factura', 'Acciones'], '#ef6c00');
     if (trabajos.length === 0) {
       _pcNoData_(sh, currentRow++);
     } else {
