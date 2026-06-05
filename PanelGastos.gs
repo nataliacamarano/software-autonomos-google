@@ -48,10 +48,11 @@ var PG_ = {
   TC_CAT:      16,  // P
   TC_BASE:     17,  // Q
   TC_CLIENTE:  18,  // R
-  TC_DOC:      19   // S ← hyperlink documento
+  TC_DOC:      19,  // S ← hyperlink documento
+  TC_ADJ:      20   // T ← checkbox adjuntar PDF
 };
 
-var PG_N_COLS = 19;
+var PG_N_COLS = 20;
 
 // Colores de fila según Estado_Procesamiento
 var PG_COLORS = {
@@ -91,7 +92,7 @@ function _crearPanelGastos_() {
     [1, 115], [2, 100], [3, 145], [4, 180], [5, 220],
     [6, 90],  [7, 80],  [8, 105], [9, 145],
     [10, 80], [11, 80], [12, 75], [13, 75], [14, 200], [15, 65],
-    [16, 120], [17, 90], [18, 140], [19, 100]
+    [16, 120], [17, 90], [18, 140], [19, 100], [20, 80]
   ];
   colWidths.forEach(function(w) { sh.setColumnWidth(w[0], w[1]); });
 
@@ -201,7 +202,7 @@ function _crearPanelGastos_() {
     'ID_Gasto', 'Fecha', 'Tipo_Gasto', 'Proveedor', 'Concepto',
     'Total', 'IVA', 'Estado\nPago', 'Estado\nProc.',
     'Revisado', 'Enviar\nGestor', 'Ver\nFoto', 'Ver\nOCR', 'Observaciones', 'Editar',
-    'Categoría', 'Base', 'Cliente', 'Documento'
+    'Categoría', 'Base', 'Cliente', 'Documento', 'Adjuntar\nPDF'
   ];
   sh.getRange(PG_.TABLE_HDR, 1, 1, hdrs.length).setValues([hdrs])
     .setBackground('#202124').setFontColor('#ffffff')
@@ -466,7 +467,8 @@ function _pgEscribirTabla_(sh, gastos) {
       String(row[COL_GAS.CATEGORIA  - 1]).trim(),
       isNaN(base) ? '' : base,
       String(row[COL_GAS.CLIENTE    - 1]).trim(),
-      ''         // Documento (se rellena con rich text abajo)
+      '',        // Documento (se rellena con rich text abajo)
+      false      // Adjuntar PDF (checkbox)
     ]);
   }
   sh.getRange(PG_.TABLE_START, 1, n, PG_N_COLS).setValues(tableData);
@@ -481,6 +483,7 @@ function _pgEscribirTabla_(sh, gastos) {
   sh.getRange(PG_.TABLE_START, PG_.TC_ENVIAR,   n, 1).setDataValidation(ruleCheck);
   sh.getRange(PG_.TABLE_START, PG_.TC_VER_OCR,  n, 1).setDataValidation(ruleCheck);
   sh.getRange(PG_.TABLE_START, PG_.TC_EDITAR,   n, 1).setDataValidation(ruleCheck);
+  sh.getRange(PG_.TABLE_START, PG_.TC_ADJ,      n, 1).setDataValidation(ruleCheck);
 
   // ── Paso 4: alineaciones en batch ────────────────────────────
   sh.getRange(PG_.TABLE_START, PG_.TC_TOTAL,    n, 1).setHorizontalAlignment('right');
@@ -491,6 +494,7 @@ function _pgEscribirTabla_(sh, gastos) {
   sh.getRange(PG_.TABLE_START, PG_.TC_VER_OCR,  n, 1).setHorizontalAlignment('center');
   sh.getRange(PG_.TABLE_START, PG_.TC_BASE,     n, 1).setHorizontalAlignment('right');
   sh.getRange(PG_.TABLE_START, PG_.TC_DOC,      n, 1).setHorizontalAlignment('center');
+  sh.getRange(PG_.TABLE_START, PG_.TC_ADJ,      n, 1).setHorizontalAlignment('center');
 
   // ── Paso 5: por fila — rich text (foto), notas, color ────────
   for (var j = 0; j < n; j++) {
@@ -515,7 +519,7 @@ function _pgEscribirTabla_(sh, gastos) {
     var docCell = sh.getRange(fila, PG_.TC_DOC);
     if (docUrl) {
       docCell.setRichTextValue(
-        SpreadsheetApp.newRichTextValue().setText('Ver doc').setLinkUrl(docUrl).build()
+        SpreadsheetApp.newRichTextValue().setText('📄 Ver PDF').setLinkUrl(docUrl).build()
       ).setFontColor('#1a73e8');
     } else {
       docCell.setValue('—').setFontColor('#999999');
@@ -526,6 +530,7 @@ function _pgEscribirTabla_(sh, gastos) {
     sh.getRange(fila, PG_.TC_ENVIAR).setNote(id);
     sh.getRange(fila, PG_.TC_VER_OCR).setNote(id);
     sh.getRange(fila, PG_.TC_EDITAR).setNote(id);
+    sh.getRange(fila, PG_.TC_ADJ).setNote(id);
 
     // Color de fila según estado
     sh.getRange(fila, 1, 1, PG_N_COLS)
@@ -596,6 +601,13 @@ function onEditPanelGastos_(e) {
   if (col === PG_.TC_EDITAR && val === 'TRUE') {
     e.range.setValue(false);
     _pgAbrirEditorGasto_(id);
+    return;
+  }
+
+  // Checkbox Adjuntar PDF
+  if (col === PG_.TC_ADJ && val === 'TRUE') {
+    e.range.setValue(false);
+    subirPdfGasto_(id);
     return;
   }
 
@@ -773,6 +785,117 @@ function _pgAbrirEditorGasto_(id) {
 // obtenerGasto() y guardarCambiosGasto() definidas en Code.gs
 
 // ─────────────────────────────────────────────────────────────
+// FASE 16.2 — Subida de PDF de facturas en PANEL_GASTOS
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Abre el modal HTML para subir un PDF al gasto indicado.
+ * Llamado desde onEditPanelGastos_ al marcar el checkbox TC_ADJ.
+ */
+function subirPdfGasto_(idGasto) {
+  var ss       = getTargetSS_();
+  var gasSheet = getSheet('GASTOS');
+  var gasRow   = findRowById_(gasSheet, idGasto);
+  var urlExistente = '';
+  if (gasRow) {
+    urlExistente = String(gasSheet.getRange(gasRow, COL_GAS.DOCUMENTO).getValue() || '').trim();
+  }
+
+  var template = HtmlService.createTemplateFromFile('AdjuntarPdf');
+  template.gastoId     = idGasto;
+  template.urlExistente = urlExistente;
+  var html = template.evaluate().setWidth(460).setHeight(310);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Adjuntar PDF — ' + idGasto);
+}
+
+/**
+ * Recibe el PDF en base64 desde el modal HTML, lo guarda en Drive
+ * y actualiza la columna DOCUMENTO en GASTOS.
+ * Llamado por google.script.run desde AdjuntarPdf.html.
+ */
+function subirPdfGastoDesdeHtml(idGasto, nombreArchivo, base64) {
+  try {
+    var carpeta = _pgGetCarpetaFacturasPdf_();
+    var bytes   = Utilities.base64Decode(base64);
+    var blob    = Utilities.newBlob(bytes, 'application/pdf', nombreArchivo);
+
+    // Eliminar archivo previo si existe con el mismo nombre
+    var existing = carpeta.getFilesByName(nombreArchivo);
+    while (existing.hasNext()) { existing.next().setTrashed(true); }
+
+    var file = carpeta.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var url = file.getUrl();
+
+    // Actualizar columna DOCUMENTO en GASTOS
+    var gasSheet = getSheet('GASTOS');
+    var gasRow   = findRowById_(gasSheet, idGasto);
+    if (!gasRow) throw new Error('ID no encontrado en GASTOS: ' + idGasto);
+    gasSheet.getRange(gasRow, COL_GAS.DOCUMENTO).setValue(url);
+
+    logEvent('INFO', 'subirPdfGastoDesdeHtml', idGasto + ' → ' + url, '');
+    return url;
+  } catch (e) {
+    Logger.log('ERROR subirPdfGastoDesdeHtml: ' + e.message);
+    throw e;
+  }
+}
+
+/**
+ * Abre el PDF del gasto en una nueva pestaña.
+ * Usa un mini-HTML para poder abrir la URL externamente.
+ */
+function abrirPdfGasto_(idGasto) {
+  var gasSheet = getSheet('GASTOS');
+  var gasRow   = findRowById_(gasSheet, idGasto);
+  if (!gasRow) {
+    SpreadsheetApp.getUi().alert('ID no encontrado en GASTOS: ' + idGasto);
+    return;
+  }
+  var url = String(gasSheet.getRange(gasRow, COL_GAS.DOCUMENTO).getValue() || '').trim();
+  if (!url) {
+    SpreadsheetApp.getUi().alert(idGasto + '\n\nNo hay PDF adjunto para este gasto.');
+    return;
+  }
+  var html = HtmlService.createHtmlOutput(
+    '<script>window.open(' + JSON.stringify(url) + ',"_blank");google.script.host.close();</script>'
+  ).setWidth(10).setHeight(10);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Abriendo PDF…');
+}
+
+/**
+ * Devuelve (o crea) la subcarpeta "Facturas" dentro de la carpeta
+ * raíz de Gastos configurada en DRIVE_CONFIG o CONFIG.
+ */
+function _pgGetCarpetaFacturasPdf_() {
+  var ss = getTargetSS_();
+
+  // Intentar primero desde DRIVE_CONFIG
+  var gastosFolderId = '';
+  var dcSh = ss.getSheetByName('DRIVE_CONFIG');
+  if (dcSh) {
+    var dcData = dcSh.getDataRange().getValues();
+    for (var i = 0; i < dcData.length; i++) {
+      if (String(dcData[i][0]).trim() === 'GASTOS_FOLDER_ID') {
+        gastosFolderId = String(dcData[i][1]).trim();
+        break;
+      }
+    }
+  }
+
+  // Fallback: CONFIG
+  if (!gastosFolderId) {
+    gastosFolderId = String(getConfig(GAS_CFG.FOLDER_ID) || '').trim();
+  }
+
+  if (!gastosFolderId) throw new Error('No se encontró carpeta de Gastos en DRIVE_CONFIG ni en CONFIG.');
+
+  var gastosFolder = DriveApp.getFolderById(gastosFolderId);
+  var sub = gastosFolder.getFoldersByName('Facturas');
+  return sub.hasNext() ? sub.next() : gastosFolder.createFolder('Facturas');
+}
+
+// ─────────────────────────────────────────────────────────────
 // Utilidad de estilo
 // ─────────────────────────────────────────────────────────────
 
@@ -823,8 +946,8 @@ function diagnosticarColumnasPanelGastos() {
   var filled = hdrs.filter(function(h) { return String(h).trim() !== ''; });
   Logger.log('Fila 13 (' + filled.length + ' cabeceras): ' + filled.join(' | '));
   Logger.log('PG_N_COLS actual = ' + PG_N_COLS);
-  Logger.log(filled.length >= 19
-    ? '✅ Las 19 columnas están presentes.'
+  Logger.log(filled.length >= 20
+    ? '✅ Las 20 columnas están presentes.'
     : '❌ Faltan columnas — solo hay ' + filled.length);
 }
 
