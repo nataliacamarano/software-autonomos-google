@@ -293,6 +293,7 @@ function onOpen() {
       .addItem('⑯ PANEL_GASTOS — Crear completo',      'crearPanelGastos')
       .addItem('⑰ PANEL_GASTOS — Actualizar datos',    'actualizarPanelGastos')
       .addItem('⑱ PANEL_GASTOS — Diagnosticar',        'diagnosticarPanelGastos')
+      .addItem('📎 PANEL_GASTOS — Adjuntar PDF (fila seleccionada)', 'adjuntarPdfGastoSeleccionado')
       .addItem('⑱b PANEL_GASTOS — Diagnosticar (test)', 'testDiagnosticoGastos')
       .addItem('⑲ Enviar gastos al gestor',            'enviarGastosAlGestor')
       .addItem('📊 Generar informe de gastos',          'generarInformeGastos')
@@ -593,6 +594,33 @@ function onEdit(e) {
   // Delegar al handler de PANEL_GENERAL
   if (sh.getName() === 'PANEL_GENERAL') {
     onEditPanelGeneral_(e);
+    return;
+  }
+
+  // ── PANEL_GASTOS — ops sin UI (Revisado, Enviar_Gestor)
+  // Las ops con modal (TC_ADJ, TC_EDITAR, TC_VER_OCR) necesitan el trigger
+  // instalable (onPanelEdit). Si éste no está instalado, ejecuta:
+  //   Menú ⚙️ → ② Instalar trigger (1ª vez)
+  if (sh.getName() === 'PANEL_GASTOS') {
+    var pgRow = e.range.getRow();
+    var pgCol = e.range.getColumn();
+    if (pgRow === PG_.BTN_ACTUALIZAR[0] && pgCol === PG_.BTN_ACTUALIZAR[1] && e.value === 'TRUE') {
+      e.range.setValue(false);
+      _actualizarPanelGastos_();
+      return;
+    }
+    if (pgRow >= PG_.TABLE_START && (pgCol === PG_.TC_REVISADO || pgCol === PG_.TC_ENVIAR)) {
+      var pgId = String(sh.getRange(pgRow, PG_.TC_ID).getValue()).trim();
+      if (!pgId || pgId.indexOf('GAS-') !== 0) pgId = String(e.range.getNote() || '').trim();
+      if (pgId && pgId.indexOf('GAS-') === 0) {
+        var pgGs = getSheet('GASTOS');
+        var pgGr = findRowById_(pgGs, pgId);
+        if (pgGr) {
+          var pgTarget = (pgCol === PG_.TC_REVISADO) ? COL_GAS.REVISADO : COL_GAS.ENVIAR_GESTOR;
+          pgGs.getRange(pgGr, pgTarget).setValue(e.value === 'TRUE');
+        }
+      }
+    }
     return;
   }
 

@@ -793,19 +793,29 @@ function _pgAbrirEditorGasto_(id) {
  * Llamado desde onEditPanelGastos_ al marcar el checkbox TC_ADJ.
  */
 function subirPdfGasto_(idGasto) {
-  var ss       = getTargetSS_();
-  var gasSheet = getSheet('GASTOS');
-  var gasRow   = findRowById_(gasSheet, idGasto);
-  var urlExistente = '';
-  if (gasRow) {
-    urlExistente = String(gasSheet.getRange(gasRow, COL_GAS.DOCUMENTO).getValue() || '').trim();
+  try {
+    var gasSheet     = getSheet('GASTOS');
+    var gasRow       = findRowById_(gasSheet, idGasto);
+    var urlExistente = '';
+    if (gasRow) {
+      urlExistente = String(gasSheet.getRange(gasRow, COL_GAS.DOCUMENTO).getValue() || '').trim();
+    }
+    var template = HtmlService.createTemplateFromFile('AdjuntarPdf');
+    template.gastoId      = idGasto;
+    template.urlExistente = urlExistente;
+    var html = template.evaluate().setWidth(460).setHeight(310);
+    SpreadsheetApp.getUi().showModalDialog(html, 'Adjuntar PDF — ' + idGasto);
+  } catch (err) {
+    Logger.log('ERROR subirPdfGasto_: ' + err.message);
+    try {
+      SpreadsheetApp.getUi().alert(
+        'Error al abrir el adjuntador de PDF\n\n' +
+        'Detalle: ' + err.message + '\n\n' +
+        'Si este error persiste, verifica que el trigger instalable\n' +
+        'está activo: menú ⚙️ → ② Instalar trigger (1ª vez)'
+      );
+    } catch (uiErr) { /* simple trigger — no UI */ }
   }
-
-  var template = HtmlService.createTemplateFromFile('AdjuntarPdf');
-  template.gastoId     = idGasto;
-  template.urlExistente = urlExistente;
-  var html = template.evaluate().setWidth(460).setHeight(310);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Adjuntar PDF — ' + idGasto);
 }
 
 /**
@@ -953,4 +963,26 @@ function diagnosticarColumnasPanelGastos() {
 
 function diagnosticarPanelGastosPublico() {
   diagnosticarColumnasPanelGastos();
+}
+
+// Abre el modal de adjuntar PDF para la fila seleccionada en PANEL_GASTOS.
+// Ejecutable desde menú si el checkbox no responde (trigger instalable ausente).
+function adjuntarPdfGastoSeleccionado() {
+  var ss = getTargetSS_();
+  var sh = ss.getSheetByName('PANEL_GASTOS');
+  if (!sh) {
+    SpreadsheetApp.getUi().alert('PANEL_GASTOS no existe. Ejecútalo primero.');
+    return;
+  }
+  var row = sh.getActiveRange().getRow();
+  if (row < PG_.TABLE_START) {
+    SpreadsheetApp.getUi().alert('Selecciona una fila de la tabla de gastos (fila 14 o inferior).');
+    return;
+  }
+  var id = String(sh.getRange(row, PG_.TC_ID).getValue()).trim();
+  if (!id || id.indexOf('GAS-') !== 0) {
+    SpreadsheetApp.getUi().alert('No se encontró un ID de gasto en la fila seleccionada.');
+    return;
+  }
+  subirPdfGasto_(id);
 }
