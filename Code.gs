@@ -913,6 +913,29 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ ok: true, results: results7 })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'get_pcn_kpis' && token === DM185_WEB_TOKEN) {
+      var ss9 = getTargetSS_();
+      var sh9 = ss9.getSheetByName('PANEL_CONTABLE');
+      if (!sh9) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'PANEL_CONTABLE no encontrado' })).setMimeType(ContentService.MimeType.JSON);
+      var rango9 = _pcnObtenerRango_(sh9);
+      var fac9   = _pcnLeerFacturas_(ss9, rango9);
+      var gas9   = _pcnLeerGastos_(ss9, rango9);
+      var periodo9 = _pcnPeriodoEtiqueta_(_pcnLeerTipoPeriodo_(sh9));
+      // Leer también los valores visibles actuales del panel (fila KPI2_VAL = 20)
+      var kpiCells = sh9.getRange(20, 2, 1, 12).getValues()[0];
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: true,
+        periodo: periodo9,
+        rango: rango9 ? {
+          ini: Utilities.formatDate(rango9.ini, Session.getScriptTimeZone(), 'dd/MM/yyyy'),
+          fin: Utilities.formatDate(rango9.fin, Session.getScriptTimeZone(), 'dd/MM/yyyy')
+        } : null,
+        facturas: { count: fac9.count, total: fac9.total, ivaRep: fac9.ivaRep, pendiente: fac9.pendiente },
+        gastos:   { count: gas9.count, total: gas9.total, ivaSop: gas9.ivaSop },
+        kpiCellsRow20: kpiCells
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'set_periodo_contable' && token === DM185_WEB_TOKEN) {
       var ss8  = getTargetSS_();
       var sh8  = ss8.getSheetByName('PANEL_CONTABLE');
