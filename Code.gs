@@ -890,6 +890,29 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify(vals)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'run_panel_check' && token === DM185_WEB_TOKEN) {
+      var checks = [
+        { name: 'PANEL_GENERAL',   fn: function() { _actualizarPanelGeneral_(); } },
+        { name: 'PANEL_FACTURAS',  fn: function() {
+            var ss7 = getTargetSS_();
+            var sh7 = ss7.getSheetByName('PANEL_FACTURAS');
+            if (!sh7) throw new Error('Hoja PANEL_FACTURAS no encontrada');
+            var rows7 = sh7.getLastRow(); var cols7 = sh7.getLastColumn();
+            if (rows7 < 10 || cols7 < 5) throw new Error('PANEL_FACTURAS parece vacía (' + rows7 + 'r × ' + cols7 + 'c)');
+          }
+        },
+        { name: 'PANEL_CLIENTE',   fn: function() { refreshPanelCliente(); } },
+        { name: 'PANEL_GASTOS',    fn: function() { _actualizarPanelGastos_(); } },
+        { name: 'PANEL_CONTABLE',  fn: function() { _actualizarPanelContable_(); } }
+      ];
+      var results7 = checks.map(function(c) {
+        try   { c.fn(); return { name: c.name, ok: true };  }
+        catch (ce) { return { name: c.name, ok: false, error: ce.message }; }
+      });
+      SpreadsheetApp.flush();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, results: results7 })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'peek_sheet' && token === DM185_WEB_TOKEN) {
       var ss6   = getTargetSS_();
       var name6 = body.name || '';
