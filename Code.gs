@@ -936,6 +936,47 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'write_gastos_fin' && token === DM185_WEB_TOKEN) {
+      // updates: [{row, base, ivaPct, ivaImporte, total}]
+      var ssW = getTargetSS_();
+      var shW = ssW.getSheetByName('GASTOS');
+      if (!shW) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'GASTOS no encontrada' })).setMimeType(ContentService.MimeType.JSON);
+      var updates = body.updates || [];
+      updates.forEach(function(u) {
+        if (u.base       !== undefined) shW.getRange(u.row, 10).setValue(u.base);
+        if (u.ivaPct     !== undefined) shW.getRange(u.row, 11).setValue(u.ivaPct);
+        if (u.ivaImporte !== undefined) shW.getRange(u.row, 12).setValue(u.ivaImporte);
+        if (u.total      !== undefined) shW.getRange(u.row, 13).setValue(u.total);
+      });
+      SpreadsheetApp.flush();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, updated: updates.length })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'read_gastos_fin' && token === DM185_WEB_TOKEN) {
+      var ssG = getTargetSS_();
+      var shG = ssG.getSheetByName('GASTOS');
+      if (!shG || shG.getLastRow() < 2) return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'GASTOS vacía' })).setMimeType(ContentService.MimeType.JSON);
+      var dataG = shG.getRange(2, 1, shG.getLastRow() - 1, 15).getValues();
+      var rowsG = [];
+      dataG.forEach(function(r, i) {
+        var id = String(r[0]).trim();
+        if (!id) return;
+        rowsG.push({
+          row: i + 2, id: id,
+          fechaAlta:  r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'dd/MM/yyyy') : String(r[1]),
+          fechaGasto: r[3] instanceof Date ? Utilities.formatDate(r[3], Session.getScriptTimeZone(), 'dd/MM/yyyy') : String(r[3]),
+          proveedor:  String(r[4]),
+          concepto:   String(r[7]),
+          base:       r[9],
+          ivaPct:     r[10],
+          ivaImporte: r[11],
+          total:      r[12],
+          estadoPago: String(r[14])
+        });
+      });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, gastos: rowsG })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'set_periodo_contable' && token === DM185_WEB_TOKEN) {
       var ss8  = getTargetSS_();
       var sh8  = ss8.getSheetByName('PANEL_CONTABLE');
