@@ -1020,9 +1020,9 @@ function diagnosticarColumnasPanelGastos() {
   if (!sh) { Logger.log('❌ PANEL_GASTOS no existe en este spreadsheet'); return; }
   Logger.log('maxColumns: ' + sh.getMaxColumns());
   Logger.log('lastColumn:  ' + sh.getLastColumn());
-  var hdrs = sh.getRange(13, 1, 1, sh.getMaxColumns()).getValues()[0];
+  var hdrs = sh.getRange(PG_.TABLE_HDR, 1, 1, sh.getMaxColumns()).getValues()[0];
   var filled = hdrs.filter(function(h) { return String(h).trim() !== ''; });
-  Logger.log('Fila 13 (' + filled.length + ' cabeceras): ' + filled.join(' | '));
+  Logger.log('Fila ' + PG_.TABLE_HDR + ' (' + filled.length + ' cabeceras): ' + filled.join(' | '));
   Logger.log('PG_N_COLS actual = ' + PG_N_COLS);
   Logger.log(filled.length >= 20
     ? '✅ Las 20 columnas están presentes.'
