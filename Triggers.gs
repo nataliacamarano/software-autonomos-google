@@ -115,7 +115,7 @@ function onFormSubmitHandler(e) {
       logEvent('INFO', 'onFormSubmitHandler', 'refreshTrabajosDropdowns completado tras alta de operario', '');
 
     } else if (sheetName === 'RESP_TRABAJOS') {
-      onTrabajosFormSubmit(nv);
+      onTrabajosFormSubmitSafe(nv);  // versión idempotente — evita duplicados por doble trigger
 
     } else if (sheetName === 'RESP_GASTOS') {
       const res = onGastoFormSubmit(nv);

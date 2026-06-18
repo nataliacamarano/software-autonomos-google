@@ -358,11 +358,25 @@ function onOpen() {
       .addSeparator()
       .addItem('💾 BACKUP — Crear copia de seguridad completa',   'ejecutarBackupCompleto')
       .addSeparator()
+      .addItem('🔴 RESTAURAR — Desde backup (restaurar datos borrados)', 'ejecutarRestauracionDesdeBackup')
+      .addItem('🔍 RESTAURAR — Solo diagnóstico (sin restaurar)', 'ejecutarSoloDiagnosticoRestauracion')
+      .addItem('🔧 RESTAURAR TRABAJOS — Solo TRABAJOS desde BKP_20260618_1601_TRA', 'restaurarSoloTrabajos')
+      .addSeparator()
       .addItem('🧹 LIMPIEZA — Fase 3 completa (A→D)',             'ejecutarFase3Completa')
       .addItem('🧹 LIMPIEZA B — Solo prueba',                     'ejecutarFaseB_solo')
       .addItem('🔧 LIMPIEZA C — Solo duplicados exactos',         'ejecutarFaseC_solo')
       .addItem('🔗 LIMPIEZA D — Solo integridad referencial',     'ejecutarFaseD_solo')
       .addSeparator()
+      .addItem('🚫 LIMPIEZA CLIENTES REALES — [DESACTIVADA — ver bug]', '_lcr_funcionDesactivada_')
+      .addSeparator()
+      .addItem('🗂 FUENTE MAESTRA — Reparar clientes (todo en uno)',   'ejecutarReparacionMaestraClientes')
+      .addItem('🧹 LIMPIAR — Valores de cliente inválidos en celdas', 'limpiarValoresClienteInvalidos')
+      .addItem('🔍 VERIFICAR — Clientes en C5 de Panel Facturas',     'verificarC5PanelFacturas')
+      .addItem('🔎 DIAGNÓSTICO — Estado real de CLIENTES',            'diagnosticarClientes')
+      .addItem('☑️ CLIENTES — Instalar checkboxes en columna Activo', 'repararCheckboxesActivo')
+      .addItem('✅ CLIENTES — Reparar columna Activo + desplegables', 'repararColumnaActivoClientes')
+      .addItem('🧯 REPARAR — Cliente en Panel Facturas',            'repararClientePanelFacturas')
+      .addItem('🔄 CLIENTES — Reconstruir desplegables desde cero', 'reconstruirDesplegablesClientes')
       .addItem('🔄 CLIENTES — Sincronizar desplegables',          'sincronizarClientesSistema')
       .addItem('🔄 SISTEMA — Sincronizar todo + paneles',         'sincronizarSistemaCompleto')
       .addItem('🔌 CLIENTES — Instalar trigger sincronización',   'instalarTriggerSincClientes')
@@ -527,6 +541,13 @@ function onPanelEdit(e) {
     if (row <= 7) sh.getRange(P_.JOBS_OK[0], P_.JOBS_OK[1]).setValue('');
     // Si cambia el cliente → refresca el dropdown de Método de pago
     if (row === 5) _panelRefreshMetodoPago_(sh, String(e.value || '').trim());
+    // Auto-buscar trabajos cuando se selecciona cliente y las fechas ya están puestas
+    if (row === 5) {
+      var clienteAuto = String(e.value || '').trim();
+      var fIniAuto    = sh.getRange(P_.FECHA_INI[0], P_.FECHA_INI[1]).getDisplayValue().trim();
+      var fFinAuto    = sh.getRange(P_.FECHA_FIN[0], P_.FECHA_FIN[1]).getDisplayValue().trim();
+      if (clienteAuto && fIniAuto && fFinAuto) panelBuscarTrabajos();
+    }
     return;
   }
   // Tabla materiales adicionales (filas 12-19, cols B=2 o C=3) → invalida preview
@@ -658,6 +679,13 @@ function onEdit(e) {
   if (col === 3 && row >= 5 && row <= 10) {
     sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).setValue('');
     if (row <= 7) sh.getRange(P_.JOBS_OK[0], P_.JOBS_OK[1]).setValue('');
+    // Auto-buscar trabajos cuando se selecciona cliente y las fechas ya están puestas
+    if (row === 5) {
+      var clienteAuto = String(e.value || '').trim();
+      var fIniAuto    = sh.getRange(P_.FECHA_INI[0], P_.FECHA_INI[1]).getDisplayValue().trim();
+      var fFinAuto    = sh.getRange(P_.FECHA_FIN[0], P_.FECHA_FIN[1]).getDisplayValue().trim();
+      if (clienteAuto && fIniAuto && fFinAuto) panelBuscarTrabajos();
+    }
     return;
   }
   // Invalidar preview cuando cambia un checkbox de la tabla de trabajos
@@ -1016,10 +1044,7 @@ function setupPanel() {
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
 
   // ── Validaciones LEFT ─────────────────────────────────────────
-  var clienteNames = _panelGetClienteNames_(ss);
-  var clienteVal   = clienteNames.length > 0
-    ? SpreadsheetApp.newDataValidation().requireValueInList(clienteNames, true).setAllowInvalid(false).build()
-    : null;
+  var clienteVal = getValidacionClienteMaestra_(ss);
   if (clienteVal) sh.getRange(5, 3).setDataValidation(clienteVal);
 
   var dateVal = SpreadsheetApp.newDataValidation()
@@ -1033,7 +1058,7 @@ function setupPanel() {
   sh.getRange(10, 3).setValue(0).setNumberFormat('#,##0.00');
 
   // ── Validaciones RIGHT ────────────────────────────────────────
-  if (clienteVal) sh.getRange(5, 6).setDataValidation(clienteVal);
+  if (clienteVal) sh.getRange(5, 6).setDataValidation(clienteVal);  // mismo clienteVal de LEFT
 
   sh.getRange(6, 6)
     .setDataValidation(
@@ -1343,17 +1368,14 @@ function panelRefreshClientes() {
   var sh = ss.getSheetByName('PANEL_FACTURAS');
   if (!sh) { SpreadsheetApp.getUi().alert('Primero crea el PANEL_FACTURAS.'); return; }
 
-  var nombres = _panelGetClienteNames_(ss);
-  if (!nombres.length) {
-    SpreadsheetApp.getUi().alert('⚠️ No se encontraron clientes activos en la hoja CLIENTES.');
+  var val = getValidacionClienteMaestra_(ss);
+  if (!val) {
+    SpreadsheetApp.getUi().alert('⚠️ No se pudo construir la validación maestra.\nEjecuta primero: ⚙️ Sistema → 🗂 FUENTE MAESTRA — Reparar clientes.');
     return;
   }
-
-  var val = SpreadsheetApp.newDataValidation()
-    .requireValueInList(nombres, true).setAllowInvalid(false).build();
-  sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).setDataValidation(val);
-  sh.getRange(P_.PRE_CLIENTE[0], P_.PRE_CLIENTE[1]).setDataValidation(val);
-  SpreadsheetApp.getUi().alert('✅ Lista de clientes actualizada (' + nombres.length + ' clientes).');
+  sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).setDataValidation(null); sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).setDataValidation(val);
+  sh.getRange(P_.PRE_CLIENTE[0], P_.PRE_CLIENTE[1]).setDataValidation(null); sh.getRange(P_.PRE_CLIENTE[0], P_.PRE_CLIENTE[1]).setDataValidation(val);
+  SpreadsheetApp.getUi().alert('✅ Desplegables actualizados desde fuente maestra (' + FM_.HOJA + ').');
 }
 
 // ================================================================
@@ -1962,14 +1984,18 @@ function _fpRefreshClienteDropdown_(sh) {
       return;
     }
 
-    // ── 5. Aplicar validación ─────────────────────────────────
+    // ── 5. Aplicar validación — usa fuente maestra (no snapshot de PRESUPUESTOS)
     var targetRow = PF_.CLIENTE[0], targetCol = PF_.CLIENTE[1];
     Logger.log('  PF_.CLIENTE = [' + targetRow + ', ' + targetCol + '] → celda ' + _col2letter_(targetCol) + targetRow);
-    Logger.log('  Aplicando dropdown en C' + targetRow);
-    sh.getRange(targetRow, targetCol).setDataValidation(
-      SpreadsheetApp.newDataValidation().requireValueInList(clientes, true).setAllowInvalid(false).build()
-    );
-    Logger.log('  setDataValidation() ejecutado sobre ' + _col2letter_(targetCol) + targetRow + ' ✓');
+    Logger.log('  Aplicando dropdown desde fuente maestra: ' + FM_.HOJA);
+    var dvMaestra = getValidacionClienteMaestra_(sh.getParent());
+    if (dvMaestra) {
+      sh.getRange(targetRow, targetCol).setDataValidation(null);
+      sh.getRange(targetRow, targetCol).setDataValidation(dvMaestra);
+      Logger.log('  setDataValidation(VALUE_IN_RANGE → ' + FM_.HOJA + ') ejecutado ✓');
+    } else {
+      Logger.log('  ⚠️ No se pudo obtener validación maestra. C99 no actualizado.');
+    }
 
   } catch (e) {
     Logger.log('  ❌ ERROR: ' + e.message);
