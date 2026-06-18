@@ -322,6 +322,7 @@ function onOpen() {
       .addItem('🧹 Limpiar clientes duplicados',        'limpiarClientesDuplicados')
       .addSeparator()
       .addItem('⚡ Generar documento (manual)',         'panelGenerarDocumento')
+      .addItem('🧹 Limpiar panel completo',            'limpiarPanelCompleto')
       .addSeparator()
       .addItem('🧪 Crear presupuesto de prueba (3 líneas)', 'testCrearPresupuestoPrueba')
       .addSeparator()
@@ -347,8 +348,11 @@ function onOpen() {
       .addItem('🔴 PANEL_PENDIENTES — Crear',             'setupPanelPendientes')
       .addItem('🔴 PANEL_PENDIENTES — Actualizar',        'refreshPanelPendientes')
       .addSeparator()
+      .addItem('⚙️ CONFIG — Reconstruir COMPLETO (carpetas + formularios)', 'reconstruirConfigCompleto')
+      .addItem('📋 FORMULARIOS — Desactivar "Editar respuesta"', 'desactivarEdicionRespuestasFormularios')
       .addItem('📁 DRIVE — Recuperar carpetas existentes', 'recuperarCarpetasDrive')
       .addItem('📁 DRIVE — Diagnosticar carpetas',        'diagnosticarCarpetasDrive')
+      .addItem('🔧 DRIVE — Diagnóstico agresivo + asignar IDs', 'diagnosticarYRecuperarCarpetas')
       .addItem('📁 DRIVE — Crear estructura segura',      'crearEstructuraDriveAlvaro')
       .addItem('📁 DRIVE — Diagnosticar (completo)',      'diagnosticarDriveAlvaro')
       .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
@@ -1424,6 +1428,7 @@ function panelGenerarDocumento() {
       sh.getRange(P_.URL[0], P_.URL[1]).setValue(url).setFontColor('#1a73e8');
       _panelEstado_(sh, '✅  ' + tipo + ' generada correctamente.', '#34a853');
       sh.getRange(P_.PREVIEW_OK[0], P_.PREVIEW_OK[1]).setValue('');
+      _limpiarSeccionDocumentos_(sh);
     } else {
       _panelEstado_(sh, '⚠️  No se encontraron trabajos para ese período.', '#f9ab00');
     }
@@ -1474,6 +1479,7 @@ function panelGenerarPresupuesto() {
     sh.getRange(P_.PRE_URL[0], P_.PRE_URL[1]).setValue(result.url).setFontColor('#1a73e8');
     _panelPreEstado_(sh, '✅  ' + result.id + ' generado correctamente.', '#34a853');
     sh.getRange(P_.PRE_PREVIEW_OK[0], P_.PRE_PREVIEW_OK[1]).setValue('');
+    _limpiarSeccionPresupuestos_(sh);
     // Refresco automático — el nuevo presupuesto aparece en el dropdown de Factura sin acción manual
     _fpRefreshClienteDropdown_(sh);
 
@@ -2284,6 +2290,7 @@ function panelGenerarFacturaPresupuesto() {
     _fpEstado_(sh, '✅  ' + result.id + ' emitida correctamente.', '#34a853');
     sh.getRange(PF_.PREVIEW_OK[0], PF_.PREVIEW_OK[1]).setValue('');
     sh.getRange(PF_.CARGAR_OK[0],  PF_.CARGAR_OK[1]).setValue('');
+    _limpiarSeccionFP_(sh);
 
   } catch (ex) {
     _fpEstado_(sh, '❌  Error: ' + ex.message, '#ea4335');
@@ -2322,6 +2329,123 @@ function _fpClearPreview_(sh) {
 
 function _fpEstado_(sh, msg, color) {
   sh.getRange(PF_.ESTADO[0], PF_.ESTADO[1]).setValue(msg).setFontColor(color || '#3c4043');
+}
+
+// ================================================================
+// LIMPIEZA DEL PANEL
+// ================================================================
+
+/**
+ * Limpia los campos de entrada de la sección Documentos (izquierda).
+ * NO borra ESTADO (C91) ni URL (C92) — el usuario los ve hasta que decida limpiar.
+ */
+function _limpiarSeccionDocumentos_(sh) {
+  // Inputs principales C5-C10
+  sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).setValue('');
+  sh.getRange(P_.FECHA_INI[0],   P_.FECHA_INI[1]).setValue('');
+  sh.getRange(P_.FECHA_FIN[0],   P_.FECHA_FIN[1]).setValue('');
+  sh.getRange(P_.TIPO[0],        P_.TIPO[1]).setValue('');
+  sh.getRange(P_.METODO_PAGO[0], P_.METODO_PAGO[1]).setValue('');
+  sh.getRange(P_.PRECIO_HORA[0], P_.PRECIO_HORA[1]).setValue('');
+
+  // Materiales adicionales (B12:C19)
+  sh.getRange(MAT_TABLE.START_ROW, MAT_TABLE.COL_DESC, MAT_TABLE.ROWS, 2).clearContent();
+
+  // Checkbox buscar + flag trabajos cargados
+  sh.getRange(P_.BOTON_BUSCAR[0], P_.BOTON_BUSCAR[1]).setValue(false);
+  sh.getRange(P_.JOBS_OK[0],      P_.JOBS_OK[1]).setValue('');
+
+  // Tabla de trabajos: checkboxes (col B) + datos JSON (col J)
+  var jobRows = JOB_TABLE.MAX_ROWS;
+  var falsesArr = [];
+  var emptyArr  = [];
+  for (var i = 0; i < jobRows; i++) { falsesArr.push([false]); emptyArr.push(['']); }
+  sh.getRange(JOB_TABLE.START_ROW, JOB_TABLE.COL_CHECK, jobRows, 1).setValues(falsesArr);
+  sh.getRange(JOB_TABLE.START_ROW, JOB_TABLE.COL_DATA,  jobRows, 1).setValues(emptyArr);
+
+  // Preview
+  sh.getRange(P_.BOTON_PREVIEW[0], P_.BOTON_PREVIEW[1]).setValue(false);
+  sh.getRange(P_.PREVIEW_OK[0],    P_.PREVIEW_OK[1]).setValue('');
+  var prvCells = [
+    P_.PRV_CLIENTE, P_.PRV_PERIODO, P_.PRV_TRABAJOS, P_.PRV_HORAS,
+    P_.PRV_MATS_TRAB, P_.PRV_MATS_OTROS, P_.PRV_MATS_TOTAL,
+    P_.PRV_BASE, P_.PRV_IVA, P_.PRV_TOTAL, P_.PRV_DETALLE
+  ];
+  prvCells.forEach(function(c) { sh.getRange(c[0], c[1]).setValue(''); });
+
+  // Botón generar
+  sh.getRange(P_.BOTON_GENERAR[0], P_.BOTON_GENERAR[1]).setValue(false);
+}
+
+/**
+ * Limpia los campos de entrada de la sección Presupuestos (derecha).
+ * NO borra PRE_ESTADO (F91) ni PRE_URL (F92).
+ */
+function _limpiarSeccionPresupuestos_(sh) {
+  sh.getRange(P_.PRE_CLIENTE[0],   P_.PRE_CLIENTE[1]).setValue('');
+  sh.getRange(P_.PRE_FECHA_EMI[0], P_.PRE_FECHA_EMI[1]).setValue('');
+  sh.getRange(P_.PRE_VALIDEZ[0],   P_.PRE_VALIDEZ[1]).setValue('');
+
+  // Tabla de líneas (E:G — no toca H que tiene fórmulas de importe)
+  sh.getRange(PRE_TABLE.START_ROW, PRE_TABLE.COL_DESC, PRE_TABLE.ROWS, 3).clearContent();
+
+  sh.getRange(P_.BOTON_PRE_PREV[0],  P_.BOTON_PRE_PREV[1]).setValue(false);
+  sh.getRange(P_.PRE_PREVIEW_OK[0],  P_.PRE_PREVIEW_OK[1]).setValue('');
+  var preCells = [
+    P_.PRE_PRV_CLIENTE, P_.PRE_PRV_LINEAS, P_.PRE_PRV_SUBTOTAL,
+    P_.PRE_PRV_IVA,     P_.PRE_PRV_TOTAL,  P_.PRE_PRV_FECHA_EMI, P_.PRE_PRV_CADUCIDAD
+  ];
+  preCells.forEach(function(c) { sh.getRange(c[0], c[1]).setValue(''); });
+  sh.getRange(P_.BOTON_PRE_GEN[0], P_.BOTON_PRE_GEN[1]).setValue(false);
+}
+
+/**
+ * Limpia los campos de la sección Factura/Proforma desde Presupuesto.
+ * NO borra PF_.ESTADO ni PF_.URL.
+ */
+function _limpiarSeccionFP_(sh) {
+  var pfInputs = [
+    PF_.CLIENTE, PF_.PRE_ID, PF_.INFO_CLIENTE, PF_.INFO_TOTAL,
+    PF_.INFO_FECHA, PF_.TIPO_DOC, PF_.METODO_PAGO, PF_.BASE_PRESUP_RAW
+  ];
+  pfInputs.forEach(function(c) { sh.getRange(c[0], c[1]).setValue(''); });
+
+  sh.getRange(PF_.BOTON_CARGAR[0], PF_.BOTON_CARGAR[1]).setValue(false);
+  sh.getRange(PF_.CARGAR_OK[0],    PF_.CARGAR_OK[1]).setValue('');
+
+  // Tabla líneas (E:G + col I origen — no toca H fórmula)
+  sh.getRange(PFP_TABLE.START_ROW, PFP_TABLE.COL_DESC,   PFP_TABLE.ROWS, 3).clearContent();
+  sh.getRange(PFP_TABLE.START_ROW, PFP_TABLE.COL_ORIGEN, PFP_TABLE.ROWS, 1).clearContent();
+
+  sh.getRange(PF_.BOTON_PREVIEW[0], PF_.BOTON_PREVIEW[1]).setValue(false);
+  sh.getRange(PF_.PREVIEW_OK[0],    PF_.PREVIEW_OK[1]).setValue('');
+  _fpClearPreview_(sh);
+  sh.getRange(PF_.BOTON_GENERAR[0], PF_.BOTON_GENERAR[1]).setValue(false);
+}
+
+/**
+ * Limpia el panel completo: todas las secciones + ESTADO + URL.
+ * Punto de entrada desde el menú para empezar desde cero.
+ */
+function limpiarPanelCompleto() {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
+  if (!sh) { SpreadsheetApp.getUi().alert('No se encontró la hoja PANEL_FACTURAS.'); return; }
+
+  _limpiarSeccionDocumentos_(sh);
+  _limpiarSeccionPresupuestos_(sh);
+  _limpiarSeccionFP_(sh);
+
+  // Borrar también ESTADO y URL de las tres secciones
+  sh.getRange(P_.ESTADO[0],    P_.ESTADO[1]).setValue('').setFontColor('#3c4043');
+  sh.getRange(P_.URL[0],       P_.URL[1]).setValue('').setFontColor('#3c4043');
+  sh.getRange(P_.PRE_ESTADO[0],P_.PRE_ESTADO[1]).setValue('').setFontColor('#3c4043');
+  sh.getRange(P_.PRE_URL[0],   P_.PRE_URL[1]).setValue('').setFontColor('#3c4043');
+  sh.getRange(PF_.ESTADO[0],   PF_.ESTADO[1]).setValue('').setFontColor('#3c4043');
+  sh.getRange(PF_.URL[0],      PF_.URL[1]).setValue('').setFontColor('#3c4043');
+
+  SpreadsheetApp.flush();
+  _panelEstado_(sh, '🧹  Panel limpio. Listo para nuevo documento.', '#34a853');
 }
 
 // ================================================================
