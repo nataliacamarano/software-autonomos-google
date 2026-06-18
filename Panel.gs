@@ -354,6 +354,7 @@ function onOpen() {
       .addItem('📦 DRIVE — Migrar archivos M1–M4',        'migrarDriveM1M2M3M4')
       .addSeparator()
       .addItem('🔍 AUDITORÍA — Datos reales vs. prueba',  'ejecutarAuditoriaDatos')
+      .addItem('🔬 AUDITORÍA — Fase 2: Informe ejecutivo', 'ejecutarAuditoriaFase2')
       .addToUi();
   } catch (e) {}
 }
