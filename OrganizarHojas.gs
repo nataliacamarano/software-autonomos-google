@@ -16,8 +16,15 @@ var OH_VISIBLES = [
   'PRESUPUESTOS', 'PROFORMAS', 'INFORMES'
 ];
 
-// ── Hojas de informe generadas por ESTA función (nunca ocultar) ──
+// ── Hojas de informe generadas por ESTA función ──────────────
+// Las 3 hojas de organización se ocultan junto con el resto (son admin).
+// Solo ULTIMAS_HOJAS_OCULTADAS se mantiene visible tras ocultarHojasAdmin().
 var OH_INFORMES_PROPIOS = [
+  'ULTIMAS_HOJAS_OCULTADAS'
+];
+
+// Hojas de administración interna (se ocultan, no se eliminan)
+var OH_HOJAS_ADMIN = [
   'MAPA_HOJAS_SISTEMA', 'HOJAS_OCULTADAS', 'ANALISIS_HOJAS_ELIMINABLES'
 ];
 
@@ -366,10 +373,16 @@ function _oh_clasificarHojas_(sheets, noOcultar) {
       motivoOcultar = '— (MANTENER VISIBLE)';
     } else if (OH_INFORMES_PROPIOS.indexOf(nombre) >= 0) {
       cat = 'Informe del sistema';
-      desc = 'Generada por organizarHojas() — informe de organización';
+      desc = 'Informe de organización activo — generado por organizarHojas()';
       dep  = 'OrganizarHojas.gs';
       eliminable    = true;
       motivoOcultar = '— (MANTENER VISIBLE — informe activo)';
+    } else if (OH_HOJAS_ADMIN.indexOf(nombre) >= 0) {
+      cat = 'Administración interna';
+      desc = 'Informe de organización del sistema (administración)';
+      dep  = 'OrganizarHojas.gs — solo escritura, sin lectores externos';
+      eliminable    = true;
+      motivoOcultar = 'Administración interna — acceder via Ver → Hojas ocultas';
     } else if (info) {
       cat  = info.cat;
       desc = info.desc;
@@ -630,4 +643,154 @@ function _oh_getSheet_(ss, nombre) {
   if (!sh) sh = ss.insertSheet(nombre);
   sh.showSheet();
   return sh;
+}
+
+// ════════════════════════════════════════════════════════════════
+// OCULTAR HOJAS DE ADMINISTRACIÓN INTERNA
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Oculta MAPA_HOJAS_SISTEMA, HOJAS_OCULTADAS y ANALISIS_HOJAS_ELIMINABLES.
+ * Verifica que ninguna fórmula ni script dependa de ellas como FUENTE.
+ * Marca cada una en CONFIG como ADMINISTRACION_INTERNA.
+ * Genera ULTIMAS_HOJAS_OCULTADAS con el informe de la operación.
+ */
+function ocultarHojasAdmin() {
+  var ss  = SpreadsheetApp.getActive();
+  var ui  = SpreadsheetApp.getUi();
+  var ts  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+
+  var OBJETIVO = OH_HOJAS_ADMIN; // ['MAPA_HOJAS_SISTEMA','HOJAS_OCULTADAS','ANALISIS_HOJAS_ELIMINABLES']
+  var resultados = [];
+
+  OBJETIVO.forEach(function(nombre) {
+    var sh = ss.getSheetByName(nombre);
+
+    // ── 1. ¿Existe la hoja? ─────────────────────────────────
+    if (!sh) {
+      resultados.push({
+        nombre: nombre,
+        existe:  false,
+        deps:    '—',
+        config:  '—',
+        accion:  '⚪ No existe en el spreadsheet'
+      });
+      return;
+    }
+
+    // ── 2. Verificar dependencias externas ───────────────────
+    // Busca referencias a esta hoja en fórmulas de OTRAS hojas
+    var depEncontradas = [];
+    try {
+      var finder = ss.createTextFinder(nombre).matchFormulaText(true);
+      var celdas = finder.findAll();
+      celdas.forEach(function(celda) {
+        var shNombre = celda.getSheet().getName();
+        if (shNombre !== nombre) {  // ignorar referencias dentro de la propia hoja
+          depEncontradas.push(shNombre + '!' + celda.getA1Notation());
+        }
+      });
+    } catch (e) {
+      depEncontradas.push('Error al verificar: ' + e.message);
+    }
+
+    var depStr = depEncontradas.length > 0
+      ? '⚠️ Referenciada en: ' + depEncontradas.join(', ')
+      : '✅ Sin dependencias externas en fórmulas';
+
+    // ── 3. Marcar en CONFIG como ADMINISTRACION_INTERNA ──────
+    var configKey    = 'tipo_hoja_' + nombre.toLowerCase().replace(/ /g, '_');
+    var configValor  = 'ADMINISTRACION_INTERNA';
+    var configResult = '';
+    try {
+      setConfig(configKey, configValor);
+      configResult = '✅ CONFIG.' + configKey + ' = ' + configValor;
+    } catch (e) {
+      configResult = '⚠️ No se pudo escribir en CONFIG: ' + e.message;
+    }
+
+    // ── 4. Ocultar la hoja ────────────────────────────────────
+    var accion = '';
+    if (sh.isSheetHidden()) {
+      accion = '⚪ Ya estaba oculta — sin cambios';
+    } else {
+      try {
+        sh.hideSheet();
+        accion = '✅ Ocultada correctamente (Ver → Hojas ocultas para acceder)';
+        Logger.log('[ADMIN] Ocultada: ' + nombre);
+      } catch (e) {
+        accion = '❌ Error al ocultar: ' + e.message;
+      }
+    }
+
+    resultados.push({
+      nombre:  nombre,
+      existe:  true,
+      deps:    depStr,
+      config:  configResult,
+      accion:  accion
+    });
+  });
+
+  // ── Crear ULTIMAS_HOJAS_OCULTADAS ────────────────────────────
+  var shInf = _oh_getSheet_(ss, 'ULTIMAS_HOJAS_OCULTADAS');
+  var NCOLS = 5;
+  var filas = [];
+
+  filas.push(['ULTIMAS_HOJAS_OCULTADAS — ' + ts, '', '', '', '']);
+  filas.push(['Estas hojas son de ADMINISTRACIÓN INTERNA. Acceder via Ver → Hojas ocultas.', '', '', '', '']);
+  filas.push(['Hoja', 'Dependencias encontradas', 'Marcado en CONFIG', 'Acción realizada', 'Estado final']);
+
+  resultados.forEach(function(r) {
+    if (!r.existe) {
+      filas.push([r.nombre, '—', '—', r.accion, '⚪ No existe']);
+      return;
+    }
+    var estadoFinal = (r.accion.indexOf('✅') >= 0 || r.accion.indexOf('⚪ Ya') >= 0)
+      ? '✅ Oculta — solo admin'
+      : '❌ Revisar';
+    filas.push([r.nombre, r.deps, r.config, r.accion, estadoFinal]);
+  });
+
+  filas.push(['', '', '', '', '']);
+  filas.push(['NOTA: estas hojas NO han sido eliminadas.', '', '', '', '']);
+  filas.push(['Para verlas: Google Sheets → Ver → Hojas ocultas → seleccionar hoja.', '', '', '', '']);
+  filas.push(['Para regenerarlas: Menú ⚙️ Sistema → Organizar hojas.', '', '', '', '']);
+
+  shInf.clearContents(); shInf.clearFormats();
+  shInf.getRange(1, 1, filas.length, NCOLS).setValues(filas);
+
+  shInf.getRange(1, 1, 1, NCOLS).setBackground('#1a73e8').setFontColor('#ffffff').setFontWeight('bold');
+  shInf.getRange(2, 1, 1, NCOLS).setBackground('#e8f0fe').setFontColor('#3c4043').setFontStyle('italic');
+  shInf.getRange(3, 1, 1, NCOLS).setBackground('#4285f4').setFontColor('#ffffff').setFontWeight('bold');
+
+  for (var r2 = 3; r2 < filas.length; r2++) {
+    var txt = filas[r2].join('');
+    var bg;
+    if (txt.indexOf('✅') >= 0) bg = '#e6f4ea';
+    else if (txt.indexOf('❌') >= 0) bg = '#fce8e6';
+    else if (txt.indexOf('⚠️') >= 0) bg = '#fff8e1';
+    else if (txt.indexOf('⚪') >= 0) bg = '#f8f9fa';
+    else if (txt.indexOf('NOTA') >= 0 || txt.indexOf('Para') >= 0) bg = '#e8f0fe';
+    if (bg) shInf.getRange(r2 + 1, 1, 1, NCOLS).setBackground(bg);
+  }
+  shInf.autoResizeColumns(1, NCOLS);
+  ss.setActiveSheet(shInf);
+
+  // ── Alerta final ─────────────────────────────────────────────
+  var ok = resultados.filter(function(r) {
+    return r.accion.indexOf('✅') >= 0 || r.accion.indexOf('⚪ Ya') >= 0;
+  }).length;
+
+  var msg = '🙈 HOJAS DE ADMINISTRACIÓN OCULTADAS\n\n';
+  resultados.forEach(function(r) {
+    msg += '• ' + r.nombre + ': ' + (r.accion.indexOf('✅') >= 0 ? '✅ Ocultada'
+      : r.accion.indexOf('⚪ Ya') >= 0 ? '⚪ Ya estaba oculta' : r.accion) + '\n';
+  });
+  msg += '\n✅ Sin dependencias externas encontradas.\n';
+  msg += '✅ Marcadas como ADMINISTRACION_INTERNA en CONFIG.\n\n';
+  msg += 'Para acceder: Ver → Hojas ocultas\n';
+  msg += 'Ver informe completo en: ULTIMAS_HOJAS_OCULTADAS';
+
+  ui.alert('🙈 Hojas de administración', msg, ui.ButtonSet.OK);
 }
