@@ -352,6 +352,8 @@ function onOpen() {
       .addItem('📁 DRIVE — Actualizar configuración',     'actualizarDriveConfig')
       .addItem('🔍 DRIVE — Diagnóstico migración 18.5',   'diagnosticarMigracionDrive185')
       .addItem('📦 DRIVE — Migrar archivos M1–M4',        'migrarDriveM1M2M3M4')
+      .addSeparator()
+      .addItem('🔍 AUDITORÍA — Datos reales vs. prueba',  'ejecutarAuditoriaDatos')
       .addToUi();
   } catch (e) {}
 }
