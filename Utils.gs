@@ -37,6 +37,7 @@ function getOrCreateSheet(name) {
 /**
  * Genera el siguiente ID secuencial con prefijo para una hoja.
  * Ejemplo: nextId('CLIENTES', 'CLI') → 'CLI-001'
+ * ⚠️ No es thread-safe. Usa nextIdSafe() (Protecciones.gs) en producción.
  */
 function nextId(sheetName, prefix) {
   try {

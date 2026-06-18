@@ -355,6 +355,23 @@ function onOpen() {
       .addSeparator()
       .addItem('🔍 AUDITORÍA — Datos reales vs. prueba',  'ejecutarAuditoriaDatos')
       .addItem('🔬 AUDITORÍA — Fase 2: Informe ejecutivo', 'ejecutarAuditoriaFase2')
+      .addSeparator()
+      .addItem('💾 BACKUP — Crear copia de seguridad completa',   'ejecutarBackupCompleto')
+      .addSeparator()
+      .addItem('🧹 LIMPIEZA — Fase 3 completa (A→D)',             'ejecutarFase3Completa')
+      .addItem('🧹 LIMPIEZA B — Solo prueba',                     'ejecutarFaseB_solo')
+      .addItem('🔧 LIMPIEZA C — Solo duplicados exactos',         'ejecutarFaseC_solo')
+      .addItem('🔗 LIMPIEZA D — Solo integridad referencial',     'ejecutarFaseD_solo')
+      .addSeparator()
+      .addItem('🔄 CLIENTES — Sincronizar desplegables',          'sincronizarClientesSistema')
+      .addItem('🔄 SISTEMA — Sincronizar todo + paneles',         'sincronizarSistemaCompleto')
+      .addItem('🔌 CLIENTES — Instalar trigger sincronización',   'instalarTriggerSincClientes')
+      .addItem('🔌 CLIENTES — Desinstalar trigger sincronización','desinstalarTriggerSincClientes')
+      .addSeparator()
+      .addItem('🛡️ PROTECCIONES — Ver estado',                    'verificarEstadoProtecciones')
+      .addItem('🗑️ EVENTOS — Limpiar idempotencia antigua',       'limpiarEventosAntiguos')
+      .addSeparator()
+      .addItem('📋 INFORME — Mejoras implementadas (FASE H)',      'generarInformeMejoras')
       .addToUi();
   } catch (e) {}
 }
