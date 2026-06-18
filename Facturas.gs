@@ -43,6 +43,18 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
     return;
   }
 
+  // ── 0. Validación anti-datos-de-prueba ────────────────────────
+  var _errEmpresa = _validarDatosEmpresa_();
+  var _errCliente = _validarClienteParaFactura_(cliente);
+  var _todosErrores = _errEmpresa.concat(_errCliente);
+  if (_todosErrores.length > 0) {
+    var _msgErr = '❌ FACTURA NO GENERADA\n\n' + _todosErrores.join('\n') +
+                  '\n\nCorrige estos datos antes de generar la factura.';
+    Logger.log(_msgErr);
+    try { SpreadsheetApp.getUi().alert(_msgErr); } catch (_e_) {}
+    return;
+  }
+
   var fechaIni = _parseReportDate_(fechaIniStr);
   var fechaFin = _parseReportDate_(fechaFinStr);
   if (!fechaIni || !fechaFin) {
@@ -467,24 +479,17 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Configura las claves de factura en CONFIG y genera el PDF.
- * Solo toca CONFIG — no modifica clientes, operarios, trabajos ni formularios.
+ * DESACTIVADA — función de prueba que hardcodeaba datos de "David Moreno Dias".
+ * Si esta función se ejecutó en el pasado, puede haber contaminado CONFIG.
+ * Para generar facturas: usa PANEL_FACTURAS → selecciona cliente → busca trabajos → generar.
  */
 function prepareAndGenerateInvoice() {
-  setConfig('cliente_factura',      'David Moreno Dias (Sunset Beach Club)');
-  setConfig('fecha_inicio_factura', '01/06/2026');
-  setConfig('fecha_fin_factura',    '02/06/2026');
-  setConfig('precio_hora',          '35');
-  setConfig('materiales',           '0');
-
-  Logger.log('CONFIG actualizada:');
-  Logger.log('  cliente_factura:       David Moreno Dias (Sunset Beach Club)');
-  Logger.log('  fecha_inicio_factura:  01/06/2026');
-  Logger.log('  fecha_fin_factura:     02/06/2026');
-  Logger.log('  precio_hora:           35');
-  Logger.log('  materiales:            0');
-
-  generateInvoicePDF();
+  SpreadsheetApp.getUi().alert(
+    '⛔ FUNCIÓN DESACTIVADA\n\n' +
+    'Esta función de prueba escribía datos hardcodeados (David Moreno Dias) en CONFIG.\n\n' +
+    'Para generar facturas usa:\n' +
+    'PANEL_FACTURAS → selecciona cliente → selecciona fechas → BUSCAR TRABAJOS → GENERAR DOCUMENTO'
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -791,6 +796,250 @@ function _buildPagoRows_(m) {
     rows.push(['Observaciones', m.observaciones]);
   }
   return rows;
+}
+
+/**
+ * Valida que los datos de empresa en CONFIG no sean valores de prueba o vacíos.
+ * Devuelve array de mensajes de error (vacío = OK).
+ */
+function _validarDatosEmpresa_() {
+  var errores = [];
+  var nombre = String(getConfig('empresa_nombre')    || '').trim();
+  var cif    = String(getConfig('empresa_cif')       || '').trim();
+  var dir    = String(getConfig('empresa_direccion') || '').trim();
+
+  var NOMBRES_PRUEBA = ['mi empresa', ''];
+  var CIFS_PRUEBA    = ['a00000000', ''];
+  var DIRS_PRUEBA    = ['calle ejemplo', ''];
+
+  if (NOMBRES_PRUEBA.indexOf(nombre.toLowerCase()) >= 0)
+    errores.push('empresa_nombre: "' + (nombre || '(vacío)') + '" — configura el nombre real de la empresa en CONFIG');
+  if (CIFS_PRUEBA.indexOf(cif.toLowerCase()) >= 0)
+    errores.push('empresa_cif: "' + (cif || '(vacío)') + '" — configura el CIF/NIF real en CONFIG');
+  if (DIRS_PRUEBA.indexOf(dir.toLowerCase()) >= 0 || (dir && dir.toLowerCase().indexOf('calle ejemplo') >= 0))
+    errores.push('empresa_direccion: "' + (dir || '(vacío)') + '" — configura la dirección real en CONFIG');
+
+  return errores;
+}
+
+/**
+ * Valida que el cliente exista en CLIENTES y esté activo.
+ * Devuelve array de mensajes de error (vacío = OK).
+ */
+function _validarClienteParaFactura_(cliente) {
+  var errores = [];
+  if (!cliente) {
+    errores.push('No hay cliente seleccionado en PANEL_FACTURAS!C5');
+    return errores;
+  }
+
+  var CLIENTES_PRUEBA = ['david moreno', 'ana fernandez', 'sofia torres', 'carlos ruiz', 'cristina vega', 'juan martinez', 'ana f'];
+  var clienteLow = cliente.toLowerCase();
+  for (var i = 0; i < CLIENTES_PRUEBA.length; i++) {
+    if (clienteLow.indexOf(CLIENTES_PRUEBA[i]) >= 0) {
+      errores.push('El cliente "' + cliente + '" es un cliente de prueba eliminado del sistema. No se puede facturar.');
+      return errores;
+    }
+  }
+
+  var cliData = _getClienteByLabel_(cliente);
+  if (!cliData) {
+    errores.push('Cliente "' + cliente + '" no encontrado en la hoja CLIENTES');
+    return errores;
+  }
+
+  try {
+    var sheet = getSheet(SHEET_NAMES.CLIENTES);
+    var data  = sheet.getDataRange().getValues();
+    for (var j = 1; j < data.length; j++) {
+      var row       = data[j];
+      var nombre_   = String(row[COL_CLI.NOMBRE    - 1] || '').trim();
+      var apells_   = String(row[COL_CLI.APELLIDOS - 1] || '').trim();
+      var emp_      = String(row[COL_CLI.EMPRESA   - 1] || '').trim();
+      var label_    = (nombre_ + ' ' + apells_).trim();
+      if (emp_) label_ += ' (' + emp_ + ')';
+      if (label_.toLowerCase() !== clienteLow) continue;
+      var activo = row[COL_CLI.ACTIVO - 1];
+      if (activo !== true && String(activo).toLowerCase() !== 'true') {
+        errores.push('El cliente "' + cliente + '" está marcado como INACTIVO en CLIENTES (columna J). Actívalo antes de facturar.');
+      }
+      break;
+    }
+  } catch (e) {
+    Logger.log('_validarClienteParaFactura_: ' + e.message);
+  }
+
+  return errores;
+}
+
+/**
+ * Genera un informe diagnóstico completo en la hoja DIAGNOSTICO_FACTURA_DATOS.
+ * Muestra: celda cliente leída, cliente encontrado en CLIENTES, trabajos seleccionados,
+ * datos empresa usados, errores detectados.
+ * Menú: ⚙️ Sistema → 🔍 DIAGNÓSTICO — Datos de factura
+ */
+function diagnosticarFacturaDatos() {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName('PANEL_FACTURAS');
+  var resultado = [];
+  var errores   = [];
+  var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+
+  resultado.push(['DIAGNÓSTICO DATOS FACTURA — ' + ts, '']);
+  resultado.push(['', '']);
+
+  // 1. Panel FACTURAS
+  resultado.push(['=== PANEL_FACTURAS ===', '']);
+  var cliente = '', fechaIni = '', fechaFin = '', tipo = '', precioHora = 0;
+  if (!sh) {
+    resultado.push(['Hoja PANEL_FACTURAS', '❌ NO EXISTE']);
+    errores.push('La hoja PANEL_FACTURAS no existe');
+  } else {
+    cliente    = String(sh.getRange(P_.CLIENTE[0],     P_.CLIENTE[1]).getValue()     || '').trim();
+    fechaIni   = sh.getRange(P_.FECHA_INI[0],   P_.FECHA_INI[1]).getDisplayValue().trim();
+    fechaFin   = sh.getRange(P_.FECHA_FIN[0],   P_.FECHA_FIN[1]).getDisplayValue().trim();
+    tipo       = String(sh.getRange(P_.TIPO[0],         P_.TIPO[1]).getValue()         || '').trim();
+    precioHora = Number(sh.getRange(P_.PRECIO_HORA[0], P_.PRECIO_HORA[1]).getValue()) || 0;
+    resultado.push(['Celda cliente leída', 'PANEL_FACTURAS!C5']);
+    resultado.push(['Cliente seleccionado (C5)', cliente || '(vacío)']);
+    resultado.push(['Fecha Inicio (C6)', fechaIni || '(vacío)']);
+    resultado.push(['Fecha Fin (C7)', fechaFin || '(vacío)']);
+    resultado.push(['Tipo documento (C8)', tipo || '(vacío)']);
+    resultado.push(['Precio/hora (C10)', precioHora > 0 ? precioHora + ' €/h' : '(no configurado)']);
+    if (!cliente) errores.push('No hay cliente seleccionado en C5');
+    if (!fechaIni) errores.push('Fecha Inicio vacía en C6');
+    if (!fechaFin) errores.push('Fecha Fin vacía en C7');
+    if (precioHora <= 0 && tipo !== 'Informe') errores.push('Precio/hora debe ser mayor que 0');
+  }
+
+  // 2. Cliente en CLIENTES
+  resultado.push(['', '']);
+  resultado.push(['=== CLIENTE EN CLIENTES ===', '']);
+  if (cliente) {
+    var errCli = _validarClienteParaFactura_(cliente);
+    var cliData = _getClienteByLabel_(cliente);
+    if (cliData) {
+      resultado.push(['Encontrado en CLIENTES', '✓ SÍ']);
+      resultado.push(['ID', cliData.id]);
+      resultado.push(['Nombre completo', cliData.nombre]);
+      resultado.push(['Email', cliData.email || '(vacío)']);
+      resultado.push(['Teléfono', cliData.telefono || '(vacío)']);
+      resultado.push(['Dirección', cliData.direccion || '(vacío)']);
+      resultado.push(['CIF/NIF', cliData.cif || '(vacío)']);
+      resultado.push(['Estado CLIENTES', errCli.length === 0 ? '✓ ACTIVO' : '❌ INACTIVO']);
+    } else {
+      resultado.push(['Encontrado en CLIENTES', '❌ NO']);
+    }
+    for (var ec = 0; ec < errCli.length; ec++) errores.push(errCli[ec]);
+  } else {
+    resultado.push(['Encontrado en CLIENTES', '— sin cliente seleccionado']);
+  }
+
+  // 3. Trabajos seleccionados
+  resultado.push(['', '']);
+  resultado.push(['=== TRABAJOS SELECCIONADOS ===', '']);
+  var nSeleccionados = 0;
+  if (sh) {
+    var jobsData = sh.getRange(
+      JOB_TABLE.START_ROW, JOB_TABLE.COL_CHECK,
+      JOB_TABLE.MAX_ROWS,  JOB_TABLE.COL_DATA - JOB_TABLE.COL_CHECK + 1
+    ).getValues();
+    for (var jj = 0; jj < jobsData.length; jj++) {
+      var checked = jobsData[jj][0];
+      if (checked !== true && String(checked) !== 'TRUE') continue;
+      var jsonStr = String(jobsData[jj][JOB_TABLE.COL_DATA - JOB_TABLE.COL_CHECK] || '').trim();
+      nSeleccionados++;
+      try {
+        var jd = JSON.parse(jsonStr);
+        resultado.push(['Trabajo ' + nSeleccionados,
+          (jd.id || '?') + ' | ' + formatDate(new Date(jd.fechaTrabajo)) +
+          ' | ' + String(jd.trabajoRealizado || '').substring(0, 50)]);
+      } catch (_) {
+        resultado.push(['Trabajo ' + nSeleccionados, jsonStr.substring(0, 80)]);
+      }
+    }
+    resultado.push(['Total trabajos seleccionados', nSeleccionados]);
+    if (nSeleccionados === 0) errores.push('No hay trabajos seleccionados en el panel (pulsa BUSCAR TRABAJOS y marca trabajos)');
+  }
+
+  // 4. Datos empresa en CONFIG
+  resultado.push(['', '']);
+  resultado.push(['=== DATOS EMPRESA (CONFIG) ===', '']);
+  var empNombre = String(getConfig('empresa_nombre')    || '').trim();
+  var empCif    = String(getConfig('empresa_cif')       || '').trim();
+  var empDir    = String(getConfig('empresa_direccion') || '').trim();
+  var empEmail  = String(getConfig('empresa_email')     || '').trim();
+  var empTel    = String(getConfig('empresa_telefono')  || '').trim();
+  var empIva    = String(getConfig('iva_porcentaje')    || '21').trim();
+  resultado.push(['empresa_nombre',    empNombre || '(vacío)']);
+  resultado.push(['empresa_cif',       empCif    || '(vacío)']);
+  resultado.push(['empresa_direccion', empDir    || '(vacío)']);
+  resultado.push(['empresa_email',     empEmail  || '(vacío)']);
+  resultado.push(['empresa_telefono',  empTel    || '(vacío)']);
+  resultado.push(['iva_porcentaje',    empIva + '%']);
+  var errEmp = _validarDatosEmpresa_();
+  for (var ee = 0; ee < errEmp.length; ee++) {
+    resultado.push(['⚠️ ERROR EMPRESA', errEmp[ee]]);
+    errores.push(errEmp[ee]);
+  }
+  if (errEmp.length === 0) resultado.push(['Estado empresa', '✓ Datos de empresa configurados correctamente']);
+
+  // 5. CONFIG claves factura (estado actual)
+  resultado.push(['', '']);
+  resultado.push(['=== CONFIG CLAVES FACTURA (estado actual) ===', '']);
+  var cfgCliente  = String(getConfig('cliente_factura')      || '').trim();
+  var cfgFechaIni = String(getConfig('fecha_inicio_factura') || '').trim();
+  var cfgFechaFin = String(getConfig('fecha_fin_factura')    || '').trim();
+  var cfgPrecio   = String(getConfig('precio_hora')          || '').trim();
+  resultado.push(['cliente_factura (CONFIG)',      cfgCliente  || '(vacío)']);
+  resultado.push(['fecha_inicio_factura (CONFIG)', cfgFechaIni || '(vacío)']);
+  resultado.push(['fecha_fin_factura (CONFIG)',     cfgFechaFin || '(vacío)']);
+  resultado.push(['precio_hora (CONFIG)',           cfgPrecio   || '(vacío)']);
+  if (cfgCliente && cliente && cfgCliente.toLowerCase() !== cliente.toLowerCase()) {
+    resultado.push(['⚠️ DESINCRONIZACIÓN', 'Panel tiene "' + cliente + '" pero CONFIG tiene "' + cfgCliente + '"']);
+    errores.push('DESINCRONIZACIÓN: panel tiene "' + cliente + '" pero CONFIG tiene "' + cfgCliente + '" (puede haber sido contaminado por una ejecución anterior)');
+  } else if (cfgCliente && cliente && cfgCliente.toLowerCase() === cliente.toLowerCase()) {
+    resultado.push(['Sincronización panel↔CONFIG', '✓ Coinciden']);
+  }
+
+  // 6. Resumen errores
+  resultado.push(['', '']);
+  resultado.push(['=== RESUMEN ===', '']);
+  if (errores.length === 0) {
+    resultado.push(['Estado general', '✅ Sin errores — se puede generar la factura']);
+  } else {
+    resultado.push(['Total errores', errores.length + ' error(es) detectado(s)']);
+    for (var ei = 0; ei < errores.length; ei++) {
+      resultado.push(['❌ Error ' + (ei + 1), errores[ei]]);
+    }
+    resultado.push(['Acción requerida', 'Corrige los errores antes de generar la factura']);
+  }
+
+  // Escribir hoja
+  var diagSheet = getOrCreateSheet('DIAGNOSTICO_FACTURA_DATOS');
+  diagSheet.clearContents();
+  diagSheet.clearFormats();
+  diagSheet.getRange(1, 1, resultado.length, 2).setValues(resultado);
+  diagSheet.getRange(1, 1, 1, 2)
+    .setFontWeight('bold').setBackground('#1a73e8').setFontColor('#ffffff');
+  for (var rr = 0; rr < resultado.length; rr++) {
+    var k = String(resultado[rr][0]);
+    var bg = null;
+    if (k.indexOf('❌') >= 0 || k.indexOf('⚠️') >= 0)       bg = '#fce8e6';
+    else if (k.indexOf('✓') >= 0 || k.indexOf('✅') >= 0)   bg = '#e6f4ea';
+    else if (k.indexOf('===') >= 0)                          bg = '#e8eaed';
+    if (bg) diagSheet.getRange(rr + 1, 1, 1, 2).setBackground(bg).setFontWeight('bold');
+  }
+  diagSheet.autoResizeColumns(1, 2);
+  ss.setActiveSheet(diagSheet);
+
+  SpreadsheetApp.getUi().alert(
+    errores.length === 0
+      ? '✅ DIAGNÓSTICO OK\n\nNo se detectaron errores.\nPuedes generar la factura.'
+      : '❌ DIAGNÓSTICO — ' + errores.length + ' ERROR(ES)\n\n' +
+        errores.join('\n\n') +
+        '\n\nRevisa la hoja DIAGNOSTICO_FACTURA_DATOS para el informe completo.'
+  );
 }
 
 /**

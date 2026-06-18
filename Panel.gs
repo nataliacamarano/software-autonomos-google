@@ -353,6 +353,7 @@ function onOpen() {
       .addItem('🔍 DRIVE — Diagnóstico migración 18.5',   'diagnosticarMigracionDrive185')
       .addItem('📦 DRIVE — Migrar archivos M1–M4',        'migrarDriveM1M2M3M4')
       .addSeparator()
+      .addItem('🔍 DIAGNÓSTICO — Datos de factura (cliente, empresa, trabajos)', 'diagnosticarFacturaDatos')
       .addItem('🔍 AUDITORÍA — Datos reales vs. prueba',  'ejecutarAuditoriaDatos')
       .addItem('🔬 AUDITORÍA — Fase 2: Informe ejecutivo', 'ejecutarAuditoriaFase2')
       .addSeparator()
@@ -1503,6 +1504,14 @@ function _panelRunInforme_(cliente, fechaIni, fechaFin, selectedJobIds) {
 }
 
 function _panelRunFactura_(cliente, fechaIni, fechaFin, precioHora, tipo, matsItems, selectedJobIds, metodoPago) {
+  // Validar ANTES de escribir en CONFIG (evita contaminar CONFIG con datos incorrectos)
+  var _errEmp = _validarDatosEmpresa_();
+  var _errCli = _validarClienteParaFactura_(cliente);
+  var _errAll = _errEmp.concat(_errCli);
+  if (_errAll.length > 0) {
+    throw new Error(_errAll.join('\n'));
+  }
+
   var matsArray       = Array.isArray(matsItems) ? matsItems : [];
   var otrosMateriales = matsArray.reduce(function(s, m) { return s + (Number(m.imp) || 0); }, 0);
   setConfig('cliente_factura',        cliente);
