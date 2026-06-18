@@ -353,6 +353,7 @@ function onOpen() {
       .addItem('🔍 DRIVE — Diagnóstico migración 18.5',   'diagnosticarMigracionDrive185')
       .addItem('📦 DRIVE — Migrar archivos M1–M4',        'migrarDriveM1M2M3M4')
       .addSeparator()
+      .addItem('🏢 VER — Datos empresa en CONFIG (verificar configuración)',     'verDatosEmpresaConfig')
       .addItem('🔍 DIAGNÓSTICO — Datos de factura (cliente, empresa, trabajos)', 'diagnosticarFacturaDatos')
       .addItem('🔍 AUDITORÍA — Datos reales vs. prueba',  'ejecutarAuditoriaDatos')
       .addItem('🔬 AUDITORÍA — Fase 2: Informe ejecutivo', 'ejecutarAuditoriaFase2')

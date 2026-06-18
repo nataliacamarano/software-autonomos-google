@@ -799,27 +799,54 @@ function _buildPagoRows_(m) {
 }
 
 /**
- * Valida que los datos de empresa en CONFIG no sean valores de prueba o vacíos.
+ * Valida que los datos de empresa en CONFIG no sean valores de prueba.
+ * Solo bloquea valores de prueba literales, no campos vacíos opcionales.
  * Devuelve array de mensajes de error (vacío = OK).
  */
 function _validarDatosEmpresa_() {
   var errores = [];
-  var nombre = String(getConfig('empresa_nombre')    || '').trim();
-  var cif    = String(getConfig('empresa_cif')       || '').trim();
+  var nombre = String(getConfig('empresa_nombre') || '').trim();
+  var cif    = String(getConfig('empresa_cif')    || '').trim();
   var dir    = String(getConfig('empresa_direccion') || '').trim();
 
-  var NOMBRES_PRUEBA = ['mi empresa', ''];
-  var CIFS_PRUEBA    = ['a00000000', ''];
-  var DIRS_PRUEBA    = ['calle ejemplo', ''];
-
-  if (NOMBRES_PRUEBA.indexOf(nombre.toLowerCase()) >= 0)
-    errores.push('empresa_nombre: "' + (nombre || '(vacío)') + '" — configura el nombre real de la empresa en CONFIG');
-  if (CIFS_PRUEBA.indexOf(cif.toLowerCase()) >= 0)
-    errores.push('empresa_cif: "' + (cif || '(vacío)') + '" — configura el CIF/NIF real en CONFIG');
-  if (DIRS_PRUEBA.indexOf(dir.toLowerCase()) >= 0 || (dir && dir.toLowerCase().indexOf('calle ejemplo') >= 0))
-    errores.push('empresa_direccion: "' + (dir || '(vacío)') + '" — configura la dirección real en CONFIG');
+  // Bloquear nombre vacío o valor de prueba
+  if (!nombre || nombre.toLowerCase() === 'mi empresa') {
+    errores.push('empresa_nombre: "' + (nombre || '(vacío)') + '" — configura el nombre real de la empresa en la hoja CONFIG');
+  }
+  // Bloquear CIF vacío o valor de prueba
+  if (!cif || cif.toLowerCase() === 'a00000000') {
+    errores.push('empresa_cif: "' + (cif || '(vacío)') + '" — configura el CIF/NIF real en la hoja CONFIG');
+  }
+  // Bloquear solo si contiene "Calle Ejemplo" (dirección vacía es permitida)
+  if (dir && dir.toLowerCase().indexOf('calle ejemplo') >= 0) {
+    errores.push('empresa_direccion: "' + dir + '" — contiene valor de prueba. Configura la dirección real en CONFIG');
+  }
 
   return errores;
+}
+
+/**
+ * Muestra en un alert los valores exactos de los campos de empresa en CONFIG.
+ * Úsalo para verificar que los datos se guardaron correctamente.
+ * Menú: ⚙️ Sistema → 🏢 VER — Datos empresa en CONFIG
+ */
+function verDatosEmpresaConfig() {
+  var claves = [
+    'empresa_nombre', 'empresa_cif', 'empresa_direccion',
+    'empresa_email', 'empresa_telefono', 'iva_porcentaje'
+  ];
+  var lineas = ['Valores actuales en CONFIG:\n'];
+  for (var i = 0; i < claves.length; i++) {
+    var val = getConfig(claves[i]);
+    lineas.push(claves[i] + ':');
+    lineas.push('  → ' + (val !== null ? '"' + val + '"' : '(clave no existe en CONFIG)'));
+  }
+  var errEmp = _validarDatosEmpresa_();
+  lineas.push('');
+  lineas.push(errEmp.length === 0
+    ? '✅ Datos de empresa válidos — se puede generar factura'
+    : '❌ Errores:\n  ' + errEmp.join('\n  '));
+  SpreadsheetApp.getUi().alert('DATOS EMPRESA EN CONFIG', lineas.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 /**
@@ -844,13 +871,14 @@ function _validarClienteParaFactura_(cliente) {
 
   var cliData = _getClienteByLabel_(cliente);
   if (!cliData) {
-    errores.push('Cliente "' + cliente + '" no encontrado en la hoja CLIENTES');
+    errores.push('Cliente "' + cliente + '" no encontrado en la hoja CLIENTES — puede ser un problema de formato del nombre. Ejecuta el diagnóstico de factura para más detalles.');
     return errores;
   }
 
   try {
     var sheet = getSheet(SHEET_NAMES.CLIENTES);
     var data  = sheet.getDataRange().getValues();
+    var clienteLowNorm = clienteLow.replace(/\s+/g, ' ');
     for (var j = 1; j < data.length; j++) {
       var row       = data[j];
       var nombre_   = String(row[COL_CLI.NOMBRE    - 1] || '').trim();
@@ -858,7 +886,7 @@ function _validarClienteParaFactura_(cliente) {
       var emp_      = String(row[COL_CLI.EMPRESA   - 1] || '').trim();
       var label_    = (nombre_ + ' ' + apells_).trim();
       if (emp_) label_ += ' (' + emp_ + ')';
-      if (label_.toLowerCase() !== clienteLow) continue;
+      if (label_.toLowerCase().replace(/\s+/g, ' ') !== clienteLowNorm) continue;
       var activo = row[COL_CLI.ACTIVO - 1];
       if (activo !== true && String(activo).toLowerCase() !== 'true') {
         errores.push('El cliente "' + cliente + '" está marcado como INACTIVO en CLIENTES (columna J). Actívalo antes de facturar.');
@@ -1052,7 +1080,8 @@ function _getClienteByLabel_(label) {
     var sheet = getSheet(SHEET_NAMES.CLIENTES);
     var data  = sheet.getDataRange().getValues();
     if (data.length < 2) return null;
-    var labelLow = String(label).toLowerCase().trim();
+    // Normaliza espacios múltiples (la fórmula FILTER usa "  (" con doble espacio)
+    var labelLow = String(label).toLowerCase().trim().replace(/\s+/g, ' ');
 
     for (var i = 1; i < data.length; i++) {
       var row       = data[i];
@@ -1062,7 +1091,7 @@ function _getClienteByLabel_(label) {
       var empresa_  = String(row[COL_CLI.EMPRESA   - 1] || '').trim();
       var dropLabel = (nombre + ' ' + apellidos).trim();
       if (empresa_) dropLabel += ' (' + empresa_ + ')';
-      if (dropLabel.toLowerCase() !== labelLow) continue;
+      if (dropLabel.toLowerCase().replace(/\s+/g, ' ') !== labelLow) continue;
 
       // Leer metodosPago por posición de columna para evitar dependencia del nombre de cabecera
       var metodosPago = [];
