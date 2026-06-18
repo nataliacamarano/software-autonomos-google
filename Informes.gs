@@ -236,22 +236,21 @@ function generateClientReportPDF() {
   var pdfBlob = docFile.getAs('application/pdf');
   pdfBlob.setName(titulo + '.pdf');
 
-  // ── 6. Guardar PDF en carpeta Drive ──────────────────────────
+  // ── 6. Guardar PDF en carpeta Drive (AÑO/MES automático) ─────
   Logger.log('\n[6] Guardando PDF en Drive...');
-  var carpetaId = getConfig('carpeta_facturas_id');
+  var _infCarpetaId_ = getConfig('carpeta_informes_id') || getConfig('carpeta_facturas_id');
   var carpeta;
-
-  if (carpetaId) {
+  if (!_infCarpetaId_) {
+    Logger.log('  ⚠️ carpeta_informes_id no configurado. Guardando en raíz Drive.');
+    carpeta = DriveApp.getRootFolder();
+  } else {
     try {
-      carpeta = DriveApp.getFolderById(carpetaId);
-      Logger.log('  Carpeta: "' + carpeta.getName() + '"');
+      carpeta = _getOrCreateSubcarpetaAnioMes_(_infCarpetaId_, new Date());
+      Logger.log('  Carpeta: ' + carpeta.getName());
     } catch (e) {
-      Logger.log('  ⚠️ carpeta_facturas_id no accesible. Guardando en raíz Drive.');
+      Logger.log('  ⚠️ Error subcarpeta AÑO/MES: ' + e.message + '. Guardando en raíz Drive.');
       carpeta = DriveApp.getRootFolder();
     }
-  } else {
-    Logger.log('  ⚠️ carpeta_facturas_id no configurado. Guardando en raíz Drive.');
-    carpeta = DriveApp.getRootFolder();
   }
 
   var pdfFile = carpeta.createFile(pdfBlob);

@@ -223,16 +223,19 @@ function generateInvoiceFromPresupuestoPDF(params) {
   var pdfBlob = docFile.getAs('application/pdf');
   pdfBlob.setName(docTitulo + '.pdf');
 
-  var carpetaId = getConfig('carpeta_facturas_id');
+  var _fpCarpetaKey_  = (tipo === 'Proforma') ? 'carpeta_proformas_id' : 'carpeta_facturas_id';
+  var _fpCarpetaId_   = getConfig(_fpCarpetaKey_);
   var carpeta;
-  if (carpetaId) {
+  if (!_fpCarpetaId_) {
+    Logger.log('  ⚠️ ' + _fpCarpetaKey_ + ' no configurado. Guardando en raíz.');
+    carpeta = DriveApp.getRootFolder();
+  } else {
     try {
-      carpeta = DriveApp.getFolderById(carpetaId);
+      carpeta = _getOrCreateSubcarpetaAnioMes_(_fpCarpetaId_, new Date());
     } catch (e) {
+      Logger.log('  ⚠️ Error subcarpeta AÑO/MES: ' + e.message + '. Guardando en raíz.');
       carpeta = DriveApp.getRootFolder();
     }
-  } else {
-    carpeta = DriveApp.getRootFolder();
   }
   var pdfFile = carpeta.createFile(pdfBlob);
   var pdfUrl  = pdfFile.getUrl();

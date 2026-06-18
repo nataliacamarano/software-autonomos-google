@@ -273,12 +273,18 @@ function generatePresupuestoPDF(params) {
   pdfBlob.setName(docTitulo + '.pdf');
 
   // ── Guardar en Drive ──────────────────────────────────────────
-  var carpetaId = getConfig('carpeta_facturas_id');
+  var _prCarpetaId_ = getConfig('carpeta_presupuestos_id') || getConfig('carpeta_facturas_id');
   var carpeta;
-  if (carpetaId) {
-    try { carpeta = DriveApp.getFolderById(carpetaId); } catch (_) { carpeta = DriveApp.getRootFolder(); }
-  } else {
+  if (!_prCarpetaId_) {
+    Logger.log('  ⚠️ carpeta_presupuestos_id no configurado. Guardando en raíz.');
     carpeta = DriveApp.getRootFolder();
+  } else {
+    try {
+      carpeta = _getOrCreateSubcarpetaAnioMes_(_prCarpetaId_, new Date());
+    } catch (e) {
+      Logger.log('  ⚠️ Error subcarpeta AÑO/MES: ' + e.message + '. Guardando en raíz.');
+      carpeta = DriveApp.getRootFolder();
+    }
   }
   var pdfFile = carpeta.createFile(pdfBlob);
   var pdfUrl  = pdfFile.getUrl();

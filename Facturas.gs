@@ -55,6 +55,19 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
     return;
   }
 
+  // ── 0b. Validar carpeta Drive de destino ─────────────────────
+  var _carpetaKey_    = (tipo === 'Proforma') ? 'carpeta_proformas_id' : 'carpeta_facturas_id';
+  var _carpetaRootId_ = getConfig(_carpetaKey_);
+  if (!_carpetaRootId_) {
+    var _msgCarp_ = '❌ ' + tipo.toUpperCase() + ' NO GENERADA\n\n' +
+                    'Carpeta Drive no configurada en CONFIG.\n' +
+                    'Clave requerida: ' + _carpetaKey_ + '\n\n' +
+                    'Ejecuta: ⚙️ Sistema → 📁 DRIVE — Recuperar carpetas existentes';
+    Logger.log('[BLOQUEADO] ' + _msgCarp_);
+    try { SpreadsheetApp.getUi().alert(_msgCarp_); } catch (_e2_) {}
+    return;
+  }
+
   var fechaIni = _parseReportDate_(fechaIniStr);
   var fechaFin = _parseReportDate_(fechaFinStr);
   if (!fechaIni || !fechaFin) {
@@ -361,21 +374,15 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   var pdfBlob = docFile.getAs('application/pdf');
   pdfBlob.setName(docTitulo + '.pdf');
 
-  // ── 9. Guardar en Drive ──────────────────────────────────────
+  // ── 9. Guardar en Drive (AÑO/MES automático) ─────────────────
   Logger.log('\n[8] Guardando PDF en Drive...');
-  var carpetaId = getConfig('carpeta_facturas_id');
   var carpeta;
-  if (carpetaId) {
-    try {
-      carpeta = DriveApp.getFolderById(carpetaId);
-      Logger.log('  Carpeta: "' + carpeta.getName() + '"');
-    } catch (e) {
-      Logger.log('  ⚠️  carpeta_facturas_id no accesible. Guardando en raíz.');
-      carpeta = DriveApp.getRootFolder();
-    }
-  } else {
-    Logger.log('  ⚠️  carpeta_facturas_id no configurado. Guardando en raíz.');
-    carpeta = DriveApp.getRootFolder();
+  try {
+    carpeta = _getOrCreateSubcarpetaAnioMes_(_carpetaRootId_, hoy);
+  } catch (e) {
+    Logger.log('  ⚠️ Error al obtener subcarpeta AÑO/MES: ' + e.message + '. Intentando carpeta raíz.');
+    try { carpeta = DriveApp.getFolderById(_carpetaRootId_); }
+    catch (e2) { carpeta = DriveApp.getRootFolder(); }
   }
   var pdfFile = carpeta.createFile(pdfBlob);
   var pdfUrl  = pdfFile.getUrl();
