@@ -2,538 +2,532 @@
 // PanelHorasEmpleados.gs — Panel de horas trabajadas por operario
 // ============================================================
 
-// ── Coordenadas del panel ────────────────────────────────────
+// ── Layout: 8 columnas con anchos legibles ───────────────────
+// A(1)=120 · B(2)=190 · C(3)=200 · D(4)=90 · E(5)=120 · F(6)=90 · G(7)=90 · H(8)=80
+
 var PHE_ = {
   HOJA: 'PANEL_HORAS_EMPLEADOS',
+  NCOLS: 8,
 
   // Filtros — fila 4
-  OPERARIO:  [4, 3],   // C4
-  FECHA_INI: [4, 6],   // F4
-  FECHA_FIN: [4, 9],   // I4
+  OPERARIO:  [4, 2],   // B4
+  FECHA_INI: [4, 4],   // D4
+  FECHA_FIN: [4, 6],   // F4
 
   // Botón y estado — filas 6-7
-  BTN_ACTUALIZAR: [6, 3],   // C6 — checkbox
-  ESTADO:         [7, 3],   // C7 — mensaje estado
+  BTN_ACTUALIZAR: [6, 1],   // A6 — checkbox
+  ESTADO:         [7, 1],   // A7 — mensaje
 
-  // KPIs — fila 10 (valores en fila 11)
-  KPI_ROW_LBL: 10,
-  KPI_ROW_VAL: 11,
-  KPI_COL_HORAS:    2,   // B
-  KPI_COL_TRABAJOS: 5,   // E
-  KPI_COL_CLIENTES: 8,   // H
-  KPI_COL_PROMEDIO: 11,  // K
+  // KPIs — filas 10(label) y 11(valor), 2 cols cada uno
+  KPI_ROW_LBL:      10,
+  KPI_ROW_VAL:      11,
+  KPI_COL_HORAS:     1,   // A:B merged
+  KPI_COL_TRABAJOS:  3,   // C:D merged
+  KPI_COL_CLIENTES:  5,   // E:F merged
+  KPI_COL_PROMEDIO:  7,   // G:H merged
 
-  // Tabla detalle
+  // Tabla detalle — cabecera fila 14, datos desde 15
   TABLE_HDR_ROW:   14,
   TABLE_START_ROW: 15,
-  TABLE_ROWS:      60,  // filas 15-74
-  TC_FECHA:    1,  // A
-  TC_CLIENTE:  2,  // B
-  TC_TRABAJO:  3,  // C (ancho)
-  TC_INICIO:   5,  // E
-  TC_FIN:      6,  // F
-  TC_HORAS:    7,  // G
+  TABLE_ROWS:      60,
+  TC_FECHA:    1,   // A
+  TC_CLIENTE:  2,   // B
+  TC_TRABAJO:  3,   // C
+  TC_INICIO:   4,   // D
+  TC_FIN:      5,   // E
+  TC_HORAS:    6,   // F
 
-  // Resumen por cliente (tras tabla)
+  // Resumen clientes y mensual (calculados dinámicamente en setup)
   CLI_TITLE_ROW: 77,
   CLI_HDR_ROW:   78,
   CLI_START_ROW: 79,
   CLI_ROWS:      25,
-
-  // Resumen mensual
   MES_TITLE_ROW: 106,
   MES_HDR_ROW:   107,
   MES_START_ROW: 108,
-  MES_ROWS:      13,  // 12 meses + total
-
-  // Exportar
-  EXP_ROW: 123
+  MES_ROWS:      13,
+  EXP_ROW:       123
 };
 
 // ── Índices columnas TRABAJOS (0-based) ──────────────────────
+// Col1=ID, Col2=FECHA_ALTA, Col3=CLIENTE, Col4=OPERARIO,
+// Col5=FECHA_TRABAJO, Col6=HORA_INICIO, Col7=HORA_FIN,
+// Col8=TRABAJO_REALIZADO, Col9=INCIDENCIAS, Col10=ESTADO
 var PHE_TRA_ = {
-  ID:           0,
-  FECHA_CRE:    1,
-  ID_CLI:       2,
-  NOMBRE_CLI:   3,
-  ID_OPE:       4,
-  NOMBRE_OPE:   5,
-  DESC:         6,
-  TIPO:         7,
-  FECHA_INI:    9,
-  FECHA_FIN:   10,
-  ESTADO:      11,
-  HORAS:       12
+  FECHA_CRE:   1,   // Col 2: FECHA_ALTA
+  NOMBRE_CLI:  2,   // Col 3: CLIENTE
+  NOMBRE_OPE:  3,   // Col 4: OPERARIO
+  FECHA_TRA:   4,   // Col 5: FECHA_TRABAJO
+  HORA_INI:    5,   // Col 6: HORA_INICIO (string "HH:MM")
+  HORA_FIN:    6,   // Col 7: HORA_FIN (string "HH:MM")
+  DESC:        7    // Col 8: TRABAJO_REALIZADO
 };
 
 // ════════════════════════════════════════════════════════════════
-// SETUP — Crea o recrea la hoja PANEL_HORAS_EMPLEADOS
+// SETUP
 // ════════════════════════════════════════════════════════════════
 
 function setupPanelHorasEmpleados() {
-  var ss  = SpreadsheetApp.getActive();
-  var ui  = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActive();
+  var ui = SpreadsheetApp.getUi();
 
-  // Crear o limpiar hoja
   var sh = ss.getSheetByName(PHE_.HOJA);
-  if (!sh) {
-    sh = ss.insertSheet(PHE_.HOJA);
-  } else {
-    sh.clearContents();
-    sh.clearFormats();
-    sh.clearNotes();
-  }
+  if (!sh) sh = ss.insertSheet(PHE_.HOJA);
+  else { sh.clearContents(); sh.clearFormats(); sh.clearNotes(); }
 
   ss.setActiveSheet(sh);
 
-  // Anchos de columna
-  var anchos = [20, 140, 140, 20, 120, 90, 90, 90, 90, 120, 20, 120];
-  anchos.forEach(function(w, i) {
-    try { sh.setColumnWidth(i + 1, w); } catch (_) {}
-  });
+  // ── Anchos de columna (8 cols, todos legibles) ───────────
+  var anchos = [120, 190, 200, 90, 120, 90, 90, 80];
+  anchos.forEach(function(w, i) { try { sh.setColumnWidth(i + 1, w); } catch (_) {} });
 
-  // ── Título ───────────────────────────────────────────────
-  sh.getRange(1, 1, 1, 12).merge()
+  var N = PHE_.NCOLS;
+
+  // ── Fila 1: Título ───────────────────────────────────────
+  sh.setRowHeight(1, 50);
+  sh.getRange(1, 1, 1, N).merge()
     .setValue('👷 PANEL HORAS EMPLEADOS')
     .setBackground('#1a73e8').setFontColor('#ffffff')
-    .setFontSize(16).setFontWeight('bold')
+    .setFontSize(18).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
-  sh.setRowHeight(1, 48);
 
-  sh.getRange(2, 1, 1, 12).merge()
+  // ── Fila 2: Subtítulo ────────────────────────────────────
+  sh.setRowHeight(2, 26);
+  sh.getRange(2, 1, 1, N).merge()
     .setValue('Consulta de horas trabajadas por operario en un rango de fechas')
     .setBackground('#e8f0fe').setFontColor('#1a73e8')
-    .setFontSize(10).setHorizontalAlignment('center');
-  sh.setRowHeight(2, 24);
+    .setFontSize(10).setHorizontalAlignment('center').setVerticalAlignment('middle');
 
-  // ── Separador ────────────────────────────────────────────
-  sh.getRange(3, 1, 1, 12).setBackground('#dadce0');
-  sh.setRowHeight(3, 6);
+  // ── Fila 3: Separador ────────────────────────────────────
+  sh.setRowHeight(3, 8);
+  sh.getRange(3, 1, 1, N).setBackground('#dadce0');
 
-  // ── Filtros — fila 4 ─────────────────────────────────────
-  sh.setRowHeight(4, 36);
-  _phe_label_(sh, 4, 1, 'Operario');
-  sh.getRange(4, 2, 1, 2).merge()
-    .setBackground('#ffffff').setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID)
-    .setFontSize(11).setVerticalAlignment('middle');
+  // ── Fila 4: Filtros ──────────────────────────────────────
+  sh.setRowHeight(4, 38);
 
-  _phe_label_(sh, 4, 4, 'Desde');
-  sh.getRange(4, 5, 1, 2).merge()
-    .setBackground('#ffffff').setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID)
-    .setNumberFormat('dd/MM/yyyy').setFontSize(11).setVerticalAlignment('middle');
+  // Operario
+  _phe_lbl_(sh, 4, 1, 'Operario');
+  sh.getRange(4, 2)
+    .setBackground('#ffffff').setFontSize(11).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, false, false, '#9aa0a6', SpreadsheetApp.BorderStyle.SOLID);
 
-  _phe_label_(sh, 4, 7, 'Hasta');
-  sh.getRange(4, 8, 1, 2).merge()
-    .setBackground('#ffffff').setBorder(true, true, true, true, false, false, '#dadce0', SpreadsheetApp.BorderStyle.SOLID)
-    .setNumberFormat('dd/MM/yyyy').setFontSize(11).setVerticalAlignment('middle');
+  var dvFecha = SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(true).build();
 
-  // Defaults de fecha: mes actual
-  var hoy   = new Date();
-  var ini   = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  var fin   = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-  sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1]).setValue(ini);
-  sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1]).setValue(fin);
+  // Desde
+  _phe_lbl_(sh, 4, 3, 'Desde');
+  sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1])
+    .setBackground('#ffffff').setFontSize(11).setVerticalAlignment('middle')
+    .setNumberFormat('dd/MM/yyyy')
+    .setDataValidation(dvFecha)
+    .setBorder(true, true, true, true, false, false, '#9aa0a6', SpreadsheetApp.BorderStyle.SOLID);
 
-  // ── Botón Actualizar — fila 6 ────────────────────────────
-  sh.setRowHeight(5, 8);
-  sh.setRowHeight(6, 34);
-  sh.getRange(6, 1, 1, 2).merge()
-    .setValue('□ ACTUALIZAR PANEL')
-    .setBackground('#34a853').setFontColor('#ffffff')
-    .setFontSize(11).setFontWeight('bold')
-    .setHorizontalAlignment('center').setVerticalAlignment('middle');
-  // Checkbox real en C6
+  // Hasta
+  _phe_lbl_(sh, 4, 5, 'Hasta');
+  sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1])
+    .setBackground('#ffffff').setFontSize(11).setVerticalAlignment('middle')
+    .setNumberFormat('dd/MM/yyyy')
+    .setDataValidation(dvFecha)
+    .setBorder(true, true, true, true, false, false, '#9aa0a6', SpreadsheetApp.BorderStyle.SOLID);
+
+  // Celda H4 vacía
+  sh.getRange(4, 8).setBackground('#f8f9fa');
+
+  // Defaults: mes actual
+  var hoy = new Date();
+  sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1])
+    .setValue(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1])
+    .setValue(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+
+  // ── Fila 5: Separador fino ───────────────────────────────
+  sh.setRowHeight(5, 6);
+  sh.getRange(5, 1, 1, N).setBackground('#e8eaed');
+
+  // ── Fila 6: Botón ACTUALIZAR ─────────────────────────────
+  sh.setRowHeight(6, 36);
   sh.getRange(PHE_.BTN_ACTUALIZAR[0], PHE_.BTN_ACTUALIZAR[1])
     .insertCheckboxes().setValue(false);
-  sh.getRange(6, 4, 1, 9).merge().setBackground('#f8f9fa');
+  sh.getRange(6, 2, 1, N - 1).merge()
+    .setValue('  ✅  Activa el checkbox para cargar datos')
+    .setBackground('#e6f4ea').setFontColor('#137333')
+    .setFontSize(11).setVerticalAlignment('middle');
 
-  // Estado — fila 7
-  sh.setRowHeight(7, 28);
-  sh.getRange(PHE_.ESTADO[0], PHE_.ESTADO[1], 1, 10).merge()
-    .setValue('Selecciona operario y fechas, luego activa el checkbox ACTUALIZAR.')
+  // ── Fila 7: Estado ───────────────────────────────────────
+  sh.setRowHeight(7, 26);
+  sh.getRange(PHE_.ESTADO[0], PHE_.ESTADO[1], 1, N).merge()
+    .setValue('Selecciona operario y fechas, luego activa el checkbox.')
     .setFontColor('#5f6368').setFontSize(10).setFontStyle('italic')
-    .setVerticalAlignment('middle');
+    .setBackground('#fafafa').setVerticalAlignment('middle');
 
-  // ── Separador ────────────────────────────────────────────
-  sh.getRange(8, 1, 1, 12).setBackground('#dadce0');
-  sh.setRowHeight(8, 6);
-  sh.setRowHeight(9, 12);
+  // ── Fila 8: Separador ────────────────────────────────────
+  sh.setRowHeight(8, 8);
+  sh.getRange(8, 1, 1, N).setBackground('#dadce0');
+  sh.setRowHeight(9, 10);
 
-  // ── KPIs — filas 10-11 ───────────────────────────────────
-  sh.setRowHeight(10, 24);
-  sh.setRowHeight(11, 44);
+  // ── Filas 10-11: KPIs ────────────────────────────────────
+  sh.setRowHeight(PHE_.KPI_ROW_LBL, 26);
+  sh.setRowHeight(PHE_.KPI_ROW_VAL, 48);
 
   var kpis = [
-    { col: PHE_.KPI_COL_HORAS,    lbl: '⏱ HORAS TOTALES',    bg: '#e8f0fe', clr: '#1a73e8', key: 'kpi_horas'    },
-    { col: PHE_.KPI_COL_TRABAJOS, lbl: '🔨 Nº TRABAJOS',      bg: '#fce8b2', clr: '#b06000', key: 'kpi_trabajos' },
-    { col: PHE_.KPI_COL_CLIENTES, lbl: '👤 CLIENTES',         bg: '#e6f4ea', clr: '#137333', key: 'kpi_clientes' },
-    { col: PHE_.KPI_COL_PROMEDIO, lbl: '📊 PROMEDIO h/Trab.', bg: '#f3e8fd', clr: '#7b1fa2', key: 'kpi_promedio' }
+    { col: PHE_.KPI_COL_HORAS,    lbl: '⏱  HORAS TOTALES',    bg: '#e8f0fe', txt: '#1a73e8' },
+    { col: PHE_.KPI_COL_TRABAJOS, lbl: '🔨  Nº TRABAJOS',      bg: '#fce8b2', txt: '#b06000' },
+    { col: PHE_.KPI_COL_CLIENTES, lbl: '👤  CLIENTES',         bg: '#e6f4ea', txt: '#137333' },
+    { col: PHE_.KPI_COL_PROMEDIO, lbl: '📊  PROM. h/trabajo',  bg: '#f3e8fd', txt: '#7b1fa2' }
   ];
   kpis.forEach(function(k) {
-    sh.getRange(PHE_.KPI_ROW_LBL, k.col, 1, 3).merge()
-      .setValue(k.lbl).setBackground(k.bg).setFontColor(k.clr)
-      .setFontSize(9).setFontWeight('bold').setHorizontalAlignment('center');
-    sh.getRange(PHE_.KPI_ROW_VAL, k.col, 1, 3).merge()
-      .setValue('—').setBackground(k.bg).setFontColor(k.clr)
-      .setFontSize(22).setFontWeight('bold').setHorizontalAlignment('center')
+    sh.getRange(PHE_.KPI_ROW_LBL, k.col, 1, 2).merge()
+      .setValue(k.lbl).setBackground(k.bg).setFontColor(k.txt)
+      .setFontSize(9).setFontWeight('bold').setHorizontalAlignment('center')
       .setVerticalAlignment('middle');
+    sh.getRange(PHE_.KPI_ROW_VAL, k.col, 1, 2).merge()
+      .setValue('—').setBackground(k.bg).setFontColor(k.txt)
+      .setFontSize(24).setFontWeight('bold')
+      .setHorizontalAlignment('center').setVerticalAlignment('middle');
   });
 
-  // ── Separador ────────────────────────────────────────────
-  sh.getRange(12, 1, 1, 12).setBackground('#dadce0');
-  sh.setRowHeight(12, 6);
-  sh.setRowHeight(13, 16);
+  // ── Fila 12: Separador ───────────────────────────────────
+  sh.setRowHeight(12, 8);
+  sh.getRange(12, 1, 1, N).setBackground('#dadce0');
+  sh.setRowHeight(13, 10);
 
-  // ── Tabla detalle — cabecera fila 14 ─────────────────────
-  sh.setRowHeight(PHE_.TABLE_HDR_ROW, 30);
-  sh.getRange(PHE_.TABLE_HDR_ROW, 1, 1, 12).merge()
-    .setValue('📋 DETALLE DE TRABAJOS')
+  // ── Fila 14: Título tabla detalle ────────────────────────
+  sh.setRowHeight(PHE_.TABLE_HDR_ROW, 32);
+  sh.getRange(PHE_.TABLE_HDR_ROW, 1, 1, N).merge()
+    .setValue('📋  DETALLE DE TRABAJOS')
     .setBackground('#4285f4').setFontColor('#ffffff')
-    .setFontSize(11).setFontWeight('bold')
-    .setVerticalAlignment('middle');
+    .setFontSize(11).setFontWeight('bold').setVerticalAlignment('middle');
 
-  var tableHdr = ['Fecha', 'Cliente', 'Trabajo / Descripción', '', 'Inicio', 'Fin', 'Horas', '', '', '', '', ''];
-  sh.getRange(PHE_.TABLE_HDR_ROW + 1, 1, 1, 12)
-    .setValues([tableHdr])
-    .setBackground('#d2e3fc').setFontColor('#1a73e8')
-    .setFontWeight('bold').setFontSize(10)
-    .setBorder(true, true, true, true, true, true, '#a8c7fa', SpreadsheetApp.BorderStyle.SOLID);
+  // Fila 15: Cabeceras de columna (= TABLE_HDR_ROW + 1, pero TABLE_START_ROW = 15)
+  // Reajuste: la cabecera de columnas va en fila 14+1=15, datos desde 16
+  // Simplificación: cabecera en fila 14 (merged title) y columnas en fila 15:
+  sh.getRange(PHE_.TABLE_START_ROW, 1, 1, N)
+    .setValues([['Fecha', 'Cliente', 'Trabajo / Descripción', 'Inicio', 'Fin', 'Horas', '', '']])
+    .setBackground('#d2e3fc').setFontColor('#1a73e8').setFontWeight('bold').setFontSize(10)
+    .setBorder(true, true, true, true, true, false, '#a8c7fa', SpreadsheetApp.BorderStyle.SOLID);
+  sh.setRowHeight(PHE_.TABLE_START_ROW, 28);
 
-  // Filas de datos vacías
+  // Ajuste: datos reales empiezan en fila 16
+  PHE_.TABLE_START_ROW = 16;
+
+  // Filas de datos vacías (fila 16 a 75)
   _phe_limpiarTablaDetalle_(sh);
 
-  // ── Resumen clientes ─────────────────────────────────────
-  var cliTitleRow = PHE_.TABLE_START_ROW + PHE_.TABLE_ROWS + 2;
-  PHE_.CLI_TITLE_ROW = cliTitleRow;
-  PHE_.CLI_HDR_ROW   = cliTitleRow + 1;
-  PHE_.CLI_START_ROW = cliTitleRow + 2;
+  // ── Bloques de resumen (ubicados tras la tabla) ───────────
+  var afterTable = PHE_.TABLE_START_ROW + PHE_.TABLE_ROWS;  // fila 76+
 
-  sh.setRowHeight(cliTitleRow, 30);
-  sh.getRange(cliTitleRow, 1, 1, 12).merge()
-    .setValue('👤 RESUMEN POR CLIENTE')
+  // Separador
+  sh.getRange(afterTable, 1, 1, N).setBackground('#dadce0');
+  sh.setRowHeight(afterTable, 6);
+
+  // Resumen por cliente
+  var cliTitle = afterTable + 1;
+  PHE_.CLI_TITLE_ROW = cliTitle;
+  PHE_.CLI_HDR_ROW   = cliTitle + 1;
+  PHE_.CLI_START_ROW = cliTitle + 2;
+
+  sh.setRowHeight(cliTitle, 32);
+  sh.getRange(cliTitle, 1, 1, N).merge()
+    .setValue('👤  RESUMEN POR CLIENTE')
     .setBackground('#4285f4').setFontColor('#ffffff')
     .setFontSize(11).setFontWeight('bold').setVerticalAlignment('middle');
-  sh.getRange(cliTitleRow + 1, 1, 1, 3)
-    .setValues([['Cliente', 'Horas', 'Trabajos']])
-    .setBackground('#d2e3fc').setFontColor('#1a73e8')
-    .setFontWeight('bold').setFontSize(10);
-  sh.getRange(cliTitleRow + 2, 1, PHE_.CLI_ROWS, 3).clearContent()
-    .setBackground('#ffffff').setFontColor('#3c4043').setFontSize(10);
+  sh.getRange(cliTitle + 1, 1, 1, N)
+    .setValues([['Cliente', 'Horas', 'Trabajos', '', '', '', '', '']])
+    .setBackground('#d2e3fc').setFontColor('#1a73e8').setFontWeight('bold').setFontSize(10);
+  sh.getRange(cliTitle + 2, 1, PHE_.CLI_ROWS, N)
+    .setBackground('#ffffff').setFontSize(10);
+  sh.setRowHeight(cliTitle + 1, 26);
 
-  // ── Resumen mensual ───────────────────────────────────────
-  var mesTitleRow = cliTitleRow + 2 + PHE_.CLI_ROWS + 2;
-  PHE_.MES_TITLE_ROW = mesTitleRow;
-  PHE_.MES_HDR_ROW   = mesTitleRow + 1;
-  PHE_.MES_START_ROW = mesTitleRow + 2;
+  // Resumen mensual
+  var mesTitle = cliTitle + 2 + PHE_.CLI_ROWS + 1;
+  PHE_.MES_TITLE_ROW = mesTitle;
+  PHE_.MES_HDR_ROW   = mesTitle + 1;
+  PHE_.MES_START_ROW = mesTitle + 2;
 
-  sh.setRowHeight(mesTitleRow, 30);
-  sh.getRange(mesTitleRow, 1, 1, 12).merge()
-    .setValue('📅 RESUMEN MENSUAL')
+  sh.getRange(mesTitle - 1, 1, 1, N).setBackground('#dadce0');
+  sh.setRowHeight(mesTitle - 1, 6);
+  sh.setRowHeight(mesTitle, 32);
+  sh.getRange(mesTitle, 1, 1, N).merge()
+    .setValue('📅  RESUMEN MENSUAL')
     .setBackground('#4285f4').setFontColor('#ffffff')
     .setFontSize(11).setFontWeight('bold').setVerticalAlignment('middle');
-  sh.getRange(mesTitleRow + 1, 1, 1, 3)
-    .setValues([['Mes', 'Horas', 'Trabajos']])
-    .setBackground('#d2e3fc').setFontColor('#1a73e8')
-    .setFontWeight('bold').setFontSize(10);
-  sh.getRange(mesTitleRow + 2, 1, PHE_.MES_ROWS, 3).clearContent()
-    .setBackground('#ffffff').setFontColor('#3c4043').setFontSize(10);
+  sh.getRange(mesTitle + 1, 1, 1, N)
+    .setValues([['Mes', 'Horas', 'Trabajos', '', '', '', '', '']])
+    .setBackground('#d2e3fc').setFontColor('#1a73e8').setFontWeight('bold').setFontSize(10);
+  sh.getRange(mesTitle + 2, 1, PHE_.MES_ROWS, N)
+    .setBackground('#ffffff').setFontSize(10);
+  sh.setRowHeight(mesTitle + 1, 26);
 
-  // ── Exportar ─────────────────────────────────────────────
-  var expRow = mesTitleRow + 2 + PHE_.MES_ROWS + 2;
+  // Exportar
+  var expRow = mesTitle + 2 + PHE_.MES_ROWS + 2;
   PHE_.EXP_ROW = expRow;
-
-  sh.getRange(expRow, 1, 1, 12).setBackground('#dadce0');
-  sh.setRowHeight(expRow, 6);
-  sh.getRange(expRow + 1, 1, 1, 3).merge()
-    .setValue('📄 Exportar PDF → menú ⚙️ Sistema → 👷 HORAS EMPLEADOS — Exportar PDF')
-    .setFontColor('#1a73e8').setFontSize(10).setFontStyle('italic');
-  sh.getRange(expRow + 2, 1, 1, 3).merge()
-    .setValue('📊 Exportar Excel → menú ⚙️ Sistema → 👷 HORAS EMPLEADOS — Exportar Excel')
-    .setFontColor('#1a73e8').setFontSize(10).setFontStyle('italic');
+  sh.getRange(expRow - 1, 1, 1, N).setBackground('#dadce0');
+  sh.setRowHeight(expRow - 1, 6);
+  sh.getRange(expRow, 1, 1, N).merge()
+    .setValue('📄 PDF: Menú ⚙️ → 👷 HORAS EMPLEADOS — Exportar PDF    |    📊 Excel: Menú ⚙️ → 👷 HORAS EMPLEADOS — Exportar Excel')
+    .setFontColor('#1a73e8').setFontSize(10).setFontStyle('italic')
+    .setBackground('#e8f0fe').setVerticalAlignment('middle');
+  sh.setRowHeight(expRow, 28);
 
   // ── Dropdown operarios ────────────────────────────────────
   _phe_refreshDropdownOperarios_(sh);
 
-  // Freeze filtros
+  // ── Freeze fila 4 (filtros siempre visibles) ─────────────
   sh.setFrozenRows(4);
 
   SpreadsheetApp.flush();
   ui.alert('👷 Panel Horas Empleados',
     '✅ PANEL_HORAS_EMPLEADOS creado.\n\n' +
-    '1. Selecciona un operario en la fila 4.\n' +
-    '2. Ajusta las fechas Desde / Hasta.\n' +
-    '3. Activa el checkbox ACTUALIZAR.',
+    '1. Selecciona operario en B4\n' +
+    '2. Ajusta fechas en D4 y F4\n' +
+    '3. Activa el checkbox en A6 para cargar datos',
     ui.ButtonSet.OK);
 }
 
 // ════════════════════════════════════════════════════════════════
-// ACTUALIZAR — lee filtros, consulta TRABAJOS, escribe resultados
+// ACTUALIZAR
 // ════════════════════════════════════════════════════════════════
 
 function actualizarPanelHorasEmpleados() {
   var ss = SpreadsheetApp.getActive();
   var sh = ss.getSheetByName(PHE_.HOJA);
   if (!sh) {
-    SpreadsheetApp.getUi().alert('Hoja PANEL_HORAS_EMPLEADOS no encontrada.\nEjecuta primero: Sistema → 👷 HORAS EMPLEADOS — Crear panel.');
+    SpreadsheetApp.getUi().alert('Crea primero el panel:\nSistema → 👷 HORAS EMPLEADOS — Crear / Recrear panel');
     return;
   }
 
-  _phe_estado_(sh, '⏳ Actualizando…', '#f9ab00');
+  _phe_estado_(sh, '⏳  Cargando datos…', '#f9ab00');
   SpreadsheetApp.flush();
 
   // ── Leer filtros ─────────────────────────────────────────
-  var operario  = String(sh.getRange(PHE_.OPERARIO[0],  PHE_.OPERARIO[1]).getValue()  || '').trim();
-  var fechaIni  = sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1]).getValue();
-  var fechaFin  = sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1]).getValue();
+  var operario = String(sh.getRange(PHE_.OPERARIO[0], PHE_.OPERARIO[1]).getValue() || '').trim().replace(/\s+/g, ' ');
+  var fechaIni = sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1]).getValue();
+  var fechaFin = sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1]).getValue();
 
-  if (!operario) {
-    _phe_estado_(sh, '⚠️ Selecciona un operario en C4.', '#f9ab00');
-    return;
+  if (!operario || operario === '(sin operarios)') {
+    _phe_estado_(sh, '⚠️  Selecciona un operario en B4.', '#f9ab00'); return;
   }
   if (!(fechaIni instanceof Date) || !(fechaFin instanceof Date)) {
-    _phe_estado_(sh, '⚠️ Introduce fechas válidas en F4 e I4.', '#f9ab00');
-    return;
+    _phe_estado_(sh, '⚠️  Introduce fechas válidas en D4 (Desde) y F4 (Hasta).', '#f9ab00'); return;
   }
 
-  // Normalizar: inicio a las 00:00, fin a las 23:59
   var dIni = new Date(fechaIni.getFullYear(), fechaIni.getMonth(), fechaIni.getDate());
   var dFin = new Date(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate(), 23, 59, 59);
 
   // ── Leer TRABAJOS ─────────────────────────────────────────
   var shTra = ss.getSheetByName('TRABAJOS');
   if (!shTra || shTra.getLastRow() < 2) {
-    _phe_estado_(sh, '❌ Hoja TRABAJOS vacía o no encontrada.', '#ea4335');
-    return;
+    _phe_estado_(sh, '❌  Hoja TRABAJOS vacía o no encontrada.', '#ea4335'); return;
   }
+  var data = shTra.getRange(2, 1, shTra.getLastRow() - 1, 10).getValues();
 
-  var data = shTra.getRange(2, 1, shTra.getLastRow() - 1, 13).getValues();
-
-  // ── Filtrar por operario y fechas ────────────────────────
-  var MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  var filas = [];
+  // ── Filtrar ───────────────────────────────────────────────
+  var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var esTodos = operario.toLowerCase() === 'todos';
+  var filas   = [];
 
   data.forEach(function(row) {
-    var nombreOpe = String(row[PHE_TRA_.NOMBRE_OPE] || '').trim();
-    if (!nombreOpe || nombreOpe.toLowerCase().indexOf(operario.toLowerCase()) < 0) return;
+    var ope = String(row[PHE_TRA_.NOMBRE_OPE] || '').trim().replace(/\s+/g, ' ');
+    if (!esTodos && ope.toLowerCase().indexOf(operario.toLowerCase()) < 0) return;
 
-    var fecha = row[PHE_TRA_.FECHA_INI];
-    if (!(fecha instanceof Date) || isNaN(fecha.getTime())) {
+    // Fecha del trabajo
+    var fecha = row[PHE_TRA_.FECHA_TRA];
+    if (!(fecha instanceof Date) || isNaN(fecha.getTime()))
       fecha = row[PHE_TRA_.FECHA_CRE];
-    }
     if (!(fecha instanceof Date) || isNaN(fecha.getTime())) return;
-    if (fecha < dIni || fecha > dFin) return;
 
-    var horas = parseFloat(row[PHE_TRA_.HORAS]) || 0;
+    // Comparar solo fecha (sin hora)
+    var dFecha = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    if (dFecha < dIni || dFecha > dFin) return;
 
-    // Calcular horas de inicio-fin si hay datetime con hora
-    var fechaFecha = row[PHE_TRA_.FECHA_INI];
-    var fechaFinV  = row[PHE_TRA_.FECHA_FIN];
-    var inicioStr  = '—';
-    var finStr     = '—';
-    if (fechaFecha instanceof Date && fechaFinV instanceof Date) {
-      var difH = (fechaFinV.getTime() - fechaFecha.getTime()) / 3600000;
-      if (difH > 0 && difH < 24 && horas === 0) horas = Math.round(difH * 100) / 100;
-      var hI = fechaFecha.getHours(), mI = fechaFecha.getMinutes();
-      var hF = fechaFinV.getHours(),  mF = fechaFinV.getMinutes();
-      if (hI > 0 || mI > 0) inicioStr = _phe_pad2_(hI) + ':' + _phe_pad2_(mI);
-      if (hF > 0 || mF > 0) finStr    = _phe_pad2_(hF) + ':' + _phe_pad2_(mF);
-    }
+    // Horas: calcular desde HORA_INICIO y HORA_FIN (strings "HH:MM")
+    var inicioStr = String(row[PHE_TRA_.HORA_INI] || '').trim();
+    var finStr    = String(row[PHE_TRA_.HORA_FIN]  || '').trim();
+    var horas     = _phe_calcHoras_(inicioStr, finStr);
+    if (!inicioStr) inicioStr = '—';
+    if (!finStr)    finStr    = '—';
 
     filas.push({
-      fecha:    fecha,
+      fecha:    dFecha,
       cliente:  String(row[PHE_TRA_.NOMBRE_CLI] || '').trim(),
       trabajo:  String(row[PHE_TRA_.DESC]        || '').trim(),
+      operario: ope,
       inicio:   inicioStr,
       fin:      finStr,
       horas:    horas,
-      mes:      fecha.getFullYear() + '-' + _phe_pad2_(fecha.getMonth() + 1),
-      mesLabel: MESES_ES[fecha.getMonth()] + ' ' + fecha.getFullYear()
+      mes:      dFecha.getFullYear() + '-' + _phe_pad2_(dFecha.getMonth() + 1),
+      mesLabel: MESES[dFecha.getMonth()] + ' ' + dFecha.getFullYear()
     });
   });
 
-  // Ordenar por fecha desc
   filas.sort(function(a, b) { return b.fecha - a.fecha; });
 
   // ── KPIs ─────────────────────────────────────────────────
-  var totalHoras   = filas.reduce(function(s, f) { return s + f.horas; }, 0);
-  var numTrabajos  = filas.length;
-  var clientesSet  = {};
-  filas.forEach(function(f) { clientesSet[f.cliente] = true; });
-  var numClientes  = Object.keys(clientesSet).length;
-  var promedio     = numTrabajos > 0 ? Math.round(totalHoras / numTrabajos * 10) / 10 : 0;
+  var totalH   = filas.reduce(function(s, f) { return s + f.horas; }, 0);
+  var nTrab    = filas.length;
+  var cliSet   = {};
+  filas.forEach(function(f) { cliSet[f.cliente] = true; });
+  var nCli     = Object.keys(cliSet).length;
+  var prom     = nTrab > 0 ? Math.round(totalH / nTrab * 10) / 10 : 0;
 
-  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_HORAS,    1, 3).merge().setValue(Math.round(totalHoras * 10) / 10 + ' h');
-  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_TRABAJOS, 1, 3).merge().setValue(numTrabajos);
-  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_CLIENTES, 1, 3).merge().setValue(numClientes);
-  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_PROMEDIO, 1, 3).merge().setValue(promedio + ' h');
+  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_HORAS,    1, 2).merge().setValue(Math.round(totalH * 10) / 10 + ' h');
+  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_TRABAJOS, 1, 2).merge().setValue(nTrab);
+  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_CLIENTES, 1, 2).merge().setValue(nCli);
+  sh.getRange(PHE_.KPI_ROW_VAL, PHE_.KPI_COL_PROMEDIO, 1, 2).merge().setValue(prom + ' h');
 
   // ── Tabla detalle ─────────────────────────────────────────
   _phe_limpiarTablaDetalle_(sh);
   var maxDet = Math.min(filas.length, PHE_.TABLE_ROWS);
   if (maxDet > 0) {
-    var detData = filas.slice(0, maxDet).map(function(f, i) {
+    var tz  = Session.getScriptTimeZone();
+    var detData = filas.slice(0, maxDet).map(function(f) {
+      var fechaStr = Utilities.formatDate(f.fecha, tz, 'dd/MM/yyyy');
       return [
-        Utilities.formatDate(f.fecha, Session.getScriptTimeZone(), 'dd/MM/yyyy'),
-        f.cliente, f.trabajo, '', f.inicio, f.fin,
-        f.horas > 0 ? f.horas : '—', '', '', '', '', ''
+        fechaStr,
+        f.cliente,
+        f.trabajo,
+        f.inicio,
+        f.fin,
+        f.horas > 0 ? f.horas : '—',
+        esTodos ? f.operario : '',
+        ''
       ];
     });
-    sh.getRange(PHE_.TABLE_START_ROW, 1, maxDet, 12).setValues(detData);
-    // Colores alternos
-    for (var r = 0; r < maxDet; r++) {
-      var bg = r % 2 === 0 ? '#ffffff' : '#f8f9fa';
-      sh.getRange(PHE_.TABLE_START_ROW + r, 1, 1, 12).setBackground(bg);
+    sh.getRange(PHE_.TABLE_START_ROW, 1, maxDet, PHE_.NCOLS).setValues(detData);
+    for (var i = 0; i < maxDet; i++) {
+      sh.getRange(PHE_.TABLE_START_ROW + i, 1, 1, PHE_.NCOLS)
+        .setBackground(i % 2 === 0 ? '#ffffff' : '#f8f9fa');
     }
   }
 
   // ── Resumen por cliente ───────────────────────────────────
   var cliMap = {};
   filas.forEach(function(f) {
-    if (!cliMap[f.cliente]) cliMap[f.cliente] = { horas: 0, trabajos: 0 };
-    cliMap[f.cliente].horas    += f.horas;
-    cliMap[f.cliente].trabajos += 1;
+    if (!cliMap[f.cliente]) cliMap[f.cliente] = { h: 0, t: 0 };
+    cliMap[f.cliente].h += f.horas;
+    cliMap[f.cliente].t += 1;
   });
-  var cliRows = Object.keys(cliMap).sort().map(function(c) {
-    return [c, Math.round(cliMap[c].horas * 10) / 10, cliMap[c].trabajos, '', '', '', '', '', '', '', '', ''];
+  var cliArr = Object.keys(cliMap).sort().map(function(c) {
+    return [c, Math.round(cliMap[c].h * 10) / 10, cliMap[c].t, '', '', '', '', ''];
   });
 
-  var cliStart = PHE_.CLI_START_ROW;
-  sh.getRange(cliStart, 1, PHE_.CLI_ROWS, 12).clearContent().setBackground('#ffffff');
-  var maxCli = Math.min(cliRows.length, PHE_.CLI_ROWS);
+  sh.getRange(PHE_.CLI_START_ROW, 1, PHE_.CLI_ROWS, PHE_.NCOLS).clearContent().setBackground('#ffffff');
+  var maxCli = Math.min(cliArr.length, PHE_.CLI_ROWS);
   if (maxCli > 0) {
-    sh.getRange(cliStart, 1, maxCli, 12).setValues(cliRows);
-    for (var r2 = 0; r2 < maxCli; r2++) {
-      sh.getRange(cliStart + r2, 1, 1, 3).setBackground(r2 % 2 === 0 ? '#ffffff' : '#f8f9fa');
+    sh.getRange(PHE_.CLI_START_ROW, 1, maxCli, PHE_.NCOLS).setValues(cliArr);
+    for (var j = 0; j < maxCli; j++) {
+      sh.getRange(PHE_.CLI_START_ROW + j, 1, 1, 3)
+        .setBackground(j % 2 === 0 ? '#ffffff' : '#f8f9fa');
     }
   }
 
   // ── Resumen mensual ───────────────────────────────────────
-  var mesMap = {};
-  var mesOrder = [];
+  var mesMap = {}, mesOrd = [];
   filas.forEach(function(f) {
-    if (!mesMap[f.mes]) { mesMap[f.mes] = { label: f.mesLabel, horas: 0, trabajos: 0 }; mesOrder.push(f.mes); }
-    mesMap[f.mes].horas    += f.horas;
-    mesMap[f.mes].trabajos += 1;
+    if (!mesMap[f.mes]) { mesMap[f.mes] = { lbl: f.mesLabel, h: 0, t: 0 }; mesOrd.push(f.mes); }
+    mesMap[f.mes].h += f.horas;
+    mesMap[f.mes].t += 1;
   });
-  mesOrder = mesOrder.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort();
-  var mesRows = mesOrder.map(function(m) {
-    return [mesMap[m].label, Math.round(mesMap[m].horas * 10) / 10, mesMap[m].trabajos,
-            '', '', '', '', '', '', '', '', ''];
+  mesOrd = mesOrd.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort();
+  var mesArr = mesOrd.map(function(m) {
+    return [mesMap[m].lbl, Math.round(mesMap[m].h * 10) / 10, mesMap[m].t, '', '', '', '', ''];
   });
 
-  var mesStart = PHE_.MES_START_ROW;
-  sh.getRange(mesStart, 1, PHE_.MES_ROWS, 12).clearContent().setBackground('#ffffff');
-  var maxMes = Math.min(mesRows.length, PHE_.MES_ROWS - 1);
+  sh.getRange(PHE_.MES_START_ROW, 1, PHE_.MES_ROWS, PHE_.NCOLS).clearContent().setBackground('#ffffff');
+  var maxMes = Math.min(mesArr.length, PHE_.MES_ROWS - 1);
   if (maxMes > 0) {
-    sh.getRange(mesStart, 1, maxMes, 12).setValues(mesRows);
-    // Fila total
-    var totalRow = [['TOTAL', Math.round(totalHoras * 10) / 10, numTrabajos,
-                     '', '', '', '', '', '', '', '', '']];
-    sh.getRange(mesStart + maxMes, 1, 1, 12).setValues(totalRow)
+    sh.getRange(PHE_.MES_START_ROW, 1, maxMes, PHE_.NCOLS).setValues(mesArr);
+    sh.getRange(PHE_.MES_START_ROW + maxMes, 1, 1, PHE_.NCOLS)
+      .setValues([['TOTAL', Math.round(totalH * 10) / 10, nTrab, '', '', '', '', '']])
       .setBackground('#e8eaed').setFontWeight('bold');
   }
 
-  // ── Estado final ─────────────────────────────────────────
-  var periodo = Utilities.formatDate(dIni, Session.getScriptTimeZone(), 'dd/MM/yyyy') +
-                ' → ' +
-                Utilities.formatDate(dFin, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+  // ── Estado ───────────────────────────────────────────────
+  var tz2 = Session.getScriptTimeZone();
+  var per = Utilities.formatDate(dIni, tz2, 'dd/MM/yyyy') + ' → ' +
+            Utilities.formatDate(dFin, tz2, 'dd/MM/yyyy');
   _phe_estado_(sh,
-    '✅ ' + operario + ' | ' + periodo + ' | ' +
-    numTrabajos + ' trabajos | ' + Math.round(totalHoras * 10) / 10 + ' h totales',
-    '#34a853');
+    '✅  ' + operario + '  |  ' + per + '  |  ' +
+    nTrab + ' trabajos  |  ' + Math.round(totalH * 10) / 10 + ' h totales',
+    '#137333');
 
   logEvent('INFO', 'actualizarPanelHorasEmpleados',
-    'operario=' + operario + ' trabajos=' + numTrabajos + ' horas=' + totalHoras, '');
+    'operario=' + operario + ' trabajos=' + nTrab + ' horas=' + totalH, '');
 }
 
 // ════════════════════════════════════════════════════════════════
-// EXPORTAR PDF
+// EXPORTAR PDF / EXCEL
 // ════════════════════════════════════════════════════════════════
 
 function exportarHorasEmpleadosPDF() {
-  var ss = SpreadsheetApp.getActive();
-  var sh = ss.getSheetByName(PHE_.HOJA);
+  var ss  = SpreadsheetApp.getActive();
+  var sh  = ss.getSheetByName(PHE_.HOJA);
   if (!sh) { SpreadsheetApp.getUi().alert('Crea primero el panel.'); return; }
-
-  var ssId  = ss.getId();
-  var shId  = sh.getSheetId();
-  var url   = 'https://docs.google.com/spreadsheets/d/' + ssId +
-              '/export?format=pdf&gid=' + shId +
-              '&size=A4&portrait=false&fitw=true&gridlines=false' +
-              '&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5';
-
-  sh.getRange(PHE_.EXP_ROW + 1, 1, 1, 6).merge()
-    .setValue('📄 PDF → ' + url)
-    .setFontColor('#1a73e8').setFontSize(10);
-
-  SpreadsheetApp.getUi().alert(
-    '📄 Exportar PDF',
-    'Enlace generado en la hoja (fila ' + (PHE_.EXP_ROW + 1) + ').\n\n' +
-    'También puedes usar:\n' +
-    'Archivo → Descargar → PDF (.pdf)\n\n' +
-    'URL directa copiada en la celda de exportación.',
-    SpreadsheetApp.getUi().ButtonSet.OK
-  );
+  var url = 'https://docs.google.com/spreadsheets/d/' + ss.getId() +
+            '/export?format=pdf&gid=' + sh.getSheetId() +
+            '&size=A4&portrait=false&fitw=true&gridlines=false' +
+            '&top_margin=0.5&bottom_margin=0.5&left_margin=0.5&right_margin=0.5';
+  sh.getRange(PHE_.EXP_ROW + 1, 1, 1, PHE_.NCOLS).merge()
+    .setValue('📄 PDF → ' + url).setFontColor('#1a73e8').setFontSize(9);
+  SpreadsheetApp.getUi().alert('📄 Exportar PDF',
+    'Enlace generado en la hoja.\nTambién: Archivo → Descargar → PDF', SpreadsheetApp.getUi().ButtonSet.OK);
 }
-
-// ════════════════════════════════════════════════════════════════
-// EXPORTAR EXCEL
-// ════════════════════════════════════════════════════════════════
 
 function exportarHorasEmpleadosExcel() {
-  var ss   = SpreadsheetApp.getActive();
-  var sh   = ss.getSheetByName(PHE_.HOJA);
+  var ss  = SpreadsheetApp.getActive();
+  var sh  = ss.getSheetByName(PHE_.HOJA);
   if (!sh) { SpreadsheetApp.getUi().alert('Crea primero el panel.'); return; }
-
-  var ssId = ss.getId();
-  var shId = sh.getSheetId();
-  var url  = 'https://docs.google.com/spreadsheets/d/' + ssId +
-             '/export?format=xlsx&gid=' + shId;
-
-  sh.getRange(PHE_.EXP_ROW + 2, 1, 1, 6).merge()
-    .setValue('📊 Excel → ' + url)
-    .setFontColor('#1a73e8').setFontSize(10);
-
-  SpreadsheetApp.getUi().alert(
-    '📊 Exportar Excel',
-    'Enlace generado en la hoja (fila ' + (PHE_.EXP_ROW + 2) + ').\n\n' +
-    'También puedes usar:\n' +
-    'Archivo → Descargar → Microsoft Excel (.xlsx)\n\n' +
-    'URL directa copiada en la celda de exportación.',
-    SpreadsheetApp.getUi().ButtonSet.OK
-  );
+  var url = 'https://docs.google.com/spreadsheets/d/' + ss.getId() +
+            '/export?format=xlsx&gid=' + sh.getSheetId();
+  sh.getRange(PHE_.EXP_ROW + 2, 1, 1, PHE_.NCOLS).merge()
+    .setValue('📊 Excel → ' + url).setFontColor('#1a73e8').setFontSize(9);
+  SpreadsheetApp.getUi().alert('📊 Exportar Excel',
+    'Enlace generado en la hoja.\nTambién: Archivo → Descargar → Microsoft Excel', SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 // ════════════════════════════════════════════════════════════════
-// REFRESH DROPDOWN OPERARIOS
+// DROPDOWN OPERARIOS
 // ════════════════════════════════════════════════════════════════
 
 function _phe_refreshDropdownOperarios_(sh) {
   try {
-    var ss      = SpreadsheetApp.getActive();
-    var shOpe   = ss.getSheetByName('OPERARIOS');
-    var nombres = [];
-    if (shOpe && shOpe.getLastRow() > 1) {
-      var rows = shOpe.getRange(2, 1, shOpe.getLastRow() - 1, 8).getValues();
-      rows.forEach(function(row) {
-        var activo = row[7]; // col H — Activo
-        if (activo === true || String(activo).toUpperCase() === 'TRUE') {
-          var nombre = String(row[2] || '').trim() + ' ' + String(row[3] || '').trim();
-          if (nombre.trim()) nombres.push(nombre.trim());
-        }
-      });
-    }
-    if (nombres.length === 0) nombres = ['(sin operarios)'];
-    nombres.unshift('Todos');
-
-    var rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(nombres, true)
-      .setAllowInvalid(true)
-      .build();
-    sh.getRange(PHE_.OPERARIO[0], PHE_.OPERARIO[1], 1, 2).setDataValidation(rule);
+    var nombres = _phe_getNombresOperarios_();
+    sh.getRange(PHE_.OPERARIO[0], PHE_.OPERARIO[1])
+      .setDataValidation(SpreadsheetApp.newDataValidation()
+        .requireValueInList(nombres, true).setAllowInvalid(true).build());
   } catch (e) {
-    Logger.log('[PHE] Error dropdown operarios: ' + e.message);
+    Logger.log('[PHE] dropdown operarios: ' + e.message);
   }
+}
+
+function _phe_getNombresOperarios_() {
+  var nombres = ['Todos'];
+  var rows = SpreadsheetApp.getActive().getSheetByName('OPERARIOS');
+  if (rows && rows.getLastRow() > 1) {
+    rows.getRange(2, 1, rows.getLastRow() - 1, 8).getValues().forEach(function(r) {
+      var activo = r[7];
+      if (activo === false || String(activo).toUpperCase() === 'FALSE') return;
+      var n = (String(r[2] || '') + ' ' + String(r[3] || '')).trim().replace(/\s+/g, ' ');
+      if (n) nombres.push(n);
+    });
+  }
+  if (nombres.length === 1) nombres.push('(sin operarios)');
+  return nombres;
+}
+
+function refrescarDropdownOperarios() {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName(PHE_.HOJA);
+  if (!sh) {
+    SpreadsheetApp.getUi().alert('Crea primero el panel:\nSistema → 👷 HORAS EMPLEADOS — Crear / Recrear panel');
+    return;
+  }
+  var nombres = _phe_getNombresOperarios_();
+  sh.getRange(PHE_.OPERARIO[0], PHE_.OPERARIO[1])
+    .setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(nombres, true).setAllowInvalid(true).build());
+  SpreadsheetApp.getUi().alert(
+    '✅ Dropdown actualizado\n\nOperarios encontrados:\n• ' + nombres.join('\n• ')
+  );
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -541,11 +535,8 @@ function _phe_refreshDropdownOperarios_(sh) {
 // ════════════════════════════════════════════════════════════════
 
 function onEditPanelHorasEmpleados_(e) {
-  var sh  = e.range.getSheet();
   var row = e.range.getRow();
   var col = e.range.getColumn();
-
-  // Checkbox ACTUALIZAR (C6)
   if (row === PHE_.BTN_ACTUALIZAR[0] && col === PHE_.BTN_ACTUALIZAR[1] && e.value === 'TRUE') {
     e.range.setValue(false);
     actualizarPanelHorasEmpleados();
@@ -553,34 +544,142 @@ function onEditPanelHorasEmpleados_(e) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// HELPERS PRIVADOS
+// HELPERS
 // ════════════════════════════════════════════════════════════════
 
-function _phe_label_(sh, row, col, text) {
+function _phe_lbl_(sh, row, col, text) {
   sh.getRange(row, col)
     .setValue(text)
     .setBackground('#f1f3f4').setFontColor('#5f6368')
-    .setFontSize(9).setFontWeight('bold')
+    .setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
 }
 
 function _phe_estado_(sh, msg, color) {
-  sh.getRange(PHE_.ESTADO[0], PHE_.ESTADO[1], 1, 10).merge()
+  sh.getRange(PHE_.ESTADO[0], PHE_.ESTADO[1], 1, PHE_.NCOLS).merge()
     .setValue(msg).setFontColor(color || '#3c4043')
-    .setFontSize(10).setFontStyle('normal');
+    .setFontSize(10).setFontStyle('normal').setVerticalAlignment('middle');
 }
 
 function _phe_limpiarTablaDetalle_(sh) {
   var blanks = [];
-  for (var i = 0; i < PHE_.TABLE_ROWS; i++) {
-    blanks.push(['', '', '', '', '', '', '', '', '', '', '', '']);
-  }
-  sh.getRange(PHE_.TABLE_START_ROW, 1, PHE_.TABLE_ROWS, 12)
-    .setValues(blanks)
-    .setBackground('#ffffff').setFontColor('#3c4043')
-    .setFontSize(10).setFontWeight('normal');
+  for (var i = 0; i < PHE_.TABLE_ROWS; i++)
+    blanks.push(['', '', '', '', '', '', '', '']);
+  sh.getRange(PHE_.TABLE_START_ROW, 1, PHE_.TABLE_ROWS, PHE_.NCOLS)
+    .setValues(blanks).setBackground('#ffffff')
+    .setFontSize(10).setFontWeight('normal').setFontColor('#3c4043');
 }
 
-function _phe_pad2_(n) {
-  return n < 10 ? '0' + n : String(n);
+function _phe_pad2_(n) { return n < 10 ? '0' + n : String(n); }
+
+function _phe_charCodes_(s) {
+  var out = [];
+  for (var i = 0; i < s.length; i++) out.push(s.charCodeAt(i));
+  return out.join(',');
+}
+
+function _phe_calcHoras_(ini, fin) {
+  if (!ini || !fin) return 0;
+  var pi = ini.match(/^(\d{1,2}):(\d{2})/);
+  var pf = fin.match(/^(\d{1,2}):(\d{2})/);
+  if (!pi || !pf) return 0;
+  var mIni = parseInt(pi[1]) * 60 + parseInt(pi[2]);
+  var mFin = parseInt(pf[1]) * 60 + parseInt(pf[2]);
+  if (mFin <= mIni) return 0;
+  return Math.round((mFin - mIni) / 60 * 10) / 10;
+}
+
+// ════════════════════════════════════════════════════════════════
+// DIAGNÓSTICO TRABAJOS
+// ════════════════════════════════════════════════════════════════
+
+function diagnosticarTrabajosPHE() {
+  var ss = SpreadsheetApp.getActive();
+  var ui = SpreadsheetApp.getUi();
+  var sh = ss.getSheetByName(PHE_.HOJA);
+
+  // Leer filtro actual del panel
+  var operario = sh ? String(sh.getRange(PHE_.OPERARIO[0], PHE_.OPERARIO[1]).getValue() || '').trim() : '(panel no encontrado)';
+  var fechaIni = sh ? sh.getRange(PHE_.FECHA_INI[0], PHE_.FECHA_INI[1]).getValue() : null;
+  var fechaFin = sh ? sh.getRange(PHE_.FECHA_FIN[0], PHE_.FECHA_FIN[1]).getValue() : null;
+
+  var shTra = ss.getSheetByName('TRABAJOS');
+  if (!shTra || shTra.getLastRow() < 2) {
+    ui.alert('❌ TRABAJOS vacía o no encontrada');
+    return;
+  }
+
+  var lastRow = shTra.getLastRow();
+  var data = shTra.getRange(2, 1, Math.min(lastRow - 1, 20), 10).getValues();
+
+  var msg = '🔍 FILTRO ACTIVO:\n';
+  msg += '  Operario: "' + operario + '"\n';
+  msg += '  Desde: ' + fechaIni + '\n';
+  msg += '  Hasta: ' + fechaFin + '\n\n';
+  msg += 'TRABAJOS (primeras ' + data.length + ' filas):\n';
+  msg += 'Col3(CLIENTE) | Col4(OPERARIO) | Col5(FECHA_TRA)\n';
+  msg += '─────────────────────────────────────────\n';
+
+  var coincidencias = 0;
+  data.forEach(function(r, i) {
+    var cli  = String(r[2] || '').trim();
+    var ope  = String(r[3] || '').trim();
+    var fTra = r[4];
+    var match = ope.toLowerCase().indexOf(operario.toLowerCase()) >= 0;
+    if (match) coincidencias++;
+    msg += (i+2) + ': cli="' + cli + '" ope="' + ope + '" fecha=' + fTra + (match ? ' ✅' : '') + '\n';
+  });
+
+  msg += '\n✅ Coincidencias con "' + operario + '": ' + coincidencias;
+  msg += '\nTotal filas TRABAJOS: ' + (lastRow - 1);
+
+  // Códigos de carácter para detectar invisibles
+  var opeRef = data.length > 0 ? String(data[0][3] || '').trim() : '';
+  msg += '\n\nCódigos (filtro B4):\n' + _phe_charCodes_(operario);
+  msg += '\nCódigos (TRABAJOS fila 2):\n' + _phe_charCodes_(opeRef);
+
+  ui.alert('Diagnóstico TRABAJOS', msg, ui.ButtonSet.OK);
+}
+
+// ════════════════════════════════════════════════════════════════
+// DIAGNÓSTICO OPERARIOS
+// ════════════════════════════════════════════════════════════════
+
+function diagnosticarOperariosPHE() {
+  var ss = SpreadsheetApp.getActive();
+  var ui = SpreadsheetApp.getUi();
+  var sh = ss.getSheetByName('OPERARIOS');
+
+  if (!sh) {
+    ui.alert('❌ No existe la hoja OPERARIOS');
+    return;
+  }
+
+  var lastRow = sh.getLastRow();
+  var msg = '📋 Hoja OPERARIOS\n';
+  msg += '   Última fila: ' + lastRow + '\n\n';
+
+  if (lastRow < 2) {
+    ui.alert(msg + '⚠️  Sin datos (solo cabecera o vacía)');
+    return;
+  }
+
+  var data = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  msg += 'Fila | Col3(Nombre) | Col4(Apellidos) | Col8(Activo)\n';
+  msg += '----------------------------------------------\n';
+  data.forEach(function(r, i) {
+    msg += (i + 2) + '    | ' + r[2] + ' | ' + r[3] + ' | ' + JSON.stringify(r[7]) + '\n';
+  });
+
+  // También mostrar lo que pondrá el dropdown
+  var nombres = ['Todos'];
+  data.forEach(function(r) {
+    var activo = r[7];
+    if (activo === false || String(activo).toUpperCase() === 'FALSE') return;
+    var n = (String(r[2] || '') + ' ' + String(r[3] || '')).trim();
+    if (n) nombres.push(n);
+  });
+  msg += '\n✅ Dropdown mostraría:\n' + nombres.join(', ');
+
+  ui.alert('Diagnóstico Operarios PHE', msg, ui.ButtonSet.OK);
 }
