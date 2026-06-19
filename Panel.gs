@@ -324,6 +324,12 @@ function onOpen() {
       .addItem('⚡ Generar documento (manual)',         'panelGenerarDocumento')
       .addItem('🧹 Limpiar panel completo',            'limpiarPanelCompleto')
       .addSeparator()
+      .addSeparator()
+      .addItem('👷 HORAS EMPLEADOS — Crear / Recrear panel',  'setupPanelHorasEmpleados')
+      .addItem('👷 HORAS EMPLEADOS — Actualizar panel',        'actualizarPanelHorasEmpleados')
+      .addItem('👷 HORAS EMPLEADOS — Exportar PDF',            'exportarHorasEmpleadosPDF')
+      .addItem('👷 HORAS EMPLEADOS — Exportar Excel',          'exportarHorasEmpleadosExcel')
+      .addSeparator()
       .addItem('🗂️ Organizar hojas (ocultar técnicas)',   'organizarHojas')
       .addItem('🙈 Ocultar hojas de administración',      'ocultarHojasAdmin')
       .addItem('👁️ Mostrar todas las hojas',              'mostrarTodasLasHojas')
@@ -679,6 +685,12 @@ function onEdit(e) {
         }
       }
     }
+    return;
+  }
+
+  // ── PANEL_HORAS_EMPLEADOS
+  if (sh.getName() === PHE_.HOJA) {
+    onEditPanelHorasEmpleados_(e);
     return;
   }
 
