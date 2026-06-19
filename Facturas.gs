@@ -214,21 +214,8 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   var body      = doc.getBody();
   body.setMarginTop(36).setMarginBottom(36).setMarginLeft(54).setMarginRight(54);
 
-  // Cabecera empresa
-  body.appendParagraph(empresa)
-    .setHeading(DocumentApp.ParagraphHeading.HEADING1)
-    .editAsText().setFontSize(16).setBold(true);
-
-  var infoEmp = [];
-  if (empresaCif)   infoEmp.push('CIF: ' + empresaCif);
-  if (empresaTel)   infoEmp.push('Tel: ' + empresaTel);
-  if (empresaEmail) infoEmp.push(empresaEmail);
-  if (infoEmp.length > 0)
-    body.appendParagraph(infoEmp.join('   ·   ')).editAsText().setFontSize(9);
-  if (empresaDir)
-    body.appendParagraph(empresaDir).editAsText().setFontSize(9);
-
-  body.appendHorizontalRule();
+  // Cabecera empresa (logo izquierda + info derecha)
+  _cabecera_empresa_(body, empresa, empresaCif, empresaTel, empresaEmail, empresaDir);
 
   // Número y fecha (derecha)
   var tituloDoc = tipo === 'Proforma' ? 'PROFORMA   ' + numFac.id : 'FACTURA   ' + numFac.id;
