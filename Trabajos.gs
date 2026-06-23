@@ -1072,6 +1072,108 @@ function addEmpleado2FieldsToTrabajosForm() {
   Logger.log('================================================');
 }
 
+/**
+ * Verificador de solo lectura: comprueba si el formulario de trabajos tiene los
+ * tres campos del segundo empleado y muestra el resultado en un aviso emergente.
+ * NO modifica el formulario ni los datos.
+ */
+function verificarFormularioEmpleado2() {
+  var ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (_) { ui = null; }
+
+  var formId = getConfig('form_trabajos_id');
+  if (!formId) {
+    var m0 = '❌ No hay form_trabajos_id configurado en CONFIG.';
+    Logger.log(m0);
+    if (ui) ui.alert('Verificación Empleado 2', m0, ui.ButtonSet.OK);
+    return m0;
+  }
+
+  var form;
+  try {
+    form = FormApp.openById(formId);
+  } catch (e) {
+    var m1 = '❌ No se pudo abrir el formulario: ' + e.message;
+    Logger.log(m1);
+    if (ui) ui.alert('Verificación Empleado 2', m1, ui.ButtonSet.OK);
+    return m1;
+  }
+
+  // Títulos presentes en el formulario
+  var titulos = form.getItems().map(function(it) { return it.getTitle(); });
+  var requeridos = ['Operario 2', 'Hora inicio 2', 'Hora fin 2'];
+  var faltan = [];
+
+  var lineas = requeridos.map(function(t) {
+    var ok = titulos.indexOf(t) !== -1;
+    if (!ok) faltan.push(t);
+    return (ok ? '✓' : '✗') + '  ' + t;
+  });
+
+  var todoOk = faltan.length === 0;
+  var msg = (todoOk
+      ? '✅ El formulario tiene los 3 campos del segundo empleado:\n\n'
+      : '⚠️ Faltan campos del segundo empleado:\n\n') +
+    lineas.join('\n') +
+    '\n\n📋 Formulario: "' + form.getTitle() + '"' +
+    '\n🔗 ' + form.getPublishedUrl() +
+    (todoOk ? '' : '\n\nEjecuta addEmpleado2FieldsToTrabajosForm() para añadir los que faltan.');
+
+  Logger.log(msg);
+  if (ui) ui.alert('Verificación Empleado 2', msg, ui.ButtonSet.OK);
+  return msg;
+}
+
+/**
+ * Crea de inmediato las columnas del segundo empleado en la hoja TRABAJOS
+ * ('Operario 2', 'Hora Inicio 2', 'Hora Fin 2'), sin esperar a que entre un
+ * trabajo nuevo. Es seguro ejecutarla varias veces: solo añade las que falten
+ * y NO modifica ninguna fila de datos existente.
+ */
+function asegurarColumnasEmpleado2() {
+  var ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (_) { ui = null; }
+
+  var sheet;
+  try {
+    sheet = getSheet('TRABAJOS');
+  } catch (e) {
+    var mErr = '❌ No se encontró la hoja TRABAJOS: ' + e.message;
+    Logger.log(mErr);
+    if (ui) ui.alert('Columnas Empleado 2', mErr, ui.ButtonSet.OK);
+    return mErr;
+  }
+
+  // Cabeceras antes/después para informar de cuáles se añadieron
+  var lastColAntes = sheet.getLastColumn();
+  var headersAntes = lastColAntes > 0
+    ? sheet.getRange(1, 1, 1, lastColAntes).getValues()[0].map(function(h) { return String(h).trim(); })
+    : [];
+
+  _ensureTrabajoEmpleado2Columns_(sheet);
+
+  var requeridas = ['Operario 2', 'Hora Inicio 2', 'Hora Fin 2'];
+  var añadidas = requeridas.filter(function(t) { return headersAntes.indexOf(t) === -1; });
+
+  var lastColDespues = sheet.getLastColumn();
+  var headersDespues = sheet.getRange(1, 1, 1, lastColDespues).getValues()[0].map(function(h) { return String(h).trim(); });
+
+  var lineas = requeridas.map(function(t) {
+    return (headersDespues.indexOf(t) !== -1 ? '✓' : '✗') + '  ' + t +
+           (headersDespues.indexOf(t) !== -1 ? '  (col ' + (headersDespues.indexOf(t) + 1) + ')' : '');
+  });
+
+  var msg = (añadidas.length > 0
+      ? '✅ Columnas añadidas a TRABAJOS: ' + añadidas.length + '\n\n'
+      : '✅ Las columnas ya existían (nada que añadir):\n\n') +
+    lineas.join('\n') +
+    '\n\nTotal columnas en TRABAJOS: ' + lastColDespues;
+
+  Logger.log(msg);
+  if (ui) ui.alert('Columnas Empleado 2', msg, ui.ButtonSet.OK);
+  return msg;
+}
+
 // ---- Dropdowns del formulario ----
 
 /**
