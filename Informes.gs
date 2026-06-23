@@ -48,7 +48,8 @@ function generateClientReportPDF() {
   var trabajos = [];
 
   if (lastRow > 1) {
-    var numCols = Math.min(18, sheet.getLastColumn());
+    // Leer hasta la columna del empleado 2 (col 22) para sumar sus horas.
+    var numCols = Math.min(COL_TRA.HORA_FIN_2, sheet.getLastColumn());
     var data    = sheet.getRange(2, 1, lastRow - 1, numCols).getValues();
     var seenIds = {};
     for (var i = 0; i < data.length; i++) {
@@ -72,8 +73,11 @@ function generateClientReportPDF() {
         id:               String(row[COL_TRA.ID               - 1] || ''),
         fechaTrabajo:     fechaTrabajo,
         operario:         String(row[COL_TRA.OPERARIO          - 1] || '').trim(),
+        operario2:        String(row[COL_TRA.OPERARIO_2        - 1] || '').trim(),
         horaInicio:       row[COL_TRA.HORA_INICIO       - 1],
         horaFin:          row[COL_TRA.HORA_FIN          - 1],
+        // Horas del parte = empleado 1 + empleado 2 (si lo hay).
+        horas:            _horasTotalesTrabajoRow_(row),
         trabajoRealizado: String(row[COL_TRA.TRABAJO_REALIZADO - 1] || '').trim(),
         incidencias:      String(row[COL_TRA.INCIDENCIAS       - 1] || '').trim(),
         estado:           String(row[COL_TRA.ESTADO            - 1] || '').trim(),
@@ -109,9 +113,8 @@ function generateClientReportPDF() {
   Logger.log('\n[3] Calculando totales...');
   var totalHoras = 0;
   for (var j = 0; j < trabajos.length; j++) {
-    var h = _calcHoras_(trabajos[j].horaInicio, trabajos[j].horaFin);
-    trabajos[j].horas = h;
-    totalHoras += h;
+    // trabajos[j].horas ya incluye empleado 1 + empleado 2 (calculado al leer la fila).
+    totalHoras += trabajos[j].horas;
   }
   Logger.log('  Total trabajos: ' + trabajos.length);
   Logger.log('  Total horas:    ' + totalHoras.toFixed(2));
@@ -453,6 +456,35 @@ function _calcHoras_(inicio, fin) {
   if (i === null || f === null) return 0;
   var diff = (f - i) / 60;
   return diff > 0 ? diff : 0;
+}
+
+/**
+ * Horas totales de un trabajo = empleado 1 + empleado 2.
+ * Recibe una fila de TRABAJOS (array base-0, tal como la devuelve getValues()).
+ * Las horas del empleado 2 solo se suman si hay nombre de Operario 2.
+ * Compatible con filas antiguas: si no existen las columnas 20-22, vale 0 el 2º.
+ * Reutiliza _calcHoras_, que ya devuelve 0 si fin <= inicio o el dato es inválido.
+ */
+function _horasTotalesTrabajoRow_(row) {
+  var h1 = _calcHoras_(row[COL_TRA.HORA_INICIO - 1], row[COL_TRA.HORA_FIN - 1]);
+  var operario2 = String(row[COL_TRA.OPERARIO_2 - 1] || '').trim();
+  var h2 = operario2
+    ? _calcHoras_(row[COL_TRA.HORA_INICIO_2 - 1], row[COL_TRA.HORA_FIN_2 - 1])
+    : 0;
+  return h1 + h2;
+}
+
+/**
+ * Igual que _horasTotalesTrabajoRow_ pero sobre un objeto trabajo
+ * { horaInicio, horaFin, operario2, horaInicio2, horaFin2 } (p. ej. el JSON
+ * guardado en el panel). Las horas del empleado 2 solo se suman si hay operario2.
+ * Robusto con objetos antiguos sin campos de empleado 2 (suma 0).
+ */
+function _horasTotalesTrabajoObj_(t) {
+  var h1 = _calcHoras_(t.horaInicio, t.horaFin);
+  var operario2 = String(t.operario2 || '').trim();
+  var h2 = operario2 ? _calcHoras_(t.horaInicio2, t.horaFin2) : 0;
+  return h1 + h2;
 }
 
 /**

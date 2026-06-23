@@ -1246,6 +1246,10 @@ function _pgnCalcTrabajos_() {
   var cHoras    = _pgnGetCol_(ti, ['horas_trabajadas','horas trabajadas','horas','hours']);
   var cHoraIni  = _pgnGetCol_(ti, ['hora_inicio','hora inicio','horainicio']);
   var cHoraFin  = _pgnGetCol_(ti, ['hora_fin','hora fin','horafin','hora_final']);
+  // Empleado 2 (opcional)
+  var cOperario2 = _pgnGetCol_(ti, ['operario_2','operario 2','operario2','nombre_operario_2']);
+  var cHoraIni2  = _pgnGetCol_(ti, ['hora_inicio_2','hora inicio 2','horainicio2','hora_inicio2']);
+  var cHoraFin2  = _pgnGetCol_(ti, ['hora_fin_2','hora fin 2','horafin2','hora_fin2']);
   var cDesc     = _pgnGetCol_(ti, ['descripcion','descripción','description','desc']);
   var cTotal    = _pgnGetCol_(ti, ['precio_total','precio total','total','importe']);
 
@@ -1295,11 +1299,15 @@ function _pgnCalcTrabajos_() {
       var horas = 0;
       if (cHoras !== -1 && row[cHoras] !== '' && row[cHoras] !== null && row[cHoras] !== undefined) {
         horas = parseFloat(row[cHoras]) || 0;
-      } else if (cHoraIni !== -1 && cHoraFin !== -1 && row[cHoraIni] && row[cHoraFin]) {
-        var tIni = row[cHoraIni] instanceof Date ? row[cHoraIni] : new Date(row[cHoraIni]);
-        var tFin = row[cHoraFin] instanceof Date ? row[cHoraFin] : new Date(row[cHoraFin]);
-        if (!isNaN(tIni.getTime()) && !isNaN(tFin.getTime())) {
-          horas = Math.max(0, (tFin.getTime() - tIni.getTime()) / 3600000);
+      } else {
+        // Empleado 1. _calcHoras_ admite Date, número fraccionario y "HH:MM".
+        if (cHoraIni !== -1 && cHoraFin !== -1) {
+          horas += _calcHoras_(row[cHoraIni], row[cHoraFin]);
+        }
+        // Empleado 2 (solo si tiene operario asignado).
+        if (cOperario2 !== -1 && String(row[cOperario2] || '').trim() &&
+            cHoraIni2 !== -1 && cHoraFin2 !== -1) {
+          horas += _calcHoras_(row[cHoraIni2], row[cHoraFin2]);
         }
       }
       result.horasMes += horas;

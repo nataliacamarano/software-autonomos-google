@@ -133,7 +133,10 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   var trabajos = [];
 
   if (lastRow > 1) {
-    var numCols = Math.min(shTra.getLastColumn(), COL_TRA.MATERIALES);
+    // Leer hasta la última columna del empleado 2 (col 22) para incluir sus horas.
+    // En hojas antiguas sin esas columnas, getLastColumn() las acota y el empleado 2
+    // queda vacío (horas = 0), manteniendo el comportamiento previo.
+    var numCols = Math.min(shTra.getLastColumn(), COL_TRA.HORA_FIN_2);
     var data = shTra.getRange(2, 1, lastRow - 1, numCols).getValues();
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
@@ -145,6 +148,8 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
         fechaTrabajo:     ft,
         horaInicio:       row[COL_TRA.HORA_INICIO       - 1],
         horaFin:          row[COL_TRA.HORA_FIN          - 1],
+        // Horas totales del parte = empleado 1 + empleado 2 (si lo hay).
+        horas:            _horasTotalesTrabajoRow_(row),
         trabajoRealizado: String(row[COL_TRA.TRABAJO_REALIZADO - 1] || '').trim(),
         incidencias:      String(row[COL_TRA.INCIDENCIAS       - 1] || '').trim(),
         materiales:       Number(row[COL_TRA.MATERIALES - 1] || 0)
@@ -181,9 +186,8 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   Logger.log('\n[4] Calculando importes...');
   var totalHoras = 0;
   for (var j = 0; j < trabajos.length; j++) {
-    var h = _calcHoras_(trabajos[j].horaInicio, trabajos[j].horaFin);
-    trabajos[j].horas = h;
-    totalHoras += h;
+    // trabajos[j].horas ya incluye empleado 1 + empleado 2 (calculado al leer la fila).
+    totalHoras += trabajos[j].horas;
   }
   var baseHoras     = totalHoras * precioHora;
   var baseImponible = baseHoras + materiales;
@@ -215,7 +219,7 @@ function generateInvoicePDF(tipo, selectedJobIds, metodoPagoOverride) {
   body.setMarginTop(36).setMarginBottom(36).setMarginLeft(54).setMarginRight(54);
 
   // Cabecera empresa (logo izquierda + info derecha)
-  _cabecera_empresa_(body, empresa, empresaCif, empresaTel, empresaEmail, empresaDir);
+  _cabecera_empresa_(body, empresa, empresaCif, empresaTel, empresaEmail, empresaDir, doc.getId());
 
   // Número y fecha (derecha)
   var tituloDoc = tipo === 'Proforma' ? 'PROFORMA   ' + numFac.id : 'FACTURA   ' + numFac.id;

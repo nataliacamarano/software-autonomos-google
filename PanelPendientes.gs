@@ -110,7 +110,8 @@ function refreshPanelPendientes() {
       var shTra    = getSheet('TRABAJOS');
       var lastTr   = shTra.getLastRow();
       if (lastTr > 1) {
-        var numColsTra = Math.min(shTra.getLastColumn(), COL_TRA.MATERIALES);
+        // Leer hasta la columna del empleado 2 (col 22) para sumar sus horas.
+        var numColsTra = Math.min(shTra.getLastColumn(), COL_TRA.HORA_FIN_2);
         var dataTra    = shTra.getRange(2, 1, lastTr - 1, numColsTra).getValues();
         for (var i = 0; i < dataTra.length; i++) {
           var trow       = dataTra[i];
@@ -123,7 +124,7 @@ function refreshPanelPendientes() {
           clienteTrabajos[clienteLbl].push({
             id:         tId,
             fecha:      ft,
-            horas:      _calcHoras_(trow[COL_TRA.HORA_INICIO - 1], trow[COL_TRA.HORA_FIN - 1]),
+            horas:      _horasTotalesTrabajoRow_(trow),   // empleado 1 + empleado 2
             estado:     String(trow[COL_TRA.ESTADO         - 1] || '').trim(),
             materiales: Number(trow[COL_TRA.MATERIALES     - 1] || 0)
           });

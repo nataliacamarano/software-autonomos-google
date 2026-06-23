@@ -52,16 +52,25 @@ var PHE_ = {
 // ── Índices columnas TRABAJOS (0-based) ──────────────────────
 // Col1=ID, Col2=FECHA_ALTA, Col3=CLIENTE, Col4=OPERARIO,
 // Col5=FECHA_TRABAJO, Col6=HORA_INICIO, Col7=HORA_FIN,
-// Col8=TRABAJO_REALIZADO, Col9=INCIDENCIAS, Col10=ESTADO
+// Col8=TRABAJO_REALIZADO, Col9=INCIDENCIAS, Col10=ESTADO,
+// Col20=OPERARIO 2, Col21=HORA_INICIO 2, Col22=HORA_FIN 2
 var PHE_TRA_ = {
-  FECHA_CRE:   1,   // Col 2: FECHA_ALTA
-  NOMBRE_CLI:  2,   // Col 3: CLIENTE
-  NOMBRE_OPE:  3,   // Col 4: OPERARIO
-  FECHA_TRA:   4,   // Col 5: FECHA_TRABAJO
-  HORA_INI:    5,   // Col 6: HORA_INICIO (string "HH:MM")
-  HORA_FIN:    6,   // Col 7: HORA_FIN (string "HH:MM")
-  DESC:        7    // Col 8: TRABAJO_REALIZADO
+  ID:           0,   // Col 1: ID
+  FECHA_CRE:    1,   // Col 2: FECHA_ALTA
+  NOMBRE_CLI:   2,   // Col 3: CLIENTE
+  NOMBRE_OPE:   3,   // Col 4: OPERARIO
+  FECHA_TRA:    4,   // Col 5: FECHA_TRABAJO
+  HORA_INI:     5,   // Col 6: HORA_INICIO (string "HH:MM")
+  HORA_FIN:     6,   // Col 7: HORA_FIN (string "HH:MM")
+  DESC:         7,   // Col 8: TRABAJO_REALIZADO
+  NOMBRE_OPE_2: 19,  // Col 20: OPERARIO 2 (opcional)
+  HORA_INI_2:   20,  // Col 21: HORA_INICIO 2
+  HORA_FIN_2:   21   // Col 22: HORA_FIN 2
 };
+
+// Nº de columnas a leer de TRABAJOS (incluye empleado 2). En hojas sin esas
+// columnas, getLastColumn() acota la lectura y el empleado 2 queda vacío.
+var PHE_TRA_COLS = 22;
 
 // ════════════════════════════════════════════════════════════════
 // SETUP
@@ -318,7 +327,7 @@ function actualizarPanelHorasEmpleados() {
   if (!shTra || shTra.getLastRow() < 2) {
     _phe_estado_(sh, '❌  Hoja TRABAJOS vacía o no encontrada.', '#ea4335'); return;
   }
-  var data = shTra.getRange(2, 1, shTra.getLastRow() - 1, 10).getValues();
+  var data = shTra.getRange(2, 1, shTra.getLastRow() - 1, Math.min(shTra.getLastColumn(), PHE_TRA_COLS)).getValues();
 
   // ── Filtrar ───────────────────────────────────────────────
   var MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -326,10 +335,7 @@ function actualizarPanelHorasEmpleados() {
   var filas   = [];
 
   data.forEach(function(row) {
-    var ope = String(row[PHE_TRA_.NOMBRE_OPE] || '').trim().replace(/\s+/g, ' ');
-    if (!esTodos && ope.toLowerCase().indexOf(operario.toLowerCase()) < 0) return;
-
-    // Fecha del trabajo
+    // Fecha del trabajo (común a ambos empleados del parte)
     var fecha = row[PHE_TRA_.FECHA_TRA];
     if (!(fecha instanceof Date) || isNaN(fecha.getTime()))
       fecha = row[PHE_TRA_.FECHA_CRE];
@@ -339,31 +345,61 @@ function actualizarPanelHorasEmpleados() {
     var dFecha = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
     if (dFecha < dIni || dFecha > dFin) return;
 
-    // Horas: calcular desde HORA_INICIO y HORA_FIN (strings "HH:MM")
-    var inicioStr = String(row[PHE_TRA_.HORA_INI] || '').trim();
-    var finStr    = String(row[PHE_TRA_.HORA_FIN]  || '').trim();
-    var horas     = _phe_calcHoras_(inicioStr, finStr);
-    if (!inicioStr) inicioStr = '—';
-    if (!finStr)    finStr    = '—';
+    var idTra   = String(row[PHE_TRA_.ID]         || '').trim();
+    var cliente = String(row[PHE_TRA_.NOMBRE_CLI] || '').trim();
+    var trabajo = String(row[PHE_TRA_.DESC]       || '').trim();
 
-    filas.push({
-      fecha:    dFecha,
-      cliente:  String(row[PHE_TRA_.NOMBRE_CLI] || '').trim(),
-      trabajo:  String(row[PHE_TRA_.DESC]        || '').trim(),
-      operario: ope,
-      inicio:   inicioStr,
-      fin:      finStr,
-      horas:    horas,
-      mes:      dFecha.getFullYear() + '-' + _phe_pad2_(dFecha.getMonth() + 1),
-      mesLabel: MESES[dFecha.getMonth()] + ' ' + dFecha.getFullYear()
+    // Cada parte aporta hasta dos "segmentos" (empleado 1 y empleado 2). El 2º
+    // solo se considera si tiene nombre de operario. Cada segmento se cuenta de
+    // forma independiente: con el filtro de un operario se suma el segmento que
+    // le corresponde (sea el empleado 1 o el 2); con "todos" se suman ambos.
+    var segmentos = [{
+      operario: String(row[PHE_TRA_.NOMBRE_OPE] || '').trim().replace(/\s+/g, ' '),
+      ini:      String(row[PHE_TRA_.HORA_INI]   || '').trim(),
+      fin:      String(row[PHE_TRA_.HORA_FIN]   || '').trim()
+    }];
+    var ope2 = String(row[PHE_TRA_.NOMBRE_OPE_2] || '').trim().replace(/\s+/g, ' ');
+    if (ope2) {
+      segmentos.push({
+        operario: ope2,
+        ini:      String(row[PHE_TRA_.HORA_INI_2] || '').trim(),
+        fin:      String(row[PHE_TRA_.HORA_FIN_2] || '').trim()
+      });
+    }
+
+    segmentos.forEach(function(seg) {
+      if (!seg.operario) return;  // segmento sin operario → ignorar
+      if (!esTodos && seg.operario.toLowerCase().indexOf(operario.toLowerCase()) < 0) return;
+
+      var horas     = _phe_calcHoras_(seg.ini, seg.fin);
+      var inicioStr = seg.ini || '—';
+      var finStr    = seg.fin || '—';
+
+      filas.push({
+        id:       idTra,
+        fecha:    dFecha,
+        cliente:  cliente,
+        trabajo:  trabajo,
+        operario: seg.operario,
+        inicio:   inicioStr,
+        fin:      finStr,
+        horas:    horas,
+        mes:      dFecha.getFullYear() + '-' + _phe_pad2_(dFecha.getMonth() + 1),
+        mesLabel: MESES[dFecha.getMonth()] + ' ' + dFecha.getFullYear()
+      });
     });
   });
 
   filas.sort(function(a, b) { return b.fecha - a.fecha; });
 
   // ── KPIs ─────────────────────────────────────────────────
+  // Las horas suman todos los segmentos (empleado 1 + empleado 2). El recuento
+  // de trabajos se hace por ID distinto, para que un parte con dos empleados
+  // cuente como un solo trabajo (no como dos) en la vista "todos".
   var totalH   = filas.reduce(function(s, f) { return s + f.horas; }, 0);
-  var nTrab    = filas.length;
+  var trabSet  = {};
+  filas.forEach(function(f) { if (f.id) trabSet[f.id] = true; });
+  var nTrab    = Object.keys(trabSet).length || filas.length;
   var cliSet   = {};
   filas.forEach(function(f) { cliSet[f.cliente] = true; });
   var nCli     = Object.keys(cliSet).length;
@@ -402,12 +438,13 @@ function actualizarPanelHorasEmpleados() {
   // ── Resumen por cliente ───────────────────────────────────
   var cliMap = {};
   filas.forEach(function(f) {
-    if (!cliMap[f.cliente]) cliMap[f.cliente] = { h: 0, t: 0 };
+    if (!cliMap[f.cliente]) cliMap[f.cliente] = { h: 0, ids: {}, n: 0 };
     cliMap[f.cliente].h += f.horas;
-    cliMap[f.cliente].t += 1;
+    if (f.id) { if (!cliMap[f.cliente].ids[f.id]) { cliMap[f.cliente].ids[f.id] = true; cliMap[f.cliente].n++; } }
+    else cliMap[f.cliente].n++;
   });
   var cliArr = Object.keys(cliMap).sort().map(function(c) {
-    return [c, Math.round(cliMap[c].h * 10) / 10, cliMap[c].t, '', '', '', '', ''];
+    return [c, Math.round(cliMap[c].h * 10) / 10, cliMap[c].n, '', '', '', '', ''];
   });
 
   sh.getRange(PHE_.CLI_START_ROW, 1, PHE_.CLI_ROWS, PHE_.NCOLS).clearContent().setBackground('#ffffff');
@@ -423,13 +460,14 @@ function actualizarPanelHorasEmpleados() {
   // ── Resumen mensual ───────────────────────────────────────
   var mesMap = {}, mesOrd = [];
   filas.forEach(function(f) {
-    if (!mesMap[f.mes]) { mesMap[f.mes] = { lbl: f.mesLabel, h: 0, t: 0 }; mesOrd.push(f.mes); }
+    if (!mesMap[f.mes]) { mesMap[f.mes] = { lbl: f.mesLabel, h: 0, ids: {}, n: 0 }; mesOrd.push(f.mes); }
     mesMap[f.mes].h += f.horas;
-    mesMap[f.mes].t += 1;
+    if (f.id) { if (!mesMap[f.mes].ids[f.id]) { mesMap[f.mes].ids[f.id] = true; mesMap[f.mes].n++; } }
+    else mesMap[f.mes].n++;
   });
   mesOrd = mesOrd.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort();
   var mesArr = mesOrd.map(function(m) {
-    return [mesMap[m].lbl, Math.round(mesMap[m].h * 10) / 10, mesMap[m].t, '', '', '', '', ''];
+    return [mesMap[m].lbl, Math.round(mesMap[m].h * 10) / 10, mesMap[m].n, '', '', '', '', ''];
   });
 
   sh.getRange(PHE_.MES_START_ROW, 1, PHE_.MES_ROWS, PHE_.NCOLS).clearContent().setBackground('#ffffff');
@@ -610,24 +648,27 @@ function diagnosticarTrabajosPHE() {
   }
 
   var lastRow = shTra.getLastRow();
-  var data = shTra.getRange(2, 1, Math.min(lastRow - 1, 20), 10).getValues();
+  var data = shTra.getRange(2, 1, Math.min(lastRow - 1, 20), Math.min(shTra.getLastColumn(), PHE_TRA_COLS)).getValues();
 
   var msg = '🔍 FILTRO ACTIVO:\n';
   msg += '  Operario: "' + operario + '"\n';
   msg += '  Desde: ' + fechaIni + '\n';
   msg += '  Hasta: ' + fechaFin + '\n\n';
   msg += 'TRABAJOS (primeras ' + data.length + ' filas):\n';
-  msg += 'Col3(CLIENTE) | Col4(OPERARIO) | Col5(FECHA_TRA)\n';
+  msg += 'Col3(CLIENTE) | Col4(OPERARIO) | Col20(OPERARIO 2) | Col5(FECHA_TRA)\n';
   msg += '─────────────────────────────────────────\n';
 
   var coincidencias = 0;
   data.forEach(function(r, i) {
     var cli  = String(r[2] || '').trim();
-    var ope  = String(r[3] || '').trim();
+    var ope  = String(r[PHE_TRA_.NOMBRE_OPE]   || '').trim();
+    var ope2 = String(r[PHE_TRA_.NOMBRE_OPE_2] || '').trim();
     var fTra = r[4];
-    var match = ope.toLowerCase().indexOf(operario.toLowerCase()) >= 0;
+    var match = ope.toLowerCase().indexOf(operario.toLowerCase()) >= 0 ||
+                (ope2 && ope2.toLowerCase().indexOf(operario.toLowerCase()) >= 0);
     if (match) coincidencias++;
-    msg += (i+2) + ': cli="' + cli + '" ope="' + ope + '" fecha=' + fTra + (match ? ' ✅' : '') + '\n';
+    msg += (i+2) + ': cli="' + cli + '" ope="' + ope + '"' +
+           (ope2 ? ' ope2="' + ope2 + '"' : '') + ' fecha=' + fTra + (match ? ' ✅' : '') + '\n';
   });
 
   msg += '\n✅ Coincidencias con "' + operario + '": ' + coincidencias;

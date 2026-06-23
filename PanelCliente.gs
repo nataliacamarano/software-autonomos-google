@@ -357,14 +357,15 @@ function refreshPanelCliente() {
       var shTra  = getSheet('TRABAJOS');
       var lastTr = shTra.getLastRow();
       if (lastTr > 1) {
-        var numColsTra = Math.min(shTra.getLastColumn(), COL_TRA.MATERIALES);
+        // Leer hasta la columna del empleado 2 (col 22) para sumar sus horas.
+        var numColsTra = Math.min(shTra.getLastColumn(), COL_TRA.HORA_FIN_2);
         var dataTra    = shTra.getRange(2, 1, lastTr - 1, numColsTra).getValues();
         for (var i = 0; i < dataTra.length; i++) {
           var trow = dataTra[i];
           if (String(trow[COL_TRA.CLIENTE - 1] || '').trim().toLowerCase() !== cliente.toLowerCase()) continue;
           var ft         = _parseTrabajosDate_(trow[COL_TRA.FECHA_TRABAJO - 1]);
           var tId        = String(trow[COL_TRA.ID - 1] || '').trim();
-          var horasTra   = _calcHoras_(trow[COL_TRA.HORA_INICIO - 1], trow[COL_TRA.HORA_FIN - 1]);
+          var horasTra   = _horasTotalesTrabajoRow_(trow);   // empleado 1 + empleado 2
           var trabajoStr = String(trow[COL_TRA.TRABAJO_REALIZADO - 1] || '').trim();
           if (tId && ft) {
             allTrabajosMap[tId] = { fecha: ft, trabajo: trabajoStr, horas: horasTra };
@@ -1193,11 +1194,11 @@ function exportarHistorialClientePDF() {
     try {
       var shT = getSheet('TRABAJOS'); var lrT = shT.getLastRow();
       if (lrT > 1) {
-        var dT = shT.getRange(2, 1, lrT - 1, Math.min(shT.getLastColumn(), COL_TRA.MATERIALES)).getValues();
+        var dT = shT.getRange(2, 1, lrT - 1, Math.min(shT.getLastColumn(), COL_TRA.HORA_FIN_2)).getValues();
         for (var i = 0; i < dT.length; i++) {
           if (String(dT[i][COL_TRA.CLIENTE-1]||'').trim().toLowerCase() !== cliente.toLowerCase()) continue;
           var ft2 = _parseTrabajosDate_(dT[i][COL_TRA.FECHA_TRABAJO-1]); if (!ft2) continue;
-          var h2  = _calcHoras_(dT[i][COL_TRA.HORA_INICIO-1], dT[i][COL_TRA.HORA_FIN-1]);
+          var h2  = _horasTotalesTrabajoRow_(dT[i]);   // empleado 1 + empleado 2
           allTrabHist.push({
             fecha: ft2, operario: String(dT[i][COL_TRA.OPERARIO-1]||'').trim(),
             trabajo: String(dT[i][COL_TRA.TRABAJO_REALIZADO-1]||'').trim(),
@@ -1659,7 +1660,8 @@ function mostrarDetalleTrabajoPC(trabajoId, docAsocId) {
     var lastR  = shTra.getLastRow();
     if (lastR < 2) { SpreadsheetApp.getUi().alert('No hay trabajos registrados.'); return; }
 
-    var data = shTra.getRange(2, 1, lastR - 1, 19).getValues();
+    // Leer hasta la columna del empleado 2 (col 22) para mostrar sus datos.
+    var data = shTra.getRange(2, 1, lastR - 1, Math.min(shTra.getLastColumn(), COL_TRA.HORA_FIN_2)).getValues();
     var row  = null;
     for (var i = 0; i < data.length; i++) {
       if (String(data[i][COL_TRA.ID - 1] || '').trim() === trabajoId) { row = data[i]; break; }
@@ -1685,7 +1687,12 @@ function _pcDetalleHtml_(row, trabajoId, docAsocId) {
   var operario   = String(row[COL_TRA.OPERARIO           - 1] || '').trim();
   var horaIni    = row[COL_TRA.HORA_INICIO - 1];
   var horaFin    = row[COL_TRA.HORA_FIN   - 1];
-  var horas      = _calcHoras_(horaIni, horaFin);
+  var operario2  = String(row[COL_TRA.OPERARIO_2         - 1] || '').trim();
+  var horaIni2   = row[COL_TRA.HORA_INICIO_2 - 1];
+  var horaFin2   = row[COL_TRA.HORA_FIN_2    - 1];
+  var horas1     = _calcHoras_(horaIni, horaFin);
+  var horas2     = operario2 ? _calcHoras_(horaIni2, horaFin2) : 0;
+  var horas      = horas1 + horas2;   // total empleado 1 + empleado 2
   var trabajo    = String(row[COL_TRA.TRABAJO_REALIZADO  - 1] || '').trim();
   var incids     = String(row[COL_TRA.INCIDENCIAS        - 1] || '').trim();
   var estado     = String(row[COL_TRA.ESTADO             - 1] || '').trim();
@@ -1750,13 +1757,29 @@ function _pcDetalleHtml_(row, trabajoId, docAsocId) {
   // Operario
   if (operario) {
     H += '<div class="row"><div class="lbl">Operario</div>';
-    H += '<div class="val">' + _escHtml_(operario) + '</div></div>';
+    H += '<div class="val">' + _escHtml_(operario) +
+         (horas1 > 0 ? '&nbsp;&nbsp;<span style="color:#9aa0a6;font-size:11px;">' +
+            horas1.toFixed(1).replace('.', ',') + ' h' +
+            (horaIni && horaFin ? '  ·  ' + _horaStr_(horaIni) + ' → ' + _horaStr_(horaFin) : '') +
+            '</span>' : '') +
+         '</div></div>';
   }
 
-  // Horas
-  H += '<div class="row"><div class="lbl">Horas</div><div class="val">';
+  // Operario 2 (opcional)
+  if (operario2) {
+    H += '<div class="row"><div class="lbl">Operario 2</div>';
+    H += '<div class="val">' + _escHtml_(operario2) +
+         (horas2 > 0 ? '&nbsp;&nbsp;<span style="color:#9aa0a6;font-size:11px;">' +
+            horas2.toFixed(1).replace('.', ',') + ' h' +
+            (horaIni2 && horaFin2 ? '  ·  ' + _horaStr_(horaIni2) + ' → ' + _horaStr_(horaFin2) : '') +
+            '</span>' : '') +
+         '</div></div>';
+  }
+
+  // Horas (total empleado 1 + empleado 2)
+  H += '<div class="row"><div class="lbl">Horas' + (operario2 ? ' totales' : '') + '</div><div class="val">';
   H += horas > 0 ? '<b>' + horas.toFixed(1).replace('.', ',') + ' h</b>' : '—';
-  if (horaIni && horaFin) {
+  if (!operario2 && horaIni && horaFin) {
     H += '&nbsp;&nbsp;<span style="color:#9aa0a6;font-size:11px;">' +
          _horaStr_(horaIni) + ' → ' + _horaStr_(horaFin) + '</span>';
   }

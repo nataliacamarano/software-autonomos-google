@@ -515,6 +515,21 @@ function installTrabajosModule() {
     .setTitle('Hora fin')
     .setRequired(false);
 
+  // ── Segundo empleado (opcional) ──────────────────────────────
+  form.addListItem()
+    .setTitle('Operario 2')
+    .setHelpText('Solo si un segundo operario participó en este trabajo.')
+    .setChoiceValues(operariosList)
+    .setRequired(false);
+
+  form.addTimeItem()
+    .setTitle('Hora inicio 2')
+    .setRequired(false);
+
+  form.addTimeItem()
+    .setTitle('Hora fin 2')
+    .setRequired(false);
+
   form.addParagraphTextItem()
     .setTitle('Trabajo realizado')
     .setRequired(true);

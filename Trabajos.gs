@@ -22,7 +22,11 @@ const COL_TRA = {
   FOTO_4:            16,
   FOTO_5:            17,
   CARPETA_FOTOS:     18,
-  MATERIALES:        19
+  MATERIALES:        19,
+  // Empleado 2 (opcional) — columnas añadidas al final para no desplazar las existentes.
+  OPERARIO_2:        20,
+  HORA_INICIO_2:     21,
+  HORA_FIN_2:        22
 };
 
 const ESTADOS_TRABAJO = ['Pendiente', 'En curso', 'Completado', 'Cancelado'];
@@ -32,7 +36,8 @@ const HEADERS_TRABAJOS_V2 = [
   'Fecha Trabajo', 'Hora Inicio', 'Hora Fin',
   'Trabajo Realizado', 'Incidencias', 'Estado', 'Fotos', 'Ubicación',
   'Foto 1', 'Foto 2', 'Foto 3', 'Foto 4', 'Foto 5', 'Carpeta Fotos',
-  'Materiales'
+  'Materiales',
+  'Operario 2', 'Hora Inicio 2', 'Hora Fin 2'
 ];
 
 // ---- Lectura ----
@@ -59,7 +64,18 @@ function createTrabajo(data) {
     var sheet = getSheet('TRABAJOS');
     _ensureTrabajoPhotoColumns_(sheet);
     _ensureTrabajoMaterialesColumn_(sheet);
+    _ensureTrabajoEmpleado2Columns_(sheet);
     var id = data.id || nextId('TRABAJOS', 'TRA');
+
+    // Empleado 2 (opcional). Si no hay operario 2, sus horas se ignoran.
+    var operario2   = String(data.operario2   || '').trim();
+    var horaInicio2 = String(data.horaInicio2 || '').trim();
+    var horaFin2    = String(data.horaFin2    || '').trim();
+
+    // Validación hora fin > hora inicio (no bloquea el alta: avisa y no computará
+    // esas horas, igual que _calcHoras_, que devuelve 0 si fin <= inicio).
+    _validarHorasTrabajo_(id, String(data.horaInicio || '').trim(), String(data.horaFin || '').trim(), 1);
+    if (operario2) _validarHorasTrabajo_(id, horaInicio2, horaFin2, 2);
 
     // Fecha Trabajo: convertir string a Date.
     // _parseReportDate_ interpreta DD/MM/YYYY (formato del formulario en español).
@@ -91,7 +107,10 @@ function createTrabajo(data) {
       String(data.foto4             || '').trim(),
       String(data.foto5             || '').trim(),
       String(data.carpetaFotos      || '').trim(),
-      Number(data.materiales        || 0)
+      Number(data.materiales        || 0),
+      operario2,
+      horaInicio2,
+      horaFin2
     ]);
 
     logEvent('INFO', 'createTrabajo', 'Trabajo creado: ' + id, String(data.cliente));
@@ -137,6 +156,9 @@ function onTrabajosFormSubmit(namedValues) {
     fechaTrabajo:     (namedValues['Fecha']             || [''])[0],
     horaInicio:       (namedValues['Hora inicio']       || [''])[0],
     horaFin:          (namedValues['Hora fin']          || [''])[0],
+    operario2:        (namedValues['Operario 2']        || [''])[0],
+    horaInicio2:      (namedValues['Hora inicio 2']     || [''])[0],
+    horaFin2:         (namedValues['Hora fin 2']        || [''])[0],
     trabajoRealizado: (namedValues['Trabajo realizado'] || [''])[0],
     incidencias:      (namedValues['Incidencias']       || [''])[0],
     estado:           (namedValues['Estado']            || ['Pendiente'])[0],
@@ -234,6 +256,9 @@ function processExistingTrabajoResponses() {
       fechaTrabajo:     (nv['Fecha']             || [''])[0],
       horaInicio:       (nv['Hora inicio']       || [''])[0],
       horaFin:          (nv['Hora fin']          || [''])[0],
+      operario2:        (nv['Operario 2']        || [''])[0],
+      horaInicio2:      (nv['Hora inicio 2']     || [''])[0],
+      horaFin2:         (nv['Hora fin 2']        || [''])[0],
       trabajoRealizado: (nv['Trabajo realizado'] || [''])[0],
       incidencias:      (nv['Incidencias']       || [''])[0],
       estado:           (nv['Estado']            || ['Pendiente'])[0],
@@ -476,6 +501,45 @@ function _ensureTrabajoMaterialesColumn_(sheet) {
   if (headers.indexOf('Materiales') === -1) {
     sheet.getRange(1, lastCol + 1).setValue('Materiales');
   }
+}
+
+/**
+ * Asegura que TRABAJOS tiene las columnas del segundo empleado (cols 20-22):
+ * 'Operario 2', 'Hora Inicio 2', 'Hora Fin 2'.
+ * Añade las cabeceras que falten al final. No modifica filas de datos, de modo
+ * que los trabajos antiguos quedan con esas celdas vacías (= sin empleado 2).
+ */
+function _ensureTrabajoEmpleado2Columns_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = lastCol > 0
+    ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h).trim(); })
+    : [];
+  var needed = ['Operario 2', 'Hora Inicio 2', 'Hora Fin 2'];
+  for (var i = 0; i < needed.length; i++) {
+    if (headers.indexOf(needed[i]) === -1) {
+      lastCol++;
+      sheet.getRange(1, lastCol).setValue(needed[i]);
+      headers.push(needed[i]);
+    }
+  }
+}
+
+/**
+ * Valida que, para una pareja inicio/fin rellena, la hora fin sea posterior a la
+ * de inicio. Si no lo es, registra un aviso en LOGS (no bloquea el alta: esas
+ * horas computarán como 0, coherente con _calcHoras_). Las parejas vacías o
+ * parciales se ignoran. `num` indica el empleado (1 o 2) para el mensaje.
+ */
+function _validarHorasTrabajo_(id, horaInicio, horaFin, num) {
+  if (!horaInicio || !horaFin) return true;
+  var horas = _calcHoras_(horaInicio, horaFin);
+  if (horas <= 0) {
+    logEvent('WARN', 'createTrabajo',
+      'Trabajo ' + id + ': hora fin del empleado ' + num + ' no es posterior a la de inicio',
+      'inicio=' + horaInicio + ' fin=' + horaFin);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -928,6 +992,86 @@ function addMaterialesFieldToTrabajosForm() {
   Logger.log('================================================');
 }
 
+// ---- Campos del segundo empleado en formulario existente ----
+
+/**
+ * Añade al formulario de trabajos ya existente los campos del segundo empleado
+ * (opcional): "Operario 2" (lista), "Hora inicio 2" y "Hora fin 2" (hora).
+ * Los coloca juntos, justo después de "Hora fin". Si ya existen, no hace nada.
+ * NO recrea el formulario. NO borra respuestas. El backend (onTrabajosFormSubmit,
+ * processExistingTrabajoResponses y createTrabajo) ya los lee.
+ */
+function addEmpleado2FieldsToTrabajosForm() {
+  Logger.log('================================================');
+  Logger.log('addEmpleado2FieldsToTrabajosForm()');
+  Logger.log(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'));
+  Logger.log('================================================');
+
+  var formId = getConfig('form_trabajos_id');
+  Logger.log('\n[1] form_trabajos_id: ' + (formId || '❌ NO CONFIGURADO'));
+  if (!formId) {
+    Logger.log('ABORTANDO. Ejecuta installTrabajosModule() primero.');
+    return;
+  }
+
+  var form;
+  try {
+    form = FormApp.openById(formId);
+    Logger.log('  ✓ Formulario: "' + form.getTitle() + '"');
+  } catch (e) {
+    Logger.log('  ❌ No se puede abrir: ' + e.message);
+    return;
+  }
+
+  // Localizar "Hora fin" (del empleado 1) y comprobar qué campos ya existen
+  var items      = form.getItems();
+  var horaFinIdx = -1;
+  var existentes = {};
+  for (var i = 0; i < items.length; i++) {
+    var t = items[i].getTitle();
+    if (t === 'Hora fin') horaFinIdx = i;
+    if (t === 'Operario 2' || t === 'Hora inicio 2' || t === 'Hora fin 2') existentes[t] = true;
+  }
+
+  // Lista de operarios para el desplegable (misma fuente que el formulario original)
+  var operariosList = _getTrabajosDropdownOperarios_();
+
+  // Insertar en orden inverso justo después de "Hora fin" para que queden ordenados:
+  // Operario 2, Hora inicio 2, Hora fin 2.
+  var insertBase = (horaFinIdx !== -1) ? horaFinIdx + 1 : form.getItems().length;
+  var añadidos   = 0;
+
+  if (!existentes['Hora fin 2']) {
+    form.addTimeItem().setTitle('Hora fin 2').setRequired(false);
+    form.moveItem(form.getItems().length - 1, insertBase);
+    añadidos++;
+  }
+  if (!existentes['Hora inicio 2']) {
+    form.addTimeItem().setTitle('Hora inicio 2').setRequired(false);
+    form.moveItem(form.getItems().length - 1, insertBase);
+    añadidos++;
+  }
+  if (!existentes['Operario 2']) {
+    var op2 = form.addListItem()
+      .setTitle('Operario 2')
+      .setHelpText('Solo si un segundo operario participó en este trabajo.')
+      .setRequired(false);
+    if (operariosList.length) op2.setChoiceValues(operariosList);
+    form.moveItem(form.getItems().length - 1, insertBase);
+    añadidos++;
+  }
+
+  Logger.log('\n[2] Campos añadidos: ' + añadidos + (añadidos === 0 ? ' (ya existían todos)' : ''));
+  Logger.log('\n[3] Campos finales:');
+  var finalItems = form.getItems();
+  for (var j = 0; j < finalItems.length; j++) {
+    Logger.log('  ' + (j + 1) + '. [' + finalItems[j].getType() + '] "' + finalItems[j].getTitle() + '"');
+  }
+  Logger.log('\n================================================');
+  Logger.log('LISTO. URL: ' + form.getPublishedUrl());
+  Logger.log('================================================');
+}
+
 // ---- Dropdowns del formulario ----
 
 /**
@@ -1003,12 +1147,12 @@ function refreshTrabajosDropdowns() {
       listItem.setChoiceValues(uniqueClientes);
       updatedClientes = true;
       Logger.log('  ✓ Desplegable "Cliente" actualizado');
-    } else if (titulo === 'Operario' && operariosList.length > 0) {
+    } else if ((titulo === 'Operario' || titulo === 'Operario 2') && operariosList.length > 0) {
       var uniqueOperarios = [...new Set(operariosList)];
-      Logger.log('  → setChoiceValues "Operario": ' + uniqueOperarios.length + ' opciones — ' + JSON.stringify(uniqueOperarios));
+      Logger.log('  → setChoiceValues "' + titulo + '": ' + uniqueOperarios.length + ' opciones — ' + JSON.stringify(uniqueOperarios));
       listItem.setChoiceValues(uniqueOperarios);
       updatedOperarios = true;
-      Logger.log('  ✓ Desplegable "Operario" actualizado');
+      Logger.log('  ✓ Desplegable "' + titulo + '" actualizado');
     }
   }
 

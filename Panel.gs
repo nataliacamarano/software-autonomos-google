@@ -1227,7 +1227,8 @@ function panelVistaPrevia() {
     var totalHoras = 0;
     var totalMats  = 0;
     for (var j = 0; j < trabajos.length; j++) {
-      trabajos[j].horas = _calcHoras_(trabajos[j].horaInicio, trabajos[j].horaFin);
+      // Horas = empleado 1 + empleado 2 (el JSON del panel ya guarda los campos del 2º).
+      trabajos[j].horas = _horasTotalesTrabajoObj_(trabajos[j]);
       totalHoras += trabajos[j].horas;
       totalMats  += trabajos[j].materiales;
     }
@@ -2837,7 +2838,8 @@ function panelBuscarTrabajos() {
     var trabajos = [];
 
     if (lastRow > 1) {
-      var numCols = Math.min(shTra.getLastColumn(), COL_TRA.MATERIALES);
+      // Leer hasta la columna del empleado 2 (col 22) para incluir sus horas.
+      var numCols = Math.min(shTra.getLastColumn(), COL_TRA.HORA_FIN_2);
       var data    = shTra.getRange(2, 1, lastRow - 1, numCols).getValues();
       Logger.log('[TRABAJOS] filas leídas: ' + data.length + '  columnas leídas: ' + numCols);
       var rechazadosCliente = 0;
@@ -2877,6 +2879,9 @@ function panelBuscarTrabajos() {
           operario:         numCols >= COL_TRA.OPERARIO          ? String(row[COL_TRA.OPERARIO          - 1] || '').trim() : '',
           horaInicio:       numCols >= COL_TRA.HORA_INICIO       ? row[COL_TRA.HORA_INICIO - 1]                            : '',
           horaFin:          numCols >= COL_TRA.HORA_FIN          ? row[COL_TRA.HORA_FIN    - 1]                            : '',
+          operario2:        numCols >= COL_TRA.OPERARIO_2        ? String(row[COL_TRA.OPERARIO_2        - 1] || '').trim() : '',
+          horaInicio2:      numCols >= COL_TRA.HORA_INICIO_2     ? row[COL_TRA.HORA_INICIO_2 - 1]                          : '',
+          horaFin2:         numCols >= COL_TRA.HORA_FIN_2        ? row[COL_TRA.HORA_FIN_2    - 1]                          : '',
           trabajoRealizado: numCols >= COL_TRA.TRABAJO_REALIZADO ? String(row[COL_TRA.TRABAJO_REALIZADO - 1] || '').trim() : '',
           incidencias:      numCols >= COL_TRA.INCIDENCIAS       ? String(row[COL_TRA.INCIDENCIAS       - 1] || '').trim() : '',
           materiales:       numCols >= COL_TRA.MATERIALES        ? Number(row[COL_TRA.MATERIALES        - 1] || 0)         : 0
@@ -2931,11 +2936,12 @@ function panelBuscarTrabajos() {
     for (var j = 0; j < maxShow; j++) {
       var t     = trabajos[j];
       var dr    = JOB_TABLE.START_ROW + j;
-      var horas = _calcHoras_(t.horaInicio, t.horaFin);
+      var horas = _horasTotalesTrabajoObj_(t);   // empleado 1 + empleado 2
       var st    = statusMap[t.id] || { informe: '', proforma: '', factura: '' };
 
       var infoText  = t.id + ' · ' + Utilities.formatDate(t.fechaTrabajo, tz, 'dd/MM/yyyy') +
-                      (t.operario ? ' · ' + t.operario : '');
+                      (t.operario ? ' · ' + t.operario : '') +
+                      (t.operario2 ? ' + ' + t.operario2 : '');
       var trabText  = (t.trabajoRealizado ? t.trabajoRealizado.substring(0, 100) : '—') +
                       (t.incidencias ? ' | ⚠ ' + t.incidencias.substring(0, 60) : '');
       var horasText = horas > 0 ? horas.toFixed(2).replace('.', ',') + ' h' : '0,00 h';
@@ -2976,6 +2982,9 @@ function panelBuscarTrabajos() {
         operario:         t.operario,
         horaInicio:       _horaToStr_(t.horaInicio),
         horaFin:          _horaToStr_(t.horaFin),
+        operario2:        t.operario2,
+        horaInicio2:      _horaToStr_(t.horaInicio2),
+        horaFin2:         _horaToStr_(t.horaFin2),
         trabajoRealizado: t.trabajoRealizado,
         incidencias:      t.incidencias,
         materiales:       t.materiales,
