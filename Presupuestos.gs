@@ -158,7 +158,7 @@ function generatePresupuestoPDF(params) {
   body.setMarginTop(36).setMarginBottom(36).setMarginLeft(54).setMarginRight(54);
 
   // Cabecera empresa (logo izquierda + info derecha)
-  _cabecera_empresa_(body, empresa, empresaCif, empresaTel, empresaEmail, empresaDir);
+  _cabecera_empresa_(body, empresa, empresaCif, empresaTel, empresaEmail, empresaDir, doc.getId());
 
   // Número y fechas
   body.appendParagraph('PRESUPUESTO   ' + numPre.id)
