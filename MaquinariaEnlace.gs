@@ -62,6 +62,27 @@ function _maq_urlSegura_(u) {
 
 // ---- Descarga ----
 
+/** Traduce el error técnico de UrlFetchApp a un aviso útil: lo más importante es distinguir "falta un permiso" de "enlace mal". */
+function _maqe_mensajeError_(motivo) {
+  var m = String(motivo || '');
+  if (/permis|permission|authori[sz]|autoriz|external_request|not allowed|scope/i.test(m)) {
+    return 'Falta un permiso de Google para abrir páginas web (no es culpa del enlace). Hay que autorizarlo una vez desde el editor de Apps Script: avisa a quien administra el programa.';
+  }
+  if (/timeout|timed out|deadline|tard/i.test(m)) return 'La tienda ha tardado demasiado en responder. Inténtalo otra vez en un momento.';
+  if (/dns|resolve|host|domain|dominio|direcci[oó]n|address|unknown|no se ha podido encontrar/i.test(m)) {
+    return 'No encuentro esa web. Revisa que el enlace esté bien escrito y que sea de una tienda en internet.';
+  }
+  if (/certificate|ssl|tls|https/i.test(m)) return 'Esa web tiene un problema de seguridad y no se puede abrir desde aquí.';
+  return 'No he podido abrir ese enlace (' + m.replace(/\s+/g, ' ').slice(0, 110) + ').';
+}
+
+/** "amazon.co.uk" → "amazon"; "leroymerlin.es" → "leroymerlin". */
+function _maqe_etiqueta_(host) {
+  var p = String(host || '').split('.');
+  if (p.length >= 3 && /^(co|com|org|net|gov|edu|ac)$/.test(p[p.length - 2])) return p[p.length - 3];
+  return p.length >= 2 ? p[p.length - 2] : (p[0] || '');
+}
+
 function _maqe_cabecera_(r, nombre) {
   try {
     var h = r.getHeaders() || {}, k;
@@ -79,8 +100,9 @@ function _maqe_descargaHtml_(url) {
       headers: { 'User-Agent': MAQE_.UA, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8' }
     });
   } catch (e) {
-    logEvent('WARN', '_maqe_descargaHtml_', e.message, url);
-    _wa_fail_('No he podido abrir ese enlace. Revisa que esté bien escrito.');
+    var motivo = String(e && e.message || e);
+    logEvent('WARN', '_maqe_descargaHtml_', motivo, url);   // el motivo real queda en la hoja LOGS
+    _wa_fail_(_maqe_mensajeError_(motivo));
   }
   var code = r.getResponseCode();
   if (code === 401 || code === 403 || code === 429 || code === 503) {
@@ -209,10 +231,12 @@ function _maqe_limpiaTitulo_(titulo, sitio, host) {
   var t = _maqe_dec_(titulo).replace(/\s+/g, ' ').trim();
   var i = t.indexOf(' | ');
   if (i > 3) t = t.slice(0, i).trim();                       // lo que va tras " | " suele ser la tienda
-  var etiqueta = (host || '').split('.').slice(-2, -1)[0] || '';
+  t = t.replace(/^[A-Za-z0-9-]+(?:\.[a-z]{2,3}){1,2}:\s+/i, '');   // "Amazon.co.uk: Producto"
+  var etiqueta = _maqe_etiqueta_(host);
   var tienda = [sitio, etiqueta].filter(function(x) { return x && _maqe_norm_(x).length >= 3; });
   tienda.forEach(function(s) {                               // "Tienda 123 — Producto"
-    if (t.toLowerCase().indexOf(String(s).toLowerCase()) === 0) t = t.slice(String(s).length).replace(/^[\s\-–—:|·]+/, '');
+    var resto = t.slice(String(s).length);
+    if (t.toLowerCase().indexOf(String(s).toLowerCase()) === 0 && /^[\s\-–—:|·]/.test(resto)) t = resto.replace(/^[\s\-–—:|·]+/, '');
   });
   var partes = t.split(/\s[-–—:·]\s/);                       // "Producto - Tienda"
   if (partes.length > 1) {
@@ -240,7 +264,7 @@ function _maqe_marcaConocida_(texto) {
 
 function _maqe_marca_(prod, metas, titulo, sitio, host) {
   var candidatas = [prod && _maqe_txt_(prod.brand), metas['product:brand'], metas['og:brand'], metas['brand']];
-  var etiqueta = (host || '').split('.').slice(-2, -1)[0] || '';
+  var etiqueta = _maqe_etiqueta_(host);
   for (var i = 0; i < candidatas.length; i++) {
     var b = (candidatas[i] || '').trim();
     if (!b || b.length > 30) continue;
@@ -302,7 +326,14 @@ function _maqe_parse_(html, url) {
 
   var crudo = (prod && _maqe_txt_(prod.name)) || metas['og:title'] || metas['twitter:title'] || '';
   if (!crudo) { var mt = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); crudo = mt ? mt[1] : ''; }
+  // Páginas "antirrobot": algunas tiendas responden 200 pero con un captcha en vez del producto.
+  if (!prod && !metas['og:title'] && !metas['twitter:title'] &&
+      /robot check|captcha|are you a (human|robot)|access denied|just a moment|attention required|acceso denegado|comprobaci[oó]n de seguridad/i.test(crudo + ' ' + html.slice(0, 6000))) {
+    _wa_fail_('Esa tienda no deja leer sus páginas de forma automática (pide comprobar que eres una persona). Rellena los datos a mano (puedes dejar el enlace guardado).');
+  }
   var nombre = _maqe_limpiaTitulo_(crudo, sitio, host);
+  var etiquetaTienda = _maqe_norm_(_maqe_etiqueta_(host));
+  if (nombre && (_maqe_norm_(nombre) === etiquetaTienda || _maqe_norm_(nombre) === _maqe_norm_(sitio) || _maqe_norm_(nombre) === _maqe_norm_(host))) nombre = '';   // solo ponía el nombre de la tienda
   if (!nombre) _wa_fail_('No he encontrado datos de producto en esa página (puede que la tienda los cargue con JavaScript). Rellena los datos a mano.');
 
   var marca = _maqe_marca_(prod, metas, nombre, sitio, host);
