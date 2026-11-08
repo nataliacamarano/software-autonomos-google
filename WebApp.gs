@@ -571,8 +571,16 @@ function _wa_crearTrabajo_(user, p) {
   }
   var fotos = _wa_validaFotos_(p.fotos);
   var maqs = _maq_resolver_(p.maquinas, true);   // las rotas o en reparación no se pueden asignar
+  // Aviso opcional en el Google Calendar de Álvaro (necesita la hora de inicio). Se valida ANTES de crear el trabajo.
+  var aviso = '';
+  if (p.aviso !== '' && p.aviso != null) {
+    aviso = Number(p.aviso);
+    if (AG_.AVISOS.indexOf(aviso) === -1) _wa_fail_('El aviso no es válido.');
+    if (!h1) _wa_fail_('Para pedir un aviso indica la hora de inicio.');
+    if (_ag_inicio_(p.fecha, h1).getTime() - aviso * 60000 <= Date.now()) _wa_fail_('Ese aviso ya ha pasado: elige otra hora o menos antelación.');
+  }
 
-  return _wa_withLock_(function() {
+  var creado = _wa_withLock_(function() {
     var id = nextId('TRABAJOS', 'TRA');
     var f = _wa_subirFotosTrabajo_(fotos, id);
     var r = createTrabajo({
@@ -587,6 +595,18 @@ function _wa_crearTrabajo_(user, p) {
     _maq_ponerEnTrabajo_(id, maqs);
     return { id: id };
   });
+  // El aviso va aparte (fuera del bloqueo): si Calendar falla, el trabajo ya está guardado y se avisa de ello.
+  if (aviso !== '') {
+    try {
+      wa_agCrear_(user, { fecha: p.fecha, hora: h1, titulo: 'Trabajo: ' + cliente, detalle: _wa_s_(p.trabajo, 500), aviso: aviso });
+      creado.aviso = 'ok';
+    } catch (e) {
+      creado.aviso = 'error';
+      creado.avisoError = String(e && e.message || e).replace(/^USR:/, '');
+      logEvent('WARN', 'wa_crearTrabajo', 'Aviso no creado para ' + creado.id + ': ' + creado.avisoError, '');
+    }
+  }
+  return creado;
 }
 
 // ---- Gastos ----
