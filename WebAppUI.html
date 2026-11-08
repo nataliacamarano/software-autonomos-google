@@ -61,6 +61,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .choice{padding:13px 8px;border:1px solid #cfcdc5;border-radius:12px;background:#fff;font:inherit;font-size:15px;color:var(--txt);cursor:pointer;text-align:center}
 .choice.on{background:var(--accbg);border-color:var(--acc);color:var(--acc);font-weight:600}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:8px 0}.cal .dow{font-size:11px;color:var(--mut);text-align:center;padding:2px 0}
+.cal .dia{min-height:58px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:4px 2px;font:inherit;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;color:var(--txt)}
+.cal .dia.fuera{background:transparent;border-color:transparent;cursor:default}.cal .dia.hoy{border:2px solid var(--acc)}.cal .dia.sel{background:var(--accbg)}
+.cal .dia i{font-style:normal;font-size:10px;line-height:1.2;padding:1px 5px;border-radius:6px}.cal .dia .t{background:var(--accbg);color:var(--acc)}.cal .dia .a{background:var(--warnbg);color:var(--warn)}.cal .dia .h{background:var(--okbg);color:var(--ok)}
+.mes{display:flex;align-items:center;gap:8px}.mes b{flex:1;text-align:center;font-size:17px;text-transform:capitalize}.mes button{border:1px solid var(--line);background:#fff;border-radius:10px;font-size:20px;line-height:1;padding:6px 14px;cursor:pointer;color:var(--acc)}
+.tarea{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}.tarea input[type=checkbox]{width:22px;height:22px;margin-top:2px;flex:none}.tarea.hecha .tt{text-decoration:line-through;color:var(--mut)}.tarea .tt{font-weight:600}.tarea small{display:block;color:var(--mut);font-size:12px;font-weight:400}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -232,16 +238,111 @@ function adminHome() {
       tile('🧾', 'Apuntar gasto', function () { go(viewGasto); }),
       tile('⏳', 'Trabajos por hacer' + (r.trabajosPendientes ? ' (' + r.trabajosPendientes + ')' : ''), function () { go(viewPendientes, 'trabajos'); }),
       tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
+      tile('📅', 'Calendario y recordatorios', function () { go(viewCalendario); }, true),
       tile('🛠️', textoMaq(r.maq), function () { go(viewMaquinas); }, true),
       tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
   show('Álvaro Gestión', n, { noBack: true });
 }
 
+/* ---------- ADMIN: calendario ---------- */
+var AG = { mes: '' };
+var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+var DIAS_SEM = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+function isoDe(y, m, d) { return y + '-' + ('0' + (m + 1)).slice(-2) + '-' + ('0' + d).slice(-2); }
+function fechaLarga(iso) { var p = iso.split('-'), dt = new Date(+p[0], +p[1] - 1, +p[2]); return ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dt.getDay()] + ' ' + (+p[2]) + ' de ' + MESES[+p[1] - 1] + ' de ' + p[0]; }
+var AVISOS_TXT = [{ v: '', t: 'Sin aviso' }, { v: '0', t: 'A la hora' }, { v: '5', t: '5 minutos antes' }, { v: '10', t: '10 minutos antes' }, { v: '15', t: '15 minutos antes' }, { v: '30', t: '30 minutos antes' }, { v: '60', t: '1 hora antes' }, { v: '120', t: '2 horas antes' }, { v: '1440', t: '1 día antes' }];
+function avisoTxt(m) { for (var i = 0; i < AVISOS_TXT.length; i++) if (AVISOS_TXT[i].v === String(m)) return AVISOS_TXT[i].t.toLowerCase(); return m + ' min antes'; }
+
+function viewCalendario() {
+  if (!AG.mes) AG.mes = S.init.hoy.slice(0, 7);
+  loading('Calendario');
+  api('agMes', { mes: AG.mes }).then(function (r) {
+    var y = +AG.mes.slice(0, 4), m = +AG.mes.slice(5, 7) - 1;
+    function mover(delta) { var dt = new Date(y, m + delta, 1); AG.mes = dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2); viewCalendario(); }
+    var grid = el('div', { class: 'cal' });
+    DIAS_SEM.forEach(function (d) { grid.appendChild(el('div', { class: 'dow', text: d })); });
+    var primero = (new Date(y, m, 1).getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+    for (var i = 0; i < primero; i++) grid.appendChild(el('div', { class: 'dia fuera' }));
+    for (var d = 1; d <= n; d++) (function (d) {
+      var k = isoDe(y, m, d), info = r.dias[k] || {};
+      grid.appendChild(el('button', { type: 'button', class: 'dia' + (k === S.init.hoy ? ' hoy' : ''), onclick: function () { go(viewDia, k); } },
+        el('span', { text: d }),
+        info.t ? el('i', { class: 't', text: '📋 ' + info.t }) : null,
+        info.a ? el('i', { class: 'a', text: '⏰ ' + info.a }) : null,
+        info.h && !info.a ? el('i', { class: 'h', text: '✓ ' + info.h }) : null));
+    })(d);
+    var n2 = el('div', null,
+      el('div', { class: 'mes' }, el('button', { type: 'button', 'aria-label': 'Mes anterior', text: '‹', onclick: function () { mover(-1); } }), el('b', { text: MESES[m] + ' ' + y }), el('button', { type: 'button', 'aria-label': 'Mes siguiente', text: '›', onclick: function () { mover(1); } })),
+      grid,
+      el('p', { class: 'empty', text: '📋 trabajos · ⏰ tareas o recordatorios pendientes · ✓ hechas. Toca un día para ver y añadir.' }),
+      el('button', { class: 'btn', text: 'Ir a hoy', onclick: function () { AG.mes = S.init.hoy.slice(0, 7); viewCalendario(); } }));
+    show('Calendario', n2);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
+function viewDia(fecha) {
+  loading('Día');
+  api('agDia', { fecha: fecha }).then(function (r) {
+    var n = el('div', null, el('p', { style: 'margin:0 0 8px;font-size:17px;font-weight:600', text: fechaLarga(fecha).charAt(0).toUpperCase() + fechaLarga(fecha).slice(1) }));
+    n.appendChild(el('h2', { text: '📋 Trabajos' }));
+    if (!r.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No hay trabajos este día.' }));
+    r.trabajos.forEach(function (t) {
+      var hora = t.hIni ? t.hIni + (t.hFin ? '–' + t.hFin : '') : 'Sin hora';
+      n.appendChild(el('div', { class: 'hist' },
+        el('b', { text: hora + ' · ' + t.cliente }),
+        el('div', { text: [t.operario, t.op2].filter(Boolean).join(' y ') + (t.estado ? ' · ' + t.estado : '') }),
+        t.trabajo ? el('div', { style: 'color:var(--mut)', text: t.trabajo }) : null,
+        el('button', { type: 'button', class: 'btn', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '⏰ Recordarme este trabajo',
+          onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } })));
+    });
+    n.appendChild(el('button', { class: 'btn', text: '+ Añadir un trabajo este día', onclick: function () { go(viewTrabajo, fecha); } }));
+    n.appendChild(el('h2', { text: '⏰ Tareas y recordatorios' }));
+    if (!r.items.length) n.appendChild(el('p', { class: 'empty', text: 'No hay tareas ni recordatorios este día.' }));
+    r.items.forEach(function (x) {
+      var chk = el('input', { type: 'checkbox', 'aria-label': 'Hecha' }); chk.checked = x.hecho;
+      chk.addEventListener('change', function () {
+        chk.disabled = true;
+        api('agHecho', { reqId: rid(), id: x.id, hecho: chk.checked }).then(function () { viewDia(fecha); }).catch(function (e) { chk.checked = !chk.checked; chk.disabled = false; toast(e.error, true); });
+      });
+      var borrar = el('button', { type: 'button', class: 'btn bad', style: 'margin-top:6px;padding:4px 10px;font-size:12px', text: 'Borrar' }), armado = false;
+      borrar.addEventListener('click', function () {
+        if (!armado) { armado = true; borrar.textContent = 'Pulsa otra vez para borrar'; setTimeout(function () { armado = false; borrar.textContent = 'Borrar'; }, 5000); return; }
+        borrar.disabled = true;
+        api('agBorrar', { reqId: rid(), id: x.id }).then(function () { toast('Borrada'); viewDia(fecha); }).catch(function (e) { borrar.disabled = false; toast(e.error, true); });
+      });
+      n.appendChild(el('div', { class: 'tarea' + (x.hecho ? ' hecha' : '') }, chk,
+        el('div', { class: 'grow' },
+          el('div', { class: 'tt' }, x.titulo, el('small', { text: [x.hora, x.calendario ? '🔔 aviso ' + avisoTxt(x.aviso) : ''].filter(Boolean).join(' · ') })),
+          x.detalle ? el('div', { style: 'color:var(--mut);font-size:13px', text: x.detalle }) : null, borrar)));
+    });
+    n.appendChild(el('button', { class: 'btn pri', text: '+ Añadir tarea o recordatorio', onclick: function () { go(viewAgNueva, { fecha: fecha }); } }));
+    show('Día', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
+function viewAgNueva(pre) {
+  pre = pre || {};
+  var reqId = rid();
+  var titulo = inp('text', 'Por ejemplo: llamar al proveedor', pre.titulo || ''), detalle = el('textarea', { placeholder: 'Opcional', value: pre.detalle || '' });
+  var fecha = inp('date', '', pre.fecha || S.init.hoy), hora = inp('time'); if (pre.hora) hora.value = pre.hora;
+  var aviso = sel(AVISOS_TXT, '');
+  var nota = el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso se crea en tu Google Calendar: te llegará la notificación al móvil (con la app de Google Calendar) aunque esta app esté cerrada. Necesita indicar la hora.' });
+  var n = el('div', null, field('¿Qué hay que hacer o recordar?', titulo), field('Detalle', detalle),
+    el('div', { class: 'row2' }, field('Fecha', fecha), field('Hora', hora)), field('Aviso', aviso), nota,
+    submitBtn('Guardar', function () {
+      need(titulo.value.trim().length >= 2, 'Escribe qué hay que hacer o recordar.'); need(fecha.value, 'Elige la fecha.');
+      if (aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
+      return api('agCrear', { reqId: reqId, titulo: titulo.value, detalle: detalle.value, fecha: fecha.value, hora: hora.value, aviso: aviso.value })
+        .then(function (r) { toast(r.calendario ? 'Guardado con aviso en Google Calendar' : 'Guardado'); AG.mes = fecha.value.slice(0, 7); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) { t.arg = fecha.value; } t.fn(t.arg); });
+    }));
+  show('Tarea o recordatorio', n);
+}
+
 /* ---------- ADMIN: nuevo trabajo ---------- */
-function viewTrabajo() {
+function viewTrabajo(fechaIni) {
   var d = S.init, reqId = rid();
   var cliente = sel(d.clientes, '', 'Elige cliente'), op1 = sel(d.operarios, '', 'Elige empleado'), op2 = sel(d.operarios, '', 'Ninguno');
-  var fecha = inp('date', '', d.hoy), i1 = inp('time'), f1 = inp('time'), i2 = inp('time'), f2 = inp('time');
+  var fecha = inp('date', '', fechaIni || d.hoy), i1 = inp('time'), f1 = inp('time'), i2 = inp('time'), f2 = inp('time');
   var trabajo = el('textarea', { placeholder: 'Qué hay que hacer / qué se ha hecho' }), incid = el('textarea', { placeholder: 'Opcional' });
   var estado = sel(d.estadosTrabajo, 'Pendiente'), mat = inp('number', '0'), ubic = inp('text', 'Opcional');
   mat.setAttribute('inputmode', 'decimal'); mat.setAttribute('step', '0.01'); mat.setAttribute('min', '0');
