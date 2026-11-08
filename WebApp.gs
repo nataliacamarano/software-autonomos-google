@@ -37,7 +37,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '57'
+  VERSION:         '58'
 };
 
 // ---- Entrada web ----
@@ -448,7 +448,7 @@ function _wa_version_(user, p) {
 }
 
 function _wa_init_(user, p) {
-  var base = { rol: user.rol, nombre: user.nombre, hoy: _wa_hoyISO_() };
+  var base = { rol: user.rol, nombre: user.nombre, hoy: _wa_hoyISO_(), urlApp: WA_.URL_APP };
   if (user.rol === 'admin') {
     base.clientes = _wa_listaClientesActivos_();
     base.operarios = _wa_listaOperariosActivos_();

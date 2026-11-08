@@ -821,16 +821,34 @@ function copiarEnlace(box, enlace) {
   if (!ok && navigator.clipboard) { navigator.clipboard.writeText(enlace).then(function () { toast('Enlace copiado'); }, function () { toast('Selecciónalo y cópialo a mano', true); }); }
   else toast(ok ? 'Enlace copiado' : 'Selecciónalo y cópialo a mano', !ok);
 }
+/* Mensajes de WhatsApp para dar de alta a alguien: primero la app (para instalarla) y aparte su enlace personal (para entrar). */
+function urlApp() { return (S.init && S.init.urlApp) || ''; }
+function textoApp() {
+  return 'Hola, te paso la app de trabajo *Álvaro Gestión*.\n\n' +
+    '1) Ábrela en tu móvil: ' + urlApp() + '\n' +
+    '2) Instálala: en Android, abre el enlace en Chrome → menú ⋮ → «Instalar app». En iPhone, ábrelo en Safari → botón Compartir → «Añadir a pantalla de inicio».\n\n' +
+    'Te mando aparte tu enlace personal: lo pegas en la app la primera vez que la abras.';
+}
+function textoEnlace(enlace) {
+  return 'Tu enlace personal de Álvaro Gestión. Pégalo en la app la primera vez que la abras y no lo compartas con nadie:\n' + enlace;
+}
+function botonesWhatsApp(tel, enlace) {
+  var est = 'display:block;text-align:center;text-decoration:none';
+  return [
+    el('a', { class: 'btn', style: est, target: '_blank', rel: 'noopener', text: '📲 Enviar la app por WhatsApp (para instalarla)', href: waUrl(tel, textoApp()) }),
+    el('a', { class: 'btn', style: est, target: '_blank', rel: 'noopener', text: '🔑 Enviar su enlace de acceso por WhatsApp', href: waUrl(tel, textoEnlace(enlace)) })
+  ];
+}
 function doneEmpleado(nombre, enlace, tel) {
   var box = el('input', { type: 'text', readonly: true, value: enlace });
   box.addEventListener('focus', function () { box.select(); });
   var n = el('div', null,
     el('div', { class: 'ok', style: 'padding:24px 0 8px' }, el('div', { class: 'tick', text: '✓' }), el('b', { text: 'Empleado guardado' })),
-    el('div', { class: 'note', text: 'Este es el enlace personal de ' + nombre + '. Solo le sirve a esa persona: le abre su pantalla para registrar partes. Envíaselo ahora.' }),
+    el('div', { class: 'note', text: 'Para que ' + nombre + ' empiece, envíale dos mensajes: primero la app (para instalarla) y después su enlace personal (lo pega en la app la primera vez). El enlace solo le sirve a esa persona.' }),
+    botonesWhatsApp(tel, enlace),
+    el('p', { class: 'empty', text: 'Este es su enlace personal, por si prefieres copiarlo:' }),
     box,
-    el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }),
-    el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
-      href: waUrl(tel, 'Tu enlace para registrar partes de trabajo: ' + enlace) }),
+    el('button', { class: 'btn', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }),
     el('p', { class: 'empty', text: 'Si lo pierdes, lo tienes siempre en Gestión → su ficha → Enlace personal.' }),
     el('button', { class: 'btn', text: 'Volver al inicio', onclick: function () { refreshInit().then(home); } }));
   show('Listo', n, { noBack: true });
@@ -1121,12 +1139,11 @@ function verEnlace(x) {
     box.addEventListener('focus', function () { box.select(); });
     cont.appendChild(el('b', { text: 'Enlace personal de ' + x.nombre }));
     cont.appendChild(el('p', { class: 'empty', text: x.admin
-      ? 'Este enlace da acceso de ADMINISTRADOR (a todo). Mándaselo solo a ' + x.nombre + ', por WhatsApp. Él lo pega en la app la primera vez.'
-      : 'Solo le sirve a esa persona. Mándaselo por WhatsApp: instala la app y pega este enlace la primera vez.' }));
+      ? 'Este enlace da acceso de ADMINISTRADOR (a todo). Mándaselo solo a ' + x.nombre + '. Envíale primero la app (para instalarla) y después este enlace: lo pega en la app la primera vez.'
+      : 'Solo le sirve a esa persona. Envíale primero la app (para instalarla) y después este enlace: lo pega en la app la primera vez.' }));
     cont.appendChild(box);
     cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }));
-    cont.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
-      href: waUrl(x.tel, 'Tu enlace para registrar partes de trabajo: ' + enlace) }));
+    botonesWhatsApp(x.tel, enlace).forEach(function (b) { cont.appendChild(b); });
     var regen = el('button', { class: 'btn bad', text: 'Generar enlace nuevo' }), armado = false;
     regen.addEventListener('click', function () {
       if (!armado) {
