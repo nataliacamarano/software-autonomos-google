@@ -28,6 +28,8 @@ var WA_ = {
   MAX_FOTOS:       5,
   MAX_FOTO_BYTES:  4 * 1024 * 1024,
   TOKEN_RE:        /^[A-Za-z0-9]{16,128}$/,
+  URL_RE:          /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/,
+  URL_BASE:        'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec',
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado']
 };
 
@@ -723,10 +725,20 @@ function _wa_editarPersona_(user, p) {
 
 // ---- Enlaces personales ----
 
+/**
+ * Dirección pública de la web app. NO se usa ScriptApp.getService().getUrl():
+ * desde la hoja devuelve una dirección que no es la de la implementación publicada (da 404).
+ * Se toma de CONFIG ("webapp_base_url") si existe y es válida; si no, la de la implementación actual.
+ */
+function _wa_baseUrl_() {
+  var cfg = '';
+  try { cfg = String(getConfig('webapp_base_url') || '').trim(); } catch (_) {}
+  if (WA_.URL_RE.test(cfg)) return cfg;
+  return WA_.URL_BASE;
+}
+
 function _wa_enlace_(token) {
-  var base = '';
-  try { base = ScriptApp.getService().getUrl() || ''; } catch (_) {}
-  return base + '?t=' + token;
+  return _wa_baseUrl_() + '?t=' + token;
 }
 
 function _wa_tokenEmpleado_(id, regenerar) {
@@ -855,19 +867,46 @@ function webappMostrarEnlaces() {
   var tok = getConfig(WA_.CFG_ADMIN_TOKEN);
   if (!tok) { tok = _wa_newToken_(); setConfig(WA_.CFG_ADMIN_TOKEN, tok); }
   _wa_ensureOperarioCols_();
-  var base = '';
-  try { base = ScriptApp.getService().getUrl() || ''; } catch (_) {}
-  if (!base) {
-    ui.alert('Web app todavía no publicada',
-      'Primero hay que publicar la web app (Implementar → Nueva implementación → Aplicación web).\n\nCuando esté publicada, vuelve a abrir esta opción para ver el enlace de Álvaro.',
-      ui.ButtonSet.OK);
-    return;
-  }
-  var url = base + '?t=' + tok;
+  var url = _wa_enlace_(tok);
   Logger.log('Enlace de Álvaro: ' + url);
-  ui.alert('Enlace personal de Álvaro',
-    url + '\n\nGuárdalo en favoritos / pantalla de inicio del móvil. No lo compartas: da acceso a todo.\n\nLos enlaces de los empleados se generan desde la app: Gestión → empleado → "Enlace personal".',
-    ui.ButtonSet.OK);
+  ui.showModalDialog(_wa_dialogoEnlace_(url, 'Enlace personal de Álvaro',
+    'Guárdalo en favoritos o en la pantalla de inicio del móvil. No lo compartas: da acceso a todo. ' +
+    'Los enlaces de los empleados se generan desde la app: Gestión → empleado → "Enlace personal".'),
+    'Enlace personal de Álvaro');
+}
+
+function _wa_htmlEsc_(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Ventana con el enlace en un cuadro seleccionable, botón "Copiar" y enlace para abrirlo. */
+function _wa_dialogoEnlace_(url, titulo, nota) {
+  var u = _wa_htmlEsc_(url);
+  var html =
+    '<div style="font-family:Arial,sans-serif;font-size:14px;color:#202124">' +
+    '<p style="margin:0 0 8px">' + _wa_htmlEsc_(nota) + '</p>' +
+    '<textarea id="u" readonly onfocus="this.select()" style="width:100%;height:96px;box-sizing:border-box;font-size:13px;padding:8px">' + u + '</textarea>' +
+    '<p style="margin:10px 0 0">' +
+    '<button id="c" style="padding:8px 14px;font-size:14px;cursor:pointer">Copiar enlace</button> ' +
+    '<a href="' + u + '" target="_blank" style="margin-left:12px">Abrir en una pestaña nueva</a></p>' +
+    '<p id="m" style="margin:8px 0 0;color:#188038;min-height:18px"></p>' +
+    '<script>' +
+    'var t=document.getElementById("u"),m=document.getElementById("m");' +
+    't.select();' +
+    'document.getElementById("c").onclick=function(){t.focus();t.select();var ok=false;' +
+    'try{ok=document.execCommand("copy");}catch(e){}' +
+    'if(!ok&&navigator.clipboard){navigator.clipboard.writeText(t.value).then(function(){m.textContent="Enlace copiado";},function(){m.textContent="Pulsa Ctrl+C para copiarlo";});}' +
+    'else{m.textContent=ok?"Enlace copiado":"Pulsa Ctrl+C para copiarlo";}};' +
+    '</script></div>';
+  return HtmlService.createHtmlOutput(html).setWidth(520).setHeight(300).setTitle(titulo);
+}
+
+/** Alternativa sin menú: escribe el enlace de Álvaro en el registro del editor (Ver → Registros). */
+function webappLogEnlace() {
+  var tok = getConfig(WA_.CFG_ADMIN_TOKEN);
+  if (!tok) { tok = _wa_newToken_(); setConfig(WA_.CFG_ADMIN_TOKEN, tok); }
+  _wa_ensureOperarioCols_();
+  Logger.log('Enlace de Álvaro: ' + _wa_enlace_(tok));
 }
 
 /** Genera un enlace de Álvaro nuevo (el anterior deja de funcionar). Ejecutar solo si se filtra. */
