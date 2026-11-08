@@ -953,9 +953,10 @@ function viewMaqUso(id) {
     var admin = d.rol === 'admin';
     var quien = admin ? sel([{ v: '', t: 'Yo (' + d.nombre + ')' }].concat((d.operarios || []).filter(function (o) { return o !== d.nombre; }).map(function (o) { return { v: o, t: o }; })), '') : null;
     var dejada = '', cajas = el('div', { class: 'choices' });
-    ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito'].forEach(function (o) {
+    var lugar = inp('text', 'Dónde: por ejemplo "Prestada a Juan" o "En casa de mi cuñado"'), cajaLugar = el('div', { style: 'display:none' }, field('¿Dónde está?', lugar));
+    ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito', 'En otro sitio'].forEach(function (o) {
       var b = el('button', { type: 'button', class: 'choice', text: o });
-      b.addEventListener('click', function () { dejada = o; [].forEach.call(cajas.children, function (c) { c.classList.toggle('on', c === b); }); });
+      b.addEventListener('click', function () { dejada = o; cajaLugar.style.display = o === 'En otro sitio' ? '' : 'none'; [].forEach.call(cajas.children, function (c) { c.classList.toggle('on', c === b); }); });
       cajas.appendChild(b);
     });
     var inc = false, bNo = el('button', { type: 'button', class: 'choice on', text: 'No' }), bSi = el('button', { type: 'button', class: 'choice', text: 'Sí, hubo un problema' });
@@ -970,12 +971,12 @@ function viewMaqUso(id) {
       maqRota(m) ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: 'Figura como ' + m.estado.toLowerCase() + '. No la uses y avisa a Álvaro.' }) : null,
       admin ? field('¿Quién la ha usado?', quien) : el('p', { class: 'empty', style: 'margin:0 0 4px', text: 'Se anotará a nombre de ' + d.nombre + '.' }),
       field(admin ? 'Cliente donde se ha usado' : 'Cliente donde la has usado', cliente),
-      el('label', { text: '¿Dónde la has dejado?' }), cajas,
+      el('label', { text: '¿Dónde la has dejado?' }), cajas, cajaLugar,
       el('label', { text: '¿Ha habido algún incidente?' }), el('div', { class: 'choices' }, bNo, bSi), extra,
       submitBtn('Registrar uso', function () {
-        need(cliente.value, 'Elige el cliente donde la has usado.'); need(dejada, 'Indica dónde has dejado la máquina.');
+        need(cliente.value, 'Elige el cliente donde la has usado.'); need(dejada, 'Indica dónde has dejado la máquina.'); if (dejada === 'En otro sitio') need(lugar.value.trim().length >= 3, 'Escribe dónde la has dejado.');
         if (inc) need(desc.value.trim().length >= 3, 'Cuenta qué ha pasado con la máquina.');
-        return api('maqUso', { reqId: reqId, id: m.id, cliente: cliente.value, operario: admin ? quien.value : '', dejadaEn: dejada, incidencia: inc, descripcion: desc.value, resultado: inc ? res.value : '' })
+        return api('maqUso', { reqId: reqId, id: m.id, cliente: cliente.value, operario: admin ? quien.value : '', dejadaEn: dejada, lugar: lugar.value, incidencia: inc, descripcion: desc.value, resultado: inc ? res.value : '' })
           .then(function (u) { return refreshInit().then(function () { doneMaq(u); }); });
       }));
     show('Registrar uso', n);

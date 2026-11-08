@@ -29,7 +29,7 @@ var MAQ_ = {
   HEAD_USOS: ['ID_Uso', 'Fecha_Hora', 'ID_Maquina', 'Maquina', 'ID_Trabajo', 'Cliente', 'Operario',
               'Dejada_En', 'Incidencia', 'Descripcion', 'Estado_Resultante', 'Origen'],
   ESTADOS: ['Disponible', 'En uso', 'En reparación', 'Rota'],
-  DEJADA:  ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito'],
+  DEJADA:  ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito', 'En otro sitio'],
   RESULTADOS: ['Sigue en servicio', 'En reparación', 'Rota'],
   UBICACIONES_ADMIN: ['Depósito', 'Camioneta'],
   COL_TRA: 23,
@@ -408,7 +408,8 @@ function _maq_buscarTrabajo_(operarioLabel, cliente) {
   } catch (e) { return ''; }
 }
 
-function _maq_ubicacionDe_(dejada, cliente, operario) {
+function _maq_ubicacionDe_(dejada, cliente, operario, lugar) {
+  if (dejada === 'En otro sitio') return lugar;
   if (dejada === 'En casa del cliente') return 'En casa de ' + cliente;
   if (dejada === 'En la camioneta') return 'Camioneta';
   if (dejada === 'En el depósito') return 'Depósito';
@@ -420,6 +421,12 @@ function wa_maqUso_(user, p) {
   if (!cliente) _wa_fail_('Elige el cliente donde la has usado.');
   var dejada = String(p.dejadaEn || '');
   if (MAQ_.DEJADA.indexOf(dejada) === -1) _wa_fail_('Indica dónde has dejado la máquina.');
+  // "En otro sitio": la prestan o la dejan donde no está previsto; se escribe a mano dónde queda.
+  var lugar = '';
+  if (dejada === 'En otro sitio') {
+    lugar = _maq_limpia_(p.lugar, 80);
+    if (lugar.length < 3) _wa_fail_('Escribe dónde la has dejado (por ejemplo "Prestada a Juan").');
+  }
   // Álvaro puede registrar el uso en nombre de un empleado (o suyo); un empleado siempre lo registra a su nombre.
   var quien = user.nombre;
   if (user.rol === 'admin' && String(p.operario || '').trim()) {
@@ -436,7 +443,7 @@ function wa_maqUso_(user, p) {
   }
   return _wa_withLock_(function() {
     var m = _maq_buscar_(p.id, true), C = MAQ_.COL, sh = _maq_hoja_();
-    var base = (dejada === 'En casa del cliente' || dejada === 'Sigo usándola yo') ? 'En uso' : 'Disponible';
+    var base = (dejada === 'En casa del cliente' || dejada === 'Sigo usándola yo' || dejada === 'En otro sitio') ? 'En uso' : 'Disponible';
     var estado = base;
     if (incidencia && resultado === 'Rota') estado = 'Rota';
     else if (incidencia && resultado === 'En reparación') estado = 'En reparación';
@@ -444,14 +451,14 @@ function wa_maqUso_(user, p) {
     var idTrabajo = _maq_buscarTrabajo_(quien, cliente);
 
     sh.getRange(m.row, C.ESTADO).setValue(estado);
-    sh.getRange(m.row, C.UBIC).setValue(_maq_ubicacionDe_(dejada, cliente, quien));
+    sh.getRange(m.row, C.UBIC).setValue(_maq_ubicacionDe_(dejada, cliente, quien, lugar));
     sh.getRange(m.row, C.CLIENTE).setValue(dejada === 'En casa del cliente' ? cliente : '');
     sh.getRange(m.row, C.OPERARIO).setValue(quien);
     sh.getRange(m.row, C.ULTUSO).setValue(new Date());
     _maq_registraUso_(m, idTrabajo, cliente, quien, dejada, incidencia, desc, resultado, 'QR/App');
     if (idTrabajo) _maq_ponerEnTrabajo_(idTrabajo, [m]);
     logEvent(incidencia ? 'WARN' : 'INFO', 'wa_maqUso', m.id + ' usada por ' + quien + ' en ' + cliente + ' → ' + estado, desc);
-    return { id: m.id, nombre: m.nombre, estado: estado, ubicacion: _maq_ubicacionDe_(dejada, cliente, quien), trabajo: idTrabajo };
+    return { id: m.id, nombre: m.nombre, estado: estado, ubicacion: _maq_ubicacionDe_(dejada, cliente, quien, lugar), trabajo: idTrabajo };
   });
 }
 
