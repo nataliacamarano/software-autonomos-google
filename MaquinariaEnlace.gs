@@ -362,6 +362,19 @@ function _maqe_parse_(html, url) {
   };
 }
 
+// ---- Permiso de internet ----
+
+/**
+ * Concede UNA VEZ el permiso de Google para abrir páginas web.
+ * Google solo pide el permiso cuando la función que se ejecuta usa internet: por eso hay que ejecutar ESTA
+ * desde el editor de Apps Script (con la cuenta de Álvaro) si "Rellenar con el enlace" dice que falta un permiso.
+ * Solo abre una página pública de Google; no lee ni escribe ningún dato.
+ */
+function webappAutorizarInternet() {
+  var r = UrlFetchApp.fetch('https://www.google.com/robots.txt', { muteHttpExceptions: true });
+  Logger.log('Permiso de internet CORRECTO: la prueba respondió con el código ' + r.getResponseCode() + '. Ya puedes usar "Rellenar con el enlace".');
+}
+
 // ---- Acción de la web app (solo Álvaro) ----
 
 function wa_maqLeerEnlace_(user, p) {
