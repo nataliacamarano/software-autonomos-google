@@ -1654,7 +1654,12 @@ function avisoVersion(urlApp) {
   if (VER.avisado) return;
   VER.avisado = true;
   var url = (urlApp || '') + '?t=' + encodeURIComponent(TOKEN) + (MAQ ? '&m=' + encodeURIComponent(MAQ) : '');
-  var b = el('div', { id: 'nueva', role: 'button', onclick: function () { try { window.open(url, '_top'); } catch (e) { location.reload(); } } },
+  var b = el('div', { id: 'nueva', role: 'button', onclick: function () {
+    // Dentro de la app instalable: se le pide a la "puerta de entrada" que recargue el programa.
+    // Si no hay puerta de entrada (enlace antiguo), a los 1,5 s se abre la dirección de Google como antes.
+    try { window.top.postMessage('ag-recargar', '*'); } catch (e) {}
+    setTimeout(function () { try { window.open(url, '_top'); } catch (e) { location.reload(); } }, 1500);
+  } },
     'Hay una versión nueva de la app', el('small', { text: 'Toca aquí para actualizar (guarda antes lo que estés escribiendo)' }));
   document.body.appendChild(b);
 }

@@ -30,10 +30,13 @@ var WA_ = {
   TOKEN_RE:        /^[A-Za-z0-9]{16,128}$/,
   URL_RE:          /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/,
   URL_BASE:        'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec',
+  // App instalable (puerta de entrada en GitHub Pages): los enlaces personales apuntan aquí y ella abre
+  // la web app de Google (URL_BASE) dentro. Repositorio: nataliacamarano/alvaro-gestion-app
+  URL_APP:         'https://nataliacamarano.github.io/alvaro-gestion-app/',
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '53'
+  VERSION:         '54'
 };
 
 // ---- Entrada web ----
@@ -874,8 +877,12 @@ function _wa_baseUrl_() {
   return WA_.URL_BASE;
 }
 
+/**
+ * Enlace personal. Apunta a la app instalable (WA_.URL_APP), que abre dentro la web app de Google.
+ * Los códigos QR de las máquinas siguen usando _wa_baseUrl_() (la dirección de Google), no este enlace.
+ */
 function _wa_enlace_(token) {
-  return _wa_baseUrl_() + '?t=' + token;
+  return WA_.URL_APP + '?t=' + token;
 }
 
 function _wa_tokenEmpleado_(id, regenerar) {
@@ -1044,7 +1051,7 @@ function webappMostrarEnlaces() {
   var url = _wa_enlace_(tok);
   Logger.log('Enlace de Álvaro: ' + url);
   ui.showModalDialog(_wa_dialogoEnlace_(url, 'Enlace personal de Álvaro',
-    'Guárdalo en favoritos o en la pantalla de inicio del móvil. No lo compartas: da acceso a todo. ' +
+    'Ábrelo en el móvil e instálalo como app (Android: menú → Instalar app; iPhone: Compartir → Añadir a pantalla de inicio). No lo compartas: da acceso a todo. ' +
     'Los enlaces de los empleados se generan desde la app: Gestión → empleado → "Enlace personal".'),
     'Enlace personal de Álvaro');
 }
