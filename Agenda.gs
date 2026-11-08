@@ -32,6 +32,26 @@ function _ag_iso_(d) {
     ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '';
 }
 
+/** Fecha y hora de ahora (hora local del script), para saber qué está atrasado. */
+function _ag_ahora_() {
+  var d = new Date(), tz = Session.getScriptTimeZone();
+  return { hoy: Utilities.formatDate(d, tz, 'yyyy-MM-dd'), hora: Utilities.formatDate(d, tz, 'HH:mm') };
+}
+
+/** Atrasado = su día ya pasó, o es hoy y su hora prevista ya pasó. Sin hora prevista, hasta que acabe el día. */
+function _ag_vencido_(fecha, hora, ahora) {
+  if (!fecha) return false;
+  if (fecha < ahora.hoy) return true;
+  return fecha === ahora.hoy && !!hora && hora < ahora.hora;
+}
+
+/** Un trabajo sin completar está atrasado a su hora de fin (o a la de inicio si aún no ha empezado y no tiene fin). */
+function _ag_trabajoAtrasado_(t, ahora) {
+  if (t.estado !== 'Pendiente' && t.estado !== 'En curso') return false;
+  var hFin = _wa_horaTxt_(t.hFin), hIni = _wa_horaTxt_(t.hIni);
+  return _ag_vencido_(_ag_iso_(t.fecha), hFin || (t.estado === 'Pendiente' ? hIni : ''), ahora);
+}
+
 function _ag_todos_() {
   var sh = _ag_hoja_(), last = sh.getLastRow();
   if (last < 2) return [];
@@ -52,7 +72,8 @@ function _ag_todos_() {
 }
 
 function _ag_pub_(x) {
-  return { id: x.id, fecha: x.fecha, hora: x.hora, titulo: x.titulo, detalle: x.detalle, hecho: x.hecho, aviso: x.aviso, calendario: !!x.evento };
+  return { id: x.id, fecha: x.fecha, hora: x.hora, titulo: x.titulo, detalle: x.detalle, hecho: x.hecho, aviso: x.aviso, calendario: !!x.evento,
+           atrasado: !x.hecho && _ag_vencido_(x.fecha, x.hora, _ag_ahora_()) };
 }
 
 function _ag_fechaIso_(v) {
@@ -92,16 +113,19 @@ function wa_agMes_(user, p) {
   var mes = String(p.mes || '');
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) _wa_fail_('El mes no es válido.');
   var dias = {};
-  function dia(k) { return dias[k] || (dias[k] = { t: 0, a: 0, h: 0, n: 0 }); }
+  var ahora = _ag_ahora_();
+  function dia(k) { return dias[k] || (dias[k] = { t: 0, a: 0, h: 0, n: 0, o: 0 }); }
   _wa_trabajos_().forEach(function(t) {
     var k = _ag_iso_(t.fecha);
-    if (k && k.indexOf(mes) === 0) dia(k).t++;
+    if (k && k.indexOf(mes) === 0) { dia(k).t++; if (_ag_trabajoAtrasado_(t, ahora)) dia(k).o++; }
   });
   _ag_todos_().forEach(function(x) {
-    if (x.fecha && x.fecha.indexOf(mes) === 0) { if (x.hecho) dia(x.fecha).h++; else dia(x.fecha).a++; }
+    if (x.fecha && x.fecha.indexOf(mes) === 0) {
+      if (x.hecho) dia(x.fecha).h++; else { dia(x.fecha).a++; if (_ag_vencido_(x.fecha, x.hora, ahora)) dia(x.fecha).o++; }
+    }
   });
   _not_todas_().forEach(function(n) {
-    if (n.fecha && n.fecha.indexOf(mes) === 0 && n.pendiente) dia(n.fecha).n++;
+    if (n.fecha && n.fecha.indexOf(mes) === 0 && n.pendiente) { dia(n.fecha).n++; if (n.atrasado) dia(n.fecha).o++; }
   });
   return { mes: mes, dias: dias };
 }
@@ -109,12 +133,13 @@ function wa_agMes_(user, p) {
 /** Todo lo de un día: trabajos y tareas/recordatorios. */
 function wa_agDia_(user, p) {
   var fecha = _ag_fechaIso_(p.fecha);
-  var trabajos = [];
+  var trabajos = [], ahora = _ag_ahora_();
   _wa_trabajos_().forEach(function(t) {
     if (_ag_iso_(t.fecha) !== fecha) return;
     trabajos.push({
       id: t.id, cliente: t.cliente, operario: t.operario, op2: t.op2,
-      hIni: _wa_horaTxt_(t.hIni), hFin: _wa_horaTxt_(t.hFin), trabajo: t.trabajo, estado: t.estado
+      hIni: _wa_horaTxt_(t.hIni), hFin: _wa_horaTxt_(t.hFin), trabajo: t.trabajo, estado: t.estado,
+      atrasado: _ag_trabajoAtrasado_(t, ahora)
     });
   });
   trabajos.sort(function(a, b) { return (a.hIni || '99:99') < (b.hIni || '99:99') ? -1 : 1; });
@@ -126,6 +151,46 @@ function wa_agDia_(user, p) {
   var notas = _not_todas_().filter(function(n) { return n.fecha === fecha; });
   notas.sort(function(a, b) { return a.pendiente !== b.pendiente ? (a.pendiente ? -1 : 1) : (a.id < b.id ? -1 : 1); });
   return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(_not_pub_) };
+}
+
+/** Todo lo que está sin hacer (trabajos, tareas y notas), con su marca de atrasado. */
+function _ag_pendientesTodos_() {
+  var ahora = _ag_ahora_(), out = [];
+  _wa_trabajos_().forEach(function(t) {
+    if (t.estado !== 'Pendiente' && t.estado !== 'En curso') return;
+    var f = _ag_iso_(t.fecha); if (!f) return;
+    var hIni = _wa_horaTxt_(t.hIni), hFin = _wa_horaTxt_(t.hFin);
+    out.push({ tipo: 'trabajo', id: t.id, titulo: t.cliente, detalle: [t.trabajo, [t.operario, t.op2].filter(Boolean).join(' y ')].filter(Boolean).join(' · '),
+               fecha: f, hora: hIni ? hIni + (hFin ? '–' + hFin : '') : '', orden: hIni || hFin || '', atrasado: _ag_trabajoAtrasado_(t, ahora) });
+  });
+  _ag_todos_().forEach(function(x) {
+    if (x.hecho || !x.fecha) return;
+    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora) });
+  });
+  _not_todas_().forEach(function(n) {
+    if (!n.pendiente || !n.fecha) return;
+    var pend = n.items.filter(function(i) { return !i.h; }).length;
+    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: n.hora, orden: n.hora, atrasado: n.atrasado });
+  });
+  return { ahora: ahora, items: out };
+}
+
+function _ag_cuentaAtrasados_() {
+  return _ag_pendientesTodos_().items.filter(function(x) { return x.atrasado; }).length;
+}
+
+/** Pendientes de Álvaro: atrasado (rojo), para hoy y próximos 7 días. */
+function wa_agPendientes_(user, p) {
+  var r = _ag_pendientesTodos_(), limite = _ag_iso_(new Date(Date.now() + 7 * 86400000));
+  function porFecha(a, b) { return a.fecha !== b.fecha ? (a.fecha < b.fecha ? -1 : 1) : ((a.orden || '99:99') < (b.orden || '99:99') ? -1 : ((a.orden || '99:99') > (b.orden || '99:99') ? 1 : 0)); }
+  var atrasados = [], hoy = [], proximos = [];
+  r.items.forEach(function(x) {
+    if (x.atrasado) atrasados.push(x);
+    else if (x.fecha === r.ahora.hoy) hoy.push(x);
+    else if (x.fecha > r.ahora.hoy && x.fecha <= limite) proximos.push(x);
+  });
+  atrasados.sort(porFecha); hoy.sort(porFecha); proximos.sort(porFecha);
+  return { hoy: r.ahora.hoy, atrasados: atrasados, paraHoy: hoy, proximos: proximos };
 }
 
 function wa_agCrear_(user, p) {

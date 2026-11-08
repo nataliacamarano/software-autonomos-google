@@ -40,7 +40,7 @@ function _not_comp_(raw) {
 function _not_todas_() {
   var sh = _not_hoja_(), last = sh.getLastRow();
   if (last < 2) return [];
-  var vals = sh.getRange(2, 1, last - 1, NOT_.HEAD.length).getValues(), C = NOT_.COL, out = [];
+  var vals = sh.getRange(2, 1, last - 1, NOT_.HEAD.length).getValues(), C = NOT_.COL, out = [], ahora = _ag_ahora_();
   vals.forEach(function(r, i) {
     var id = String(r[C.ID - 1] || '').trim();
     if (!id) return;
@@ -52,6 +52,7 @@ function _not_todas_() {
       evento: String(r[C.EVENTO - 1] || '').trim()
     };
     n.pendiente = items.length ? items.some(function(x) { return !x.h; }) : !hecha;
+    n.atrasado = n.pendiente && _ag_vencido_(n.fecha, n.hora, ahora);
     out.push(n);
   });
   return out;
@@ -60,7 +61,7 @@ function _not_todas_() {
 function _not_pub_(n) {
   return {
     id: n.id, fecha: n.fecha, titulo: n.titulo, texto: n.texto, items: n.items, compartida: n.compartida, hecha: n.hecha,
-    hora: n.hora, aviso: n.aviso, calendario: !!n.evento, pendiente: n.pendiente,
+    hora: n.hora, aviso: n.aviso, calendario: !!n.evento, pendiente: n.pendiente, atrasado: n.atrasado,
     nItems: n.items.length, nHechos: n.items.filter(function(x) { return x.h; }).length
   };
 }

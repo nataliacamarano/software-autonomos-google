@@ -117,6 +117,7 @@ function _wa_actions_() {
     maqReparacionBorrar: { roles: A, fn: wa_maqReparacionBorrar_, write: true },
     maqBaja:          { roles: A,  fn: wa_maqBaja_,   write: true },
     agMes:            { roles: A,  fn: wa_agMes_ },
+    agPendientes:     { roles: A,  fn: wa_agPendientes_ },
     agDia:            { roles: A,  fn: wa_agDia_ },
     agCrear:          { roles: A,  fn: wa_agCrear_, write: true },
     agHecho:          { roles: A,  fn: wa_agHecho_, write: true },
@@ -428,6 +429,7 @@ function _wa_init_(user, p) {
     base.maquinas = _maq_activasCorto_();
     base.estadosMaq = MAQ_.ESTADOS;
     base.combustibles = MAQ_.COMBUSTIBLES;
+    try { base.atrasados = _ag_cuentaAtrasados_(); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
     base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
     return base;
   }

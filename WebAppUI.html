@@ -73,6 +73,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .nota .pt{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:15px}.nota .pt input{width:22px;height:22px;flex:none}.nota .pt.h span{text-decoration:line-through;color:var(--mut)}
 .nota.hecha{opacity:.7}.pbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:8px}.pbar i{display:block;height:100%;background:var(--ok)}
 .fila-pt{display:flex;gap:8px;align-items:center;margin:6px 0}.fila-pt input[type=checkbox]{width:22px;height:22px;flex:none}.fila-pt input[type=text]{flex:1}.fila-pt button{border:1px solid var(--line);background:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;color:var(--bad)}
+.hist.tra.atras,.nota.atras,.tarea.atras{background:var(--badbg);border-left:5px solid var(--bad);padding-left:10px;border-radius:8px}.tarea.atras .tt{color:var(--bad)}
+.cal .dia.atras{border:2px solid var(--bad);background:var(--badbg)}.cal .dia .o{background:var(--bad);color:#fff;font-weight:700}
+.tile.alerta{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:600}
+.pen{display:flex;gap:10px;align-items:flex-start;padding:10px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}.pen .ic{font-size:20px;line-height:1.2}.pen.atras{background:var(--badbg);border-color:var(--bad);border-left-width:5px}.pen.atras b{color:var(--bad)}
+.pen small{display:block;color:var(--mut);font-size:12px}.pen .cuando{font-size:12px;font-weight:600;white-space:nowrap}.pen.atras .cuando{color:var(--bad)}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -246,6 +251,7 @@ function adminHome() {
       tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
       tile('📅', 'Calendario y recordatorios', function () { go(viewCalendario); }),
       tile('📝', 'Notas diarias', function () { go(viewNotas); }),
+      (function () { var b = tile('⚠️', d.atrasados ? 'Pendientes: ' + d.atrasados + (d.atrasados === 1 ? ' atrasado' : ' atrasados') : 'Pendientes', function () { go(viewAtrasos); }, true); if (d.atrasados) b.className += ' alerta'; return b; })(),
       tile('🛠️', textoMaq(r.maq), function () { go(viewMaquinas); }, true),
       tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
   show('Álvaro Gestión', n, { noBack: true });
@@ -272,17 +278,18 @@ function viewCalendario() {
     for (var i = 0; i < primero; i++) grid.appendChild(el('div', { class: 'dia fuera' }));
     for (var d = 1; d <= n; d++) (function (d) {
       var k = isoDe(y, m, d), info = r.dias[k] || {};
-      grid.appendChild(el('button', { type: 'button', class: 'dia' + (k === S.init.hoy ? ' hoy' : ''), onclick: function () { go(viewDia, k); } },
+      grid.appendChild(el('button', { type: 'button', class: 'dia' + (k === S.init.hoy ? ' hoy' : '') + (info.o ? ' atras' : ''), onclick: function () { go(viewDia, k); } },
         el('span', { text: d }),
         info.t ? el('i', { class: 't', text: '📋 ' + info.t }) : null,
         info.a ? el('i', { class: 'a', text: '⏰ ' + info.a }) : null,
         info.n ? el('i', { class: 'n', text: '📝 ' + info.n }) : null,
+        info.o ? el('i', { class: 'o', text: '⚠️ ' + info.o }) : null,
         info.h && !info.a ? el('i', { class: 'h', text: '✓ ' + info.h }) : null));
     })(d);
     var n2 = el('div', null,
       el('div', { class: 'mes' }, el('button', { type: 'button', 'aria-label': 'Mes anterior', text: '‹', onclick: function () { mover(-1); } }), el('b', { text: MESES[m] + ' ' + y }), el('button', { type: 'button', 'aria-label': 'Mes siguiente', text: '›', onclick: function () { mover(1); } })),
       grid,
-      el('p', { class: 'empty', text: 'Verde: trabajos 📋 · Rojo: notas pendientes 📝 · Naranja: tareas pendientes ⏰ · ✓ hechas. Toca un día para ver y añadir.' }),
+      el('p', { class: 'empty', text: 'Verde: trabajos 📋 · Rojo: notas pendientes 📝 · Naranja: tareas pendientes ⏰ · ✓ hechas. Día con borde rojo y ⚠️: tiene algo atrasado. Toca un día para ver y añadir.' }),
       el('button', { class: 'btn', text: 'Ir a hoy', onclick: function () { AG.mes = S.init.hoy.slice(0, 7); viewCalendario(); } }));
     show('Calendario', n2);
   }).catch(function (e) { toast(e.error, true); back(); });
@@ -296,8 +303,8 @@ function viewDia(fecha) {
     if (!r.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No hay trabajos este día.' }));
     r.trabajos.forEach(function (t) {
       var hora = t.hIni ? t.hIni + (t.hFin ? '–' + t.hFin : '') : 'Sin hora';
-      n.appendChild(el('div', { class: 'hist tra' },
-        el('b', { text: hora + ' · ' + t.cliente }),
+      n.appendChild(el('div', { class: 'hist tra' + (t.atrasado ? ' atras' : '') },
+        el('b', { text: (t.atrasado ? '⚠️ Atrasado · ' : '') + hora + ' · ' + t.cliente }),
         el('div', { text: [t.operario, t.op2].filter(Boolean).join(' y ') + (t.estado ? ' · ' + t.estado : '') }),
         t.trabajo ? el('div', { style: 'color:var(--mut)', text: t.trabajo }) : null,
         el('button', { type: 'button', class: 'btn', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '⏰ Recordarme este trabajo',
@@ -322,9 +329,9 @@ function viewDia(fecha) {
         borrar.disabled = true;
         api('agBorrar', { reqId: rid(), id: x.id }).then(function () { toast('Borrada'); viewDia(fecha); }).catch(function (e) { borrar.disabled = false; toast(e.error, true); });
       });
-      n.appendChild(el('div', { class: 'tarea' + (x.hecho ? ' hecha' : '') }, chk,
+      n.appendChild(el('div', { class: 'tarea' + (x.hecho ? ' hecha' : '') + (x.atrasado ? ' atras' : '') }, chk,
         el('div', { class: 'grow' },
-          el('div', { class: 'tt' }, x.titulo, el('small', { text: [x.hora, x.calendario ? '🔔 aviso ' + avisoTxt(x.aviso) : ''].filter(Boolean).join(' · ') })),
+          el('div', { class: 'tt' }, x.titulo, el('small', { text: [x.atrasado ? '⚠️ Atrasada' : '', x.hora, x.calendario ? '🔔 aviso ' + avisoTxt(x.aviso) : ''].filter(Boolean).join(' · ') })),
           x.detalle ? el('div', { style: 'color:var(--mut);font-size:13px', text: x.detalle }) : null, borrar)));
     });
     n.appendChild(el('button', { class: 'btn pri', text: '+ Añadir tarea o recordatorio', onclick: function () { go(viewAgNueva, { fecha: fecha }); } }));
@@ -350,6 +357,34 @@ function viewAgNueva(pre) {
   show('Tarea o recordatorio', n);
 }
 
+/* ---------- ADMIN: pendientes y atrasados ---------- */
+var ICONO_TIPO = { trabajo: '📋', tarea: '⏰', nota: '📝' };
+function viewAtrasos() {
+  loading('Pendientes');
+  api('agPendientes').then(function (r) {
+    function fila(x) {
+      var cuando = x.fecha === r.hoy ? 'Hoy' : fechaLarga(x.fecha).replace(/ de \d{4}$/, '');
+      return el('div', { class: 'pen' + (x.atrasado ? ' atras' : ''), onclick: function () { go(viewDia, x.fecha); } },
+        el('span', { class: 'ic', text: ICONO_TIPO[x.tipo] || '•' }),
+        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null),
+        el('span', { class: 'cuando', text: [cuando, x.hora].filter(Boolean).join(' · ') }));
+    }
+    function bloque(titulo, lista, vacio) {
+      var b = el('div', null, el('h2', { text: titulo + (lista.length ? ' (' + lista.length + ')' : '') }));
+      if (!lista.length) b.appendChild(el('p', { class: 'empty', text: vacio }));
+      lista.forEach(function (x) { b.appendChild(fila(x)); });
+      return b;
+    }
+    var n = el('div', null);
+    n.appendChild(r.atrasados.length ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: '⚠️ Hay ' + r.atrasados.length + (r.atrasados.length === 1 ? ' cosa atrasada' : ' cosas atrasadas') + ': su día o su hora ya pasó y no están hechas. Toca una para abrir su día.' })
+      : el('div', { class: 'note', style: 'background:var(--okbg);color:var(--ok)', text: '✓ No hay nada atrasado.' }));
+    n.appendChild(bloque('⚠️ Atrasado', r.atrasados, 'Nada atrasado.'));
+    n.appendChild(bloque('Para hoy', r.paraHoy, 'Nada más para hoy.'));
+    n.appendChild(bloque('Próximos 7 días', r.proximos, 'Nada en los próximos 7 días.'));
+    show('Pendientes', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
 /* ---------- NOTAS DIARIAS ---------- */
 var NF = { filtro: 'pendientes' };
 function progreso(x) { return x.nItems ? el('div', { class: 'pbar' }, el('i', { style: 'width:' + Math.round(100 * x.nHechos / x.nItems) + '%' })) : null; }
@@ -358,11 +393,11 @@ function progreso(x) { return x.nItems ? el('div', { class: 'pbar' }, el('i', { 
 function notaTarjeta(x, o) {
   o = o || {};
   var tit = el('b', { text: x.titulo });
-  var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') });
+  var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') + (o.admin && x.atrasado ? ' atras' : '') });
   var cab = el('div', { class: 'nt' }, tit);
   if (o.admin) { tit.style.cursor = 'pointer'; tit.addEventListener('click', function () { go(viewNotaForm, x); }); cab.appendChild(el('button', { type: 'button', class: 'btn', style: 'width:auto;flex:none;margin:0;padding:4px 12px;font-size:12px', text: 'Editar', onclick: function () { go(viewNotaForm, x); } })); }
   card.appendChild(cab);
-  var meta = [o.admin ? fechaLarga(x.fecha).replace(/ de \d{4}$/, '') : '', x.nItems ? x.nHechos + '/' + x.nItems : '',
+  var meta = [o.admin && x.atrasado ? '⚠️ Atrasada' : '', o.admin ? fechaLarga(x.fecha).replace(/ de \d{4}$/, '') : '', x.nItems ? x.nHechos + '/' + x.nItems : '',
     o.admin && x.compartida.length ? '👥 ' + x.compartida.join(', ') : '', x.calendario ? '🔔 ' + x.hora + ' (' + avisoTxt(x.aviso) + ')' : ''].filter(Boolean).join(' · ');
   if (meta) card.appendChild(el('div', { class: 'meta', text: meta }));
   if (x.texto) card.appendChild(el('div', { class: 'txt', text: x.texto }));
