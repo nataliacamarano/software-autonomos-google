@@ -374,14 +374,40 @@ function viewAtrasos() {
   loading('Pendientes');
   api('agPendientes').then(function (r) {
     function quitar(x, caja) {
-      var esTrabajo = x.tipo === 'trabajo', normal = esTrabajo ? 'Cancelar' : 'Eliminar', armado = false;
+      var esTrabajo = x.tipo === 'trabajo', normal = 'Cancelar', armado = false;
       var b = el('button', { type: 'button', class: 'btn bad', style: 'width:auto;margin:6px 0 0;padding:4px 12px;font-size:12px', text: normal });
       b.addEventListener('click', function (ev) {
         ev.stopPropagation();
-        if (!armado) { armado = true; b.textContent = esTrabajo ? 'Pulsa otra vez: pasa a Cancelado (no se borra)' : 'Pulsa otra vez para borrarlo'; setTimeout(function () { armado = false; b.textContent = normal; }, 5000); return; }
+        if (!armado) { armado = true; b.textContent = esTrabajo ? 'Pulsa otra vez: pasa a Cancelado (no se borra)' : 'Pulsa otra vez: se borra del todo'; setTimeout(function () { armado = false; b.textContent = normal; }, 5000); return; }
         b.disabled = true;
         var llamada = x.tipo === 'trabajo' ? api('trabajoCancelar', { reqId: rid(), id: x.id }) : (x.tipo === 'tarea' ? api('agBorrar', { reqId: rid(), id: x.id }) : api('notaBorrar', { reqId: rid(), id: x.id }));
-        llamada.then(function () { toast(esTrabajo ? 'Trabajo cancelado' : 'Eliminado'); return refreshInit(); }).then(viewAtrasos).catch(function (e) { b.disabled = false; toast((e && e.error) || 'No se pudo.', true); });
+        llamada.then(function () { toast(esTrabajo ? 'Trabajo cancelado' : 'Cancelado y borrado'); return refreshInit(); }).then(viewAtrasos).catch(function (e) { b.disabled = false; toast((e && e.error) || 'No se pudo.', true); });
+      });
+      return b;
+    }
+    function mover(x) {
+      var b = el('button', { type: 'button', class: 'btn', style: 'width:auto;margin:6px 8px 0 0;padding:4px 12px;font-size:12px', text: 'Mover' });
+      b.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var ov = el('div', { class: 'ov', onclick: function (e2) { if (e2.target === ov) ov.remove(); } });
+        var fecha = inp('date', '', x.fecha > r.hoy ? x.fecha : r.hoy), hora = inp('time');
+        if (x.tipo !== 'trabajo' && x.horaIni) hora.value = x.horaIni;
+        var ok = el('button', { class: 'btn pri', text: 'Mover' });
+        ok.addEventListener('click', function () {
+          if (!fecha.value) { toast('Elige la nueva fecha.', true); return; }
+          ok.disabled = true; ok.textContent = 'Moviendo…';
+          var datos = { reqId: rid(), id: x.id, fecha: fecha.value };
+          if (x.tipo !== 'trabajo') datos.hora = hora.value;
+          api(x.tipo === 'trabajo' ? 'trabajoMover' : (x.tipo === 'tarea' ? 'agMover' : 'notaMover'), datos)
+            .then(function (res) { ov.remove(); toast(res.avisoPerdido ? 'Movido. El aviso del móvil ya no aplica: ya habría pasado.' : 'Movido al ' + fechaLarga(fecha.value).replace(/ de \d{4}$/, '')); return refreshInit(); })
+            .then(viewAtrasos)
+            .catch(function (e) { ok.disabled = false; ok.textContent = 'Mover'; toast((e && e.error) || 'No se pudo mover.', true); });
+        });
+        ov.appendChild(el('div', { class: 'sheet' }, el('b', { text: 'Mover «' + x.titulo + '» a otro día' }),
+          field('Nueva fecha', fecha),
+          x.tipo !== 'trabajo' ? field('Hora (opcional)', hora) : el('p', { class: 'empty', text: 'Mantiene sus horas. Si ya le enviaste una invitación de Google Calendar al empleado, no se actualiza sola.' }),
+          ok, el('button', { class: 'btn', text: 'Cerrar', onclick: function () { ov.remove(); } })));
+        document.body.appendChild(ov);
       });
       return b;
     }
@@ -389,7 +415,7 @@ function viewAtrasos() {
       var cuando = x.fecha === r.hoy ? 'Hoy' : fechaLarga(x.fecha).replace(/ de \d{4}$/, '');
       return el('div', { class: 'pen' + (x.atrasado ? ' atras' : ''), onclick: function () { go(viewDia, x.fecha); } },
         el('span', { class: 'ic', text: ICONO_TIPO[x.tipo] || '•' }),
-        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null, quitar(x)),
+        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null, el('div', null, mover(x), quitar(x))),
         el('span', { class: 'cuando', text: [cuando, x.hora].filter(Boolean).join(' · ') }));
     }
     function bloque(titulo, lista, vacio) {
@@ -399,7 +425,7 @@ function viewAtrasos() {
       return b;
     }
     var n = el('div', null);
-    n.appendChild(r.atrasados.length ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: '⚠️ Hay ' + r.atrasados.length + (r.atrasados.length === 1 ? ' cosa atrasada' : ' cosas atrasadas') + ': su día o su hora ya pasó y no están hechas. Toca una para abrir su día, o quítala con su botón.' })
+    n.appendChild(r.atrasados.length ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: '⚠️ Hay ' + r.atrasados.length + (r.atrasados.length === 1 ? ' cosa atrasada' : ' cosas atrasadas') + ': su día o su hora ya pasó y no están hechas. Toca una para abrir su día, o muévela de fecha o cancélala con sus botones.' })
       : el('div', { class: 'note', style: 'background:var(--okbg);color:var(--ok)', text: '✓ No hay nada atrasado.' }));
     n.appendChild(bloque('⚠️ Atrasado', r.atrasados, 'Nada atrasado.'));
     n.appendChild(bloque('Para hoy', r.paraHoy, 'Nada más para hoy.'));

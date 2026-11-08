@@ -196,6 +196,23 @@ function wa_notaHecha_(user, p) {
   });
 }
 
+/** Mueve una nota pendiente (y su aviso de Calendar) a otra fecha, y opcionalmente a otra hora. */
+function wa_notaMover_(user, p) {
+  var m = _ag_nuevoMomento_(p);
+  return _wa_withLock_(function() {
+    var n = _not_buscar_(p.id);
+    if (!n.pendiente) _wa_fail_('Esa nota ya está hecha.');
+    var hora = m.hora === null ? n.hora : m.hora, sh = _not_hoja_(), C = NOT_.COL;
+    var ev = n.evento ? _ag_reharAviso_(n.evento, n.aviso, n.titulo, n.texto, m.fecha, hora, '📝') : '';
+    var cf = sh.getRange(n.row, C.FECHA); cf.setValue(_parseReportDate_(_wa_fechaDMY_(m.fecha))); cf.setNumberFormat('dd/MM/yyyy');
+    var ch = sh.getRange(n.row, C.HORA); ch.setNumberFormat('@'); ch.setValue(hora);
+    sh.getRange(n.row, C.EVENTO).setValue(ev);
+    sh.getRange(n.row, C.ACT).setValue(new Date());
+    logEvent('INFO', 'wa_notaMover', n.id + ' movida ' + n.fecha + ' → ' + m.fecha, n.titulo);
+    return { ok: true, fecha: m.fecha, avisoPerdido: !!n.evento && !ev };
+  });
+}
+
 function wa_notaBorrar_(user, p) {
   return _wa_withLock_(function() {
     var n = _not_buscar_(p.id);

@@ -182,16 +182,16 @@ function _ag_pendientesTodos_() {
     var f = _ag_iso_(t.fecha); if (!f) return;
     var hIni = _wa_horaTxt_(t.hIni), hFin = _wa_horaTxt_(t.hFin);
     out.push({ tipo: 'trabajo', id: t.id, titulo: t.cliente, detalle: [t.trabajo, [t.operario, t.op2].filter(Boolean).join(' y ')].filter(Boolean).join(' · '),
-               fecha: f, hora: hIni ? hIni + (hFin ? '–' + hFin : '') : '', orden: hIni || hFin || '', atrasado: _ag_trabajoAtrasado_(t, ahora) });
+               fecha: f, hora: hIni ? hIni + (hFin ? '–' + hFin : '') : '', horaIni: hIni, orden: hIni || hFin || '', atrasado: _ag_trabajoAtrasado_(t, ahora) });
   });
   _ag_todos_().forEach(function(x) {
     if (x.hecho || !x.fecha) return;
-    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora) });
+    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, horaIni: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora) });
   });
   _not_todas_().forEach(function(n) {
     if (!n.pendiente || !n.fecha) return;
     var pend = n.items.filter(function(i) { return !i.h; }).length;
-    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: n.hora, orden: n.hora, atrasado: n.atrasado });
+    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: n.hora, horaIni: n.hora, orden: n.hora, atrasado: n.atrasado });
   });
   return { ahora: ahora, items: out };
 }
@@ -228,6 +228,58 @@ function wa_trabajoCancelar_(user, p) {
     getSheet('TRABAJOS').getRange(t.row, COL_TRA.ESTADO).setValue('Cancelado');
     logEvent('INFO', 'wa_trabajoCancelar', id + ' cancelado (' + t.estado + ')', t.cliente + ' ' + _ag_iso_(t.fecha));
     return { ok: true };
+  });
+}
+
+/** Fecha ISO válida y hora opcional (undefined = no tocar la hora). */
+function _ag_nuevoMomento_(p) {
+  var fecha = _ag_fechaIso_(p.fecha);
+  var hora = (p.hora === undefined || p.hora === null) ? null : _wa_hora_(p.hora);
+  return { fecha: fecha, hora: hora };
+}
+
+/** Si tenía un aviso en Calendar, se borra y se crea otro en el momento nuevo; si ese aviso ya habría pasado, se pierde. */
+function _ag_reharAviso_(eventoViejo, aviso, titulo, detalle, fecha, hora, icono) {
+  _ag_borraEvento_(eventoViejo);
+  if (aviso === '' || !hora) return '';
+  if (_ag_inicio_(fecha, hora).getTime() - aviso * 60000 <= Date.now()) return '';
+  return _ag_crearEvento_(titulo, detalle, fecha, hora, aviso, icono);
+}
+
+/** Mueve un trabajo pendiente a otra fecha (mantiene sus horas). */
+function wa_trabajoMover_(user, p) {
+  var id = String(p.id || '');
+  if (!/^TRA-\d{3,6}$/.test(id)) _wa_fail_('Ese trabajo no existe.');
+  var m = _ag_nuevoMomento_(p);
+  return _wa_withLock_(function() {
+    var t = _wa_trabajos_().filter(function(x) { return x.id === id; })[0];
+    if (!t) _wa_fail_('Ese trabajo no existe.');
+    if (t.estado !== 'Pendiente' && t.estado !== 'En curso') _wa_fail_('Solo se pueden mover trabajos pendientes o en curso.');
+    var antes = _ag_iso_(t.fecha);
+    var c = getSheet('TRABAJOS').getRange(t.row, COL_TRA.FECHA_TRABAJO);
+    c.setValue(_parseReportDate_(_wa_fechaDMY_(m.fecha)));
+    c.setNumberFormat('dd/MM/yyyy');
+    logEvent('INFO', 'wa_trabajoMover', id + ' movido ' + antes + ' → ' + m.fecha, t.cliente);
+    return { ok: true, fecha: m.fecha };
+  });
+}
+
+/** Mueve una tarea o recordatorio (y su aviso de Calendar) a otra fecha, y opcionalmente a otra hora. */
+function wa_agMover_(user, p) {
+  var id = String(p.id || '');
+  if (!AG_.ID_RE.test(id)) _wa_fail_('Esa tarea no existe.');
+  var m = _ag_nuevoMomento_(p);
+  return _wa_withLock_(function() {
+    var x = _ag_todos_().filter(function(y) { return y.id === id; })[0];
+    if (!x) _wa_fail_('Esa tarea no existe.');
+    if (x.hecho) _wa_fail_('Esa tarea ya está hecha.');
+    var hora = m.hora === null ? x.hora : m.hora, sh = _ag_hoja_(), C = AG_.COL;
+    var ev = x.evento ? _ag_reharAviso_(x.evento, x.aviso, x.titulo, x.detalle, m.fecha, hora) : '';
+    var cf = sh.getRange(x.row, C.FECHA); cf.setValue(_parseReportDate_(_wa_fechaDMY_(m.fecha))); cf.setNumberFormat('dd/MM/yyyy');
+    var ch = sh.getRange(x.row, C.HORA); ch.setNumberFormat('@'); ch.setValue(hora);
+    sh.getRange(x.row, C.EVENTO).setValue(ev);
+    logEvent('INFO', 'wa_agMover', id + ' movida ' + x.fecha + ' → ' + m.fecha, x.titulo);
+    return { ok: true, fecha: m.fecha, avisoPerdido: !!x.evento && !ev };
   });
 }
 
