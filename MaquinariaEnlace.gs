@@ -281,6 +281,17 @@ function _maqe_tipo_(texto) {
   return '';
 }
 
+/** Combustible deducido SOLO del título y la categoría (reglas fijas, sin IA). Lo más específico primero. */
+function _maqe_combustible_(texto) {
+  var t = String(texto || '');
+  if (/2[\s-]?(tiempos|stroke|cycle)|dos tiempos|mezcla|mix(ed)? fuel|premix/i.test(t)) return 'Gasolina con mezcla (2 tiempos)';
+  if (/bater[ií]a|battery|cordless|li-?ion|inal[aá]mbric|sin cable|akku|\b\d{2}\s?v\b/i.test(t)) return 'Batería';
+  if (/di[eé]sel|gas[oó]leo|gasoil/i.test(t)) return 'Gasóleo';
+  if (/\b(gas|gasolina|gasoline|petrol)\b|\d\s*-?\s*cc\b|cm[3³]|4[\s-]?(tiempos|stroke)/i.test(t)) return 'Gasolina';
+  if (/el[eé]ctric|electric|corded|\b230\s?v\b/i.test(t)) return 'Eléctrica (enchufe)';
+  return '';
+}
+
 function _maqe_modelo_(titulo, marca, modeloLd) {
   var ld = String(modeloLd || '').trim();
   if (ld && ld.length <= 40) return ld;
@@ -308,6 +319,7 @@ function _maqe_precio_(prod) {
   })(prod.offers, 0);
   if (!cand.length) return '';
   var c = cand[0], n = parseFloat(String(c.p).replace(',', '.'));
+  if (!isNaN(n) && n <= 0) return '';   // muchas tiendas publican 0 cuando no muestran el precio
   return (isNaN(n) ? c.p : (Math.round(n * 100) / 100).toString().replace('.', ',')) + (c.c ? ' ' + c.c : '');
 }
 
@@ -341,6 +353,7 @@ function _maqe_parse_(html, url) {
   var descripcion = _maqe_descripcion_(prod, metas);
   // El tipo se deduce SOLO del título y la categoría: la descripción suele listar otras máquinas compatibles y confunde.
   var tipo = _maqe_tipo_(nombre + ' ' + (prod && _maqe_txt_(prod.category) || ''));
+  var combustible = _maqe_combustible_(nombre + ' ' + (prod && _maqe_txt_(prod.category) || ''));
   var referencia = prod ? (_maqe_txt_(prod.sku) || _maqe_txt_(prod.mpn) || _maqe_txt_(prod.gtin13) || _maqe_txt_(prod.gtin)) : '';
   var precio = _maqe_precio_(prod);
   var tienda = (sitio ? sitio.split(/\s[|–—-]\s/)[0].trim() : '') || host;
@@ -356,7 +369,7 @@ function _maqe_parse_(html, url) {
 
   var notas = [tienda ? 'Tienda: ' + tienda : '', referencia ? 'Ref.: ' + referencia : '', precio ? 'Precio en la web: ' + precio : ''].filter(Boolean).join(' · ');
   return {
-    nombre: nombre, marca: marca, modelo: modelo, marcaModelo: [marca, modelo].filter(Boolean).join(' '), tipo: tipo,
+    nombre: nombre, marca: marca, modelo: modelo, marcaModelo: [marca, modelo].filter(Boolean).join(' '), tipo: tipo, combustible: combustible,
     imagen: _maqe_imagen_(prod, metas, url), descripcion: descripcion, referencia: referencia, precio: precio,
     tienda: tienda, notas: notas, esProducto: esProducto, aviso: aviso, url: url
   };
@@ -383,4 +396,21 @@ function wa_maqLeerEnlace_(user, p) {
   var datos = _maqe_parse_(_maqe_descargaHtml_(url), url);
   logEvent('INFO', 'wa_maqLeerEnlace', datos.tienda + ' → ' + datos.nombre, url.slice(0, 200));
   return datos;
+}
+
+/**
+ * Concede el permiso COMPLETO de Google Drive a la web app y deja lista la
+ * carpeta "Maquinaria - fotos" (la misma que crearía la app al guardar la
+ * primera máquina). Ejecutar desde el editor de Apps Script con la cuenta de
+ * Álvaro y aceptar la ventana de permisos. Hace lo mismo que la app (crear la
+ * carpeta si no existe), así que si funciona aquí funcionará al guardar.
+ */
+function webappAutorizarDrive() {
+  var fid = getConfig(MAQ_.CFG_CARPETA), folder = null;
+  if (fid) { try { folder = DriveApp.getFolderById(fid); } catch (_) { folder = null; } }
+  if (!folder) {
+    folder = DriveApp.createFolder('Maquinaria - fotos');
+    setConfig(MAQ_.CFG_CARPETA, folder.getId());
+  }
+  Logger.log('Permiso de Drive CORRECTO: carpeta "' + folder.getName() + '" lista. Ya se pueden guardar fotos de maquinaria.');
 }

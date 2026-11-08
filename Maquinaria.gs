@@ -20,9 +20,10 @@ var MAQ_ = {
   SHEET:      'MAQUINARIA',
   SHEET_USOS: 'MAQ_USOS',
   HEAD: ['ID_Maquina', 'Fecha_Alta', 'Nombre', 'Tipo', 'Marca_Modelo', 'Num_Serie', 'Estado', 'Ubicacion',
-         'Cliente_Actual', 'Ultimo_Operario', 'Ultimo_Uso', 'Foto_URL', 'Foto_ID', 'Notas', 'Activo', 'Fecha_Compra', 'Enlace'],
+         'Cliente_Actual', 'Ultimo_Operario', 'Ultimo_Uso', 'Foto_URL', 'Foto_ID', 'Notas', 'Activo', 'Fecha_Compra', 'Enlace', 'Combustible'],
   COL: { ID: 1, ALTA: 2, NOMBRE: 3, TIPO: 4, MARCA: 5, SERIE: 6, ESTADO: 7, UBIC: 8, CLIENTE: 9,
-         OPERARIO: 10, ULTUSO: 11, FOTO_URL: 12, FOTO_ID: 13, NOTAS: 14, ACTIVO: 15, COMPRA: 16, ENLACE: 17 },
+         OPERARIO: 10, ULTUSO: 11, FOTO_URL: 12, FOTO_ID: 13, NOTAS: 14, ACTIVO: 15, COMPRA: 16, ENLACE: 17, COMBUSTIBLE: 18 },
+  COMBUSTIBLES: ['Gasolina', 'Gasolina con mezcla (2 tiempos)', 'Gasóleo', 'Eléctrica (enchufe)', 'Batería', 'Otro'],
   HEAD_USOS: ['ID_Uso', 'Fecha_Hora', 'ID_Maquina', 'Maquina', 'ID_Trabajo', 'Cliente', 'Operario',
               'Dejada_En', 'Incidencia', 'Descripcion', 'Estado_Resultante', 'Origen'],
   ESTADOS: ['Disponible', 'En uso', 'En reparación', 'Rota'],
@@ -40,8 +41,8 @@ function _maq_hoja_() {
   var sh = getOrCreateSheet(MAQ_.SHEET);
   if (sh.getLastRow() === 0) { sh.appendRow(MAQ_.HEAD); applyHeaderStyle_(sh, MAQ_.HEAD.length); return sh; }
   // Hojas creadas antes de añadir la fecha de compra: se añade su columna al final, sin tocar nada más.
-  if (sh.getMaxColumns() < MAQ_.COL.ENLACE) sh.insertColumnsAfter(sh.getMaxColumns(), MAQ_.COL.ENLACE - sh.getMaxColumns());
-  [[MAQ_.COL.COMPRA, 'Fecha_Compra'], [MAQ_.COL.ENLACE, 'Enlace']].forEach(function(d) {
+  if (sh.getMaxColumns() < MAQ_.COL.COMBUSTIBLE) sh.insertColumnsAfter(sh.getMaxColumns(), MAQ_.COL.COMBUSTIBLE - sh.getMaxColumns());
+  [[MAQ_.COL.COMPRA, 'Fecha_Compra'], [MAQ_.COL.ENLACE, 'Enlace'], [MAQ_.COL.COMBUSTIBLE, 'Combustible']].forEach(function(d) {
     var celda = sh.getRange(1, d[0]), cur = String(celda.getValue() || '').trim();
     if (!cur) celda.setValue(d[1]);
     else if (cur !== d[1]) throw new Error('MAQUINARIA: la columna ' + d[0] + ' ya se usa para "' + cur + '".');
@@ -105,6 +106,7 @@ function _maq_todas_() {
       fotoId: String(r[C.FOTO_ID - 1] || '').trim(), notas: String(r[C.NOTAS - 1] || '').trim(),
       activo: _wa_bool_(r[C.ACTIVO - 1]),
       compra: _maq_fechaTxt_(r[C.COMPRA - 1], 'dd/MM/yyyy'), compraISO: _maq_fechaTxt_(r[C.COMPRA - 1], 'yyyy-MM-dd', true),
+      combustible: MAQ_.COMBUSTIBLES.indexOf(String(r[C.COMBUSTIBLE - 1] || '').trim()) !== -1 ? String(r[C.COMBUSTIBLE - 1]).trim() : '',
       enlace: /^https?:\/\//i.test(String(r[C.ENLACE - 1] || '')) ? String(r[C.ENLACE - 1]).trim() : ''
     });
   });
@@ -125,7 +127,7 @@ function _maq_pub_(m) {
   return {
     id: m.id, nombre: m.nombre, tipo: m.tipo, marca: m.marca, serie: m.serie, estado: m.estado,
     ubic: m.ubic, cliente: m.cliente, operario: m.operario, ultUso: m.ultUso, notas: m.notas, activo: m.activo,
-    compra: m.compra, compraISO: m.compraISO, enlace: m.enlace,
+    compra: m.compra, compraISO: m.compraISO, enlace: m.enlace, combustible: m.combustible,
     foto: m.fotoId ? 'https://drive.google.com/thumbnail?id=' + m.fotoId + '&sz=w640' : '',
     qr: _maq_qrUrl_(m.id)
   };
@@ -169,6 +171,13 @@ function _maq_subirFoto_(foto, id) {
   var file = _wa_guardaFoto_(foto, folder, id + '_' + Date.now());
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (_) {}
   return file.getId();
+}
+
+/** Combustible: vacío o uno de la lista cerrada. */
+function _maq_combustible_(v) {
+  v = String(v == null ? '' : v).trim();
+  if (v && MAQ_.COMBUSTIBLES.indexOf(v) === -1) _wa_fail_('El combustible no es válido.');
+  return v;
 }
 
 function _maq_limpia_(v, max) { return _wa_s_(v, max).replace(/,/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -228,6 +237,7 @@ function wa_maqCrear_(user, p) {
   var fotos = _wa_validaFotos_(p.foto ? [p.foto] : []);
   var compra = _maq_fechaCompra_(p.fechaCompra);
   var enlace = _maq_urlSegura_(p.enlace);
+  var combustible = _maq_combustible_(p.combustible);
   var fotoWeb = !fotos.length && p.fotoUrl ? _maqe_bajaFoto_(p.fotoUrl) : null;   // la foto propia manda sobre la de la tienda
   if (fotoWeb) fotos = _wa_validaFotos_([fotoWeb]);
   return _wa_withLock_(function() {
@@ -238,7 +248,7 @@ function wa_maqCrear_(user, p) {
     fila[C.ID - 1] = id; fila[C.ALTA - 1] = new Date(); fila[C.NOMBRE - 1] = nombre; fila[C.TIPO - 1] = tipo;
     fila[C.MARCA - 1] = marca; fila[C.SERIE - 1] = serie; fila[C.ESTADO - 1] = 'Disponible';
     fila[C.UBIC - 1] = 'Depósito'; fila[C.FOTO_ID - 1] = fotoId; fila[C.NOTAS - 1] = notas; fila[C.ACTIVO - 1] = true;
-    fila[C.ENLACE - 1] = enlace;
+    fila[C.ENLACE - 1] = enlace; fila[C.COMBUSTIBLE - 1] = combustible;
     sh.appendRow(fila);
     if (compra) _maq_ponFechaCompra_(sh, sh.getLastRow(), compra);
     logEvent('INFO', 'wa_maqCrear', 'Máquina creada: ' + id, nombre);
@@ -255,6 +265,8 @@ function wa_maqEditar_(user, p) {
   var compra = cambiaCompra ? _maq_fechaCompra_(d.fechaCompra) : '';
   var cambiaEnlace = d.enlace !== undefined;
   var enlace = cambiaEnlace ? _maq_urlSegura_(d.enlace) : '';
+  var cambiaComb = d.combustible !== undefined;
+  var combustible = cambiaComb ? _maq_combustible_(d.combustible) : '';
   var fotoWeb = !fotos.length && d.fotoUrl ? _maqe_bajaFoto_(d.fotoUrl) : null;
   if (fotoWeb) fotos = _wa_validaFotos_([fotoWeb]);
   return _wa_withLock_(function() {
@@ -262,6 +274,7 @@ function wa_maqEditar_(user, p) {
     if (m.activo) _maq_nombreLibre_(nombre, m.id);   // primero todas las comprobaciones, luego se escribe
     if (cambiaCompra) _maq_ponFechaCompra_(sh, m.row, compra);
     if (cambiaEnlace) sh.getRange(m.row, C.ENLACE).setValue(enlace);
+    if (cambiaComb) sh.getRange(m.row, C.COMBUSTIBLE).setValue(combustible);
     sh.getRange(m.row, C.NOMBRE).setValue(nombre);
     sh.getRange(m.row, C.TIPO).setValue(_maq_limpia_(d.tipo, 40));
     sh.getRange(m.row, C.MARCA).setValue(_maq_limpia_(d.marca, 80));
@@ -328,6 +341,12 @@ function wa_maqUso_(user, p) {
   if (!cliente) _wa_fail_('Elige el cliente donde la has usado.');
   var dejada = String(p.dejadaEn || '');
   if (MAQ_.DEJADA.indexOf(dejada) === -1) _wa_fail_('Indica dónde has dejado la máquina.');
+  // Álvaro puede registrar el uso en nombre de un empleado (o suyo); un empleado siempre lo registra a su nombre.
+  var quien = user.nombre;
+  if (user.rol === 'admin' && String(p.operario || '').trim()) {
+    quien = _wa_enActivos_(p.operario, _wa_listaOperariosActivos_().concat([user.nombre]));
+    if (!quien) _wa_fail_('Elige quién ha usado la máquina.');
+  }
   var incidencia = p.incidencia === true;
   var desc = '', resultado = '';
   if (incidencia) {
@@ -343,17 +362,17 @@ function wa_maqUso_(user, p) {
     if (incidencia && resultado === 'Rota') estado = 'Rota';
     else if (incidencia && resultado === 'En reparación') estado = 'En reparación';
     else if (m.estado === 'Rota' || m.estado === 'En reparación') estado = m.estado;   // solo Álvaro la saca de ahí
-    var idTrabajo = _maq_buscarTrabajo_(user.nombre, cliente);
+    var idTrabajo = _maq_buscarTrabajo_(quien, cliente);
 
     sh.getRange(m.row, C.ESTADO).setValue(estado);
-    sh.getRange(m.row, C.UBIC).setValue(_maq_ubicacionDe_(dejada, cliente, user.nombre));
+    sh.getRange(m.row, C.UBIC).setValue(_maq_ubicacionDe_(dejada, cliente, quien));
     sh.getRange(m.row, C.CLIENTE).setValue(dejada === 'En casa del cliente' ? cliente : '');
-    sh.getRange(m.row, C.OPERARIO).setValue(user.nombre);
+    sh.getRange(m.row, C.OPERARIO).setValue(quien);
     sh.getRange(m.row, C.ULTUSO).setValue(new Date());
-    _maq_registraUso_(m, idTrabajo, cliente, user.nombre, dejada, incidencia, desc, resultado, 'QR/App');
+    _maq_registraUso_(m, idTrabajo, cliente, quien, dejada, incidencia, desc, resultado, 'QR/App');
     if (idTrabajo) _maq_ponerEnTrabajo_(idTrabajo, [m]);
-    logEvent(incidencia ? 'WARN' : 'INFO', 'wa_maqUso', m.id + ' usada por ' + user.nombre + ' en ' + cliente + ' → ' + estado, desc);
-    return { id: m.id, nombre: m.nombre, estado: estado, ubicacion: _maq_ubicacionDe_(dejada, cliente, user.nombre), trabajo: idTrabajo };
+    logEvent(incidencia ? 'WARN' : 'INFO', 'wa_maqUso', m.id + ' usada por ' + quien + ' en ' + cliente + ' → ' + estado, desc);
+    return { id: m.id, nombre: m.nombre, estado: estado, ubicacion: _maq_ubicacionDe_(dejada, cliente, quien), trabajo: idTrabajo };
   });
 }
 

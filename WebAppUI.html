@@ -719,7 +719,7 @@ function viewMaqFicha(id) {
       !m.activo ? el('div', { class: 'note', text: 'Esta máquina está de baja: no aparece en las listas ni se puede usar.' }) : null,
       m.activo && maqRota(m) ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: 'Figura como ' + m.estado.toLowerCase() + '. No la uses hasta que Álvaro la dé por reparada.' }) : null,
       maqKv('Dónde está', m.ubic || '—'),
-      m.tipo ? maqKv('Tipo', m.tipo) : null, m.marca ? maqKv('Marca y modelo', m.marca) : null, m.serie ? maqKv('Nº de serie', m.serie) : null,
+      m.tipo ? maqKv('Tipo', m.tipo) : null, m.marca ? maqKv('Marca y modelo', m.marca) : null, m.combustible ? maqKv('Combustible', m.combustible) : null, m.serie ? maqKv('Nº de serie', m.serie) : null,
       m.compra ? maqKv('Comprada el', m.compra) : null,
       maqKv('Último uso', m.ultUso ? m.ultUso + (m.operario ? ' · ' + m.operario : '') : 'Sin usos todavía'),
       m.notas ? maqKv('Notas', m.notas) : null);
@@ -793,7 +793,7 @@ function bloqueEnlace(campos) {
     api('maqLeerEnlace', { url: u }).then(function (r) {
       var hechos = [];
       function pon(campo, valor, nombre) { if (valor && !campo.value.trim()) { campo.value = valor; hechos.push(nombre); } }
-      pon(campos.nombre, r.nombre, 'nombre'); pon(campos.tipo, r.tipo, 'tipo'); pon(campos.marca, r.marcaModelo, 'marca y modelo'); pon(campos.notas, r.notas, 'notas');
+      pon(campos.nombre, r.nombre, 'nombre'); pon(campos.tipo, r.tipo, 'tipo'); pon(campos.marca, r.marcaModelo, 'marca y modelo'); pon(campos.combustible, r.combustible, 'combustible'); pon(campos.notas, r.notas, 'notas');
       st.foto = r.imagen || ''; st.usar = true; pintaFoto();
       url.value = r.url || url.value;
       msg.textContent = 'Leído de ' + r.tienda + (hechos.length ? ': he rellenado ' + hechos.join(', ') : ': esos campos ya estaban escritos y no los he tocado') + '. Revísalo antes de guardar.' + (r.aviso ? ' ⚠️ ' + r.aviso : '');
@@ -808,20 +808,22 @@ function viewMaqNueva() {
   var reqId = rid(), d = S.init;
   var nom = inp('text', 'Desbrozadora Stihl'), tipo = inp('text', 'Desbrozadora'), marca = inp('text', 'Stihl FS 94'), serie = inp('text', 'Opcional');
   var compra = inp('date'); compra.setAttribute('max', d.hoy);
+  var comb = sel(d.combustibles || [], '', '(sin indicar)');
   var notas = el('textarea', { placeholder: 'Opcional' }), dl = el('datalist', { id: 'tiposmaq' });
   tipo.setAttribute('list', 'tiposmaq'); (d.tiposMaq || []).forEach(function (t) { dl.appendChild(el('option', { value: t })); });
   var foto = photoPicker(1, 'Hacer foto a la máquina');
-  var enl = bloqueEnlace({ nombre: nom, tipo: tipo, marca: marca, notas: notas });
+  var enl = bloqueEnlace({ nombre: nom, tipo: tipo, marca: marca, combustible: comb, notas: notas });
   var n = el('div', null, enl.node, foto.node,
     field('Nombre', nom), el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'Así la verán los empleados. Si hay dos iguales, distínguelas: "Desbrozadora Stihl 2".' }),
     el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)), dl,
+    field('Combustible', comb),
     el('div', { class: 'row2' }, field('Fecha de compra', compra), field('Nº de serie', serie)),
     field('Notas', notas),
     el('div', { class: 'note', text: 'Al guardarla se crea su código QR para imprimirlo y pegarlo en la máquina.' }),
     submitBtn('Guardar máquina', function () {
       need(nom.value.trim(), 'Escribe el nombre de la máquina.'); need(!foto.isBusy(), 'Espera a que termine de cargar la foto.');
       var f = foto.get();
-      return api('maqCrear', { reqId: reqId, nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, fechaCompra: compra.value, notas: notas.value, enlace: enl.enlace(), fotoUrl: f[0] ? '' : enl.fotoUrl(), foto: f[0] || null })
+      return api('maqCrear', { reqId: reqId, nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, combustible: comb.value, fechaCompra: compra.value, notas: notas.value, enlace: enl.enlace(), fotoUrl: f[0] ? '' : enl.fotoUrl(), foto: f[0] || null })
         .then(function (r) { return refreshInit().then(function () {
           if (r.foto === 'no') toast('No pude guardar la foto de la tienda. Puedes añadir una tuya en Editar datos.', true);
           S.stack.pop(); go(viewMaqQR, { id: r.id, nombre: nom.value.trim().replace(/,/g, ' '), qr: r.qr, nuevo: true });
@@ -834,14 +836,15 @@ function viewMaqEditar(m) {
   var reqId = rid();
   var nom = inp('text', '', m.nombre), tipo = inp('text', '', m.tipo), marca = inp('text', '', m.marca), serie = inp('text', '', m.serie), notas = el('textarea', { value: m.notas || '' });
   var compra = inp('date', '', m.compraISO || ''); compra.setAttribute('max', S.init.hoy);
+  var comb = sel(S.init.combustibles || [], m.combustible || '', '(sin indicar)');
   var foto = photoPicker(1, m.foto ? 'Cambiar la foto' : 'Hacer foto a la máquina');
   var enlace = inp('url', 'https://… (opcional)', m.enlace || ''); enlace.setAttribute('inputmode', 'url');
-  var n = el('div', null, foto.node, field('Nombre', nom), el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)),
+  var n = el('div', null, foto.node, field('Nombre', nom), el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)), field('Combustible', comb),
     el('div', { class: 'row2' }, field('Fecha de compra', compra), field('Nº de serie', serie)), field('Enlace de la tienda', enlace), field('Notas', notas),
     submitBtn('Guardar cambios', function () {
       need(nom.value.trim(), 'Escribe el nombre de la máquina.'); need(!foto.isBusy(), 'Espera a que termine de cargar la foto.');
       var f = foto.get();
-      return api('maqEditar', { reqId: reqId, id: m.id, datos: { nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, fechaCompra: compra.value, enlace: enlace.value.trim(), notas: notas.value, foto: f[0] || null } })
+      return api('maqEditar', { reqId: reqId, id: m.id, datos: { nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, combustible: comb.value, fechaCompra: compra.value, enlace: enlace.value.trim(), notas: notas.value, foto: f[0] || null } })
         .then(function () { return refreshInit(); }).then(function () { toast('Cambios guardados'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; t.fn(t.arg); });
     }));
   show('Editar máquina', n);
@@ -878,6 +881,8 @@ function viewMaqUso(id) {
     var m = r.maquina, d = S.init, reqId = rid();
     var defCli = d.trabajos && d.trabajos.length ? d.trabajos[0].cliente : '';
     var cliente = sel(d.clientes, defCli, 'Elige cliente');
+    var admin = d.rol === 'admin';
+    var quien = admin ? sel([{ v: '', t: 'Yo (' + d.nombre + ')' }].concat((d.operarios || []).filter(function (o) { return o !== d.nombre; }).map(function (o) { return { v: o, t: o }; })), '') : null;
     var dejada = '', cajas = el('div', { class: 'choices' });
     ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito'].forEach(function (o) {
       var b = el('button', { type: 'button', class: 'choice', text: o });
@@ -891,16 +896,17 @@ function viewMaqUso(id) {
     bNo.addEventListener('click', function () { setInc(false); }); bSi.addEventListener('click', function () { setInc(true); });
     var n = el('div', null,
       el('div', { style: 'display:flex;align-items:center;gap:12px;margin-bottom:8px' }, maqThumb(m),
-        el('div', { class: 'grow' }, el('b', { text: m.nombre }), el('span', { text: [m.tipo, 'Ahora: ' + (m.ubic || '—')].filter(Boolean).join(' · ') })),
+        el('div', { class: 'grow' }, el('b', { text: m.nombre }), el('span', { text: [m.tipo, m.combustible, 'Ahora: ' + (m.ubic || '—')].filter(Boolean).join(' · ') })),
         el('span', { class: 'pill ' + MAQ_PILL[m.estado], text: m.estado })),
       maqRota(m) ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: 'Figura como ' + m.estado.toLowerCase() + '. No la uses y avisa a Álvaro.' }) : null,
-      field('Cliente donde la has usado', cliente),
+      admin ? field('¿Quién la ha usado?', quien) : el('p', { class: 'empty', style: 'margin:0 0 4px', text: 'Se anotará a nombre de ' + d.nombre + '.' }),
+      field(admin ? 'Cliente donde se ha usado' : 'Cliente donde la has usado', cliente),
       el('label', { text: '¿Dónde la has dejado?' }), cajas,
       el('label', { text: '¿Ha habido algún incidente?' }), el('div', { class: 'choices' }, bNo, bSi), extra,
       submitBtn('Registrar uso', function () {
         need(cliente.value, 'Elige el cliente donde la has usado.'); need(dejada, 'Indica dónde has dejado la máquina.');
         if (inc) need(desc.value.trim().length >= 3, 'Cuenta qué ha pasado con la máquina.');
-        return api('maqUso', { reqId: reqId, id: m.id, cliente: cliente.value, dejadaEn: dejada, incidencia: inc, descripcion: desc.value, resultado: inc ? res.value : '' })
+        return api('maqUso', { reqId: reqId, id: m.id, cliente: cliente.value, operario: admin ? quien.value : '', dejadaEn: dejada, incidencia: inc, descripcion: desc.value, resultado: inc ? res.value : '' })
           .then(function (u) { return refreshInit().then(function () { doneMaq(u); }); });
       }));
     show('Registrar uso', n);

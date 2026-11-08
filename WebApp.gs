@@ -83,6 +83,9 @@ function wa_api(token, action, payload) {
     var msg = String(e && e.message || e);
     if (msg.indexOf('USR:') === 0) return { ok: false, error: msg.substring(4) };
     logEvent('ERROR', 'wa_api', String(action) + ': ' + msg, e && e.stack);
+    if (msg.indexOf('No tienes permiso para llamar a') !== -1) {
+      return { ok: false, error: 'Falta conceder un permiso de Google a la aplicación. Avisa a quien la administra (no es problema de lo que has escrito).' };
+    }
     return { ok: false, error: 'No se pudo completar. Inténtalo otra vez.' };
   }
 }
@@ -411,6 +414,7 @@ function _wa_init_(user, p) {
     base.resumen = _wa_resumenAdmin_(user, {});
     base.maquinas = _maq_activasCorto_();
     base.estadosMaq = MAQ_.ESTADOS;
+    base.combustibles = MAQ_.COMBUSTIBLES;
     base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
     return base;
   }
