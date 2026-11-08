@@ -166,6 +166,27 @@ function _maq_pub_(m) {
   };
 }
 
+/**
+ * Notas de la máquina para el EMPLEADO: se quita lo que rellena el lector de enlaces
+ * ("Tienda: …", "Ref.: …", "Precio en la web: …"), porque los precios no los debe ver.
+ * Lo que Álvaro escriba a mano (avisos, "falla el arranque"…) se conserva.
+ */
+function _maq_notasEmpleado_(notas) {
+  return String(notas || '').split('\n').map(function(linea) {
+    return linea.split(' · ').filter(function(seg) { return !/^\s*(tienda|ref\.?|referencia|precio( en la web)?)\s*:/i.test(seg); }).join(' · ').trim();
+  }).filter(Boolean).join('\n');
+}
+
+/** Lo que ve un EMPLEADO de una máquina: qué es, dónde está y cómo está. Sin serie, compra, precio, enlace ni QR. */
+function _maq_pubEmpleado_(m) {
+  return {
+    id: m.id, nombre: m.nombre, tipo: m.tipo, marca: m.marca, combustible: m.combustible, estado: m.estado,
+    ubic: m.ubic, cliente: m.cliente, operario: m.operario, ultUso: m.ultUso, activo: m.activo,
+    notas: _maq_notasEmpleado_(m.notas),
+    foto: m.fotoId ? 'https://drive.google.com/thumbnail?id=' + m.fotoId + '&sz=w640' : ''
+  };
+}
+
 function _maq_ordenadas_(lista) {
   var prio = { 'Rota': 0, 'En reparación': 1, 'En uso': 2, 'Disponible': 3 };
   return lista.sort(function(a, b) {
@@ -253,13 +274,13 @@ function wa_maqLista_(user, p) {
   var todas = _maq_todas_().filter(function(m) { return admin || m.activo; });
   var activas = _maq_ordenadas_(todas.filter(function(m) { return m.activo; }));
   var bajas = todas.filter(function(m) { return !m.activo; }).sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
-  return { maquinas: activas.concat(bajas).map(_maq_pub_), resumen: _maq_resumen_() };
+  return { maquinas: activas.concat(bajas).map(admin ? _maq_pub_ : _maq_pubEmpleado_), resumen: _maq_resumen_() };
 }
 
 function wa_maqFicha_(user, p) {
   var m = _maq_buscar_(p.id, user.rol !== 'admin');
   var admin = user.rol === 'admin';
-  return { maquina: _maq_pub_(m), usos: _maq_usos_(m.id, admin ? 15 : 3), reparaciones: admin ? _maq_reparaciones_(m.id, 30) : [] };
+  return { maquina: admin ? _maq_pub_(m) : _maq_pubEmpleado_(m), usos: _maq_usos_(m.id, admin ? 15 : 3), reparaciones: admin ? _maq_reparaciones_(m.id, 30) : [] };
 }
 
 // ---- Acciones: alta y edición (Álvaro) ----
