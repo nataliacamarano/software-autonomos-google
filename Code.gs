@@ -833,14 +833,4 @@ function _igCabecera_(sh, r, nc, hdrs) {
 }
 
 // ---- Web App ----
-
-function doGet(e) {
-  return HtmlService
-    .createHtmlOutput(
-      '<html><body style="font-family:sans-serif;padding:40px;color:#444">' +
-      '<h2>Sistema de Gestión — Álvaro</h2>' +
-      '<p>Accede al sistema desde Google Sheets.</p>' +
-      '</body></html>'
-    )
-    .setTitle('Sistema de Gestión — Álvaro');
-}
+// doGet() vive ahora en WebApp.gs (web app móvil de Álvaro y empleados).

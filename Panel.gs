@@ -336,6 +336,8 @@ function onOpen() {
       .addItem('👷 HORAS EMPLEADOS — Diagnóstico trabajos',     'diagnosticarTrabajosPHE')
       .addItem('👷 HORAS EMPLEADOS — Refrescar lista operarios', 'refrescarDropdownOperarios')
       .addSeparator()
+      .addItem('📱 Web app — Ver enlace de Álvaro',            'webappMostrarEnlaces')
+      .addSeparator()
       .addItem('🗂️ Organizar hojas (ocultar técnicas)',   'organizarHojas')
       .addItem('🙈 Ocultar hojas de administración',      'ocultarHojasAdmin')
       .addItem('👁️ Mostrar todas las hojas',              'mostrarTodasLasHojas')

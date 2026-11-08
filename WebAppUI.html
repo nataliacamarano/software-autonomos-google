@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>Álvaro Gestión</title>
+<style>
+:root{--bg:#f5f5f2;--card:#fff;--txt:#1e1e1c;--mut:#6a6a64;--line:#e3e1da;--acc:#1b5fb0;--accbg:#e6effa;--ok:#1d7a45;--okbg:#e4f4ea;--warn:#8a5700;--warnbg:#fbf0d9;--bad:#b3261e;--badbg:#fbe7e5}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+#app{max-width:520px;margin:0 auto;min-height:100vh;background:var(--bg);display:flex;flex-direction:column}
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+.bar h1{flex:1;margin:0;font-size:17px;font-weight:600}
+.back{border:0;background:none;font-size:22px;line-height:1;padding:4px 8px 4px 0;cursor:pointer;color:var(--acc)}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:8px;white-space:nowrap}
+.p-acc{background:var(--accbg);color:var(--acc)}.p-ok{background:var(--okbg);color:var(--ok)}.p-warn{background:var(--warnbg);color:var(--warn)}.p-bad{background:var(--badbg);color:var(--bad)}.p-mut{background:#ececE6;color:var(--mut)}
+main{padding:16px;flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.metric small{display:block;color:var(--mut);font-size:12px}.metric b{font-size:22px;font-weight:600}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);font:inherit;color:var(--txt);text-align:left;cursor:pointer;min-height:92px}
+.tile .ic{font-size:26px;line-height:1}
+.tile.wide{grid-column:1/3;flex-direction:row;align-items:center;min-height:0}
+.big{width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--card);font:inherit;font-size:16px;color:var(--txt);text-align:left;cursor:pointer;margin-bottom:12px}
+h2{font-size:15px;margin:20px 0 6px;font-weight:600}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+input,select,textarea{width:100%;min-width:0;max-width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid #cfcdc5;border-radius:10px;background:#fff;color:var(--txt)}
+textarea{min-height:76px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:0;border-color:var(--acc)}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.row2>div{min-width:0}
+.btn{width:100%;margin-top:12px;padding:13px;border-radius:12px;border:1px solid #cfcdc5;background:var(--card);font:inherit;font-size:16px;color:var(--txt);cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.bad{color:var(--bad);border-color:#e2b4b0}
+.btn.pri.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn:disabled{opacity:.6;cursor:default}
+.list .it{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.list .it.static{cursor:default}
+.av{flex:none;width:36px;height:36px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.av.mut{background:#ececE6;color:var(--mut)}
+.grow{flex:1;min-width:0}.grow b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.grow span{display:block;font-size:13px;color:var(--mut)}
+.note{font-size:13px;padding:10px 12px;border-radius:10px;background:#efeee9;color:var(--mut);margin:10px 0}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:6px 0}.kv span:first-child{color:var(--mut)}.kv span:last-child{text-align:right;overflow-wrap:anywhere}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chip{padding:5px 11px;border:1px solid #cfcdc5;border-radius:16px;background:#fff;font:inherit;font-size:13px;cursor:pointer;color:var(--txt)}
+.chip.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+.seg{display:flex;gap:4px;padding:3px;background:#e9e8e2;border-radius:10px}.seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:8px;font:inherit;font-size:14px;cursor:pointer;color:var(--txt)}.seg button.on{background:#fff;box-shadow:0 0 0 1px var(--line)}
+.ok{display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 20px}
+.ok .tick{width:64px;height:64px;border-radius:50%;background:var(--okbg);color:var(--ok);display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:12px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet{width:100%;max-width:520px;background:#fff;border-radius:18px 18px 0 0;padding:18px 16px 22px}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ph{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}.ph img{width:100%;height:100%;object-fit:cover}
+.ph button{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:1;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:90%;background:#222;color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;z-index:30;display:none}
+#toast.bad{background:var(--bad)}
+.center{padding:60px 24px;text-align:center;color:var(--mut)}
+.center b{display:block;color:var(--txt);font-size:18px;margin-bottom:6px}
+.empty{color:var(--mut);font-size:14px;padding:12px 0}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid #ccc;border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px}@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status"></div>
+<script>
+var TOKEN = <?!= tokenJson ?>;
+var S = { init: null, stack: [] };
+var app = document.getElementById('app');
+
+/* ---------- utilidades ---------- */
+function el(tag, props) {
+  var n = document.createElement(tag);
+  props = props || {};
+  Object.keys(props).forEach(function (k) {
+    var v = props[k];
+    if (v == null || v === false) return;
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), v);
+    else if (k === 'value') n.value = v;
+    else n.setAttribute(k, v === true ? '' : v);
+  });
+  for (var i = 2; i < arguments.length; i++) add(n, arguments[i]);
+  return n;
+}
+function add(n, c) {
+  if (c == null || c === false) return;
+  if (Array.isArray(c)) { c.forEach(function (x) { add(n, x); }); return; }
+  n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+}
+function toast(msg, bad) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.className = bad ? 'bad' : ''; t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, bad ? 5000 : 2500);
+}
+function rid() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+function eur(n) { return (Number(n) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+function horas(n) { return (Number(n) || 0).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' h'; }
+function ini(n) { return String(n || '?').split(' ').filter(Boolean).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase(); }
+
+function api(action, payload) {
+  return new Promise(function (res, rej) {
+    if (!window.google || !google.script || !google.script.run) { rej({ error: 'No se puede conectar con el servidor.' }); return; }
+    google.script.run
+      .withSuccessHandler(function (r) { if (r && r.ok) res(r.data); else rej(r || { error: 'Sin respuesta del servidor.' }); })
+      .withFailureHandler(function () { rej({ error: 'Sin conexión. Revisa internet e inténtalo otra vez.' }); })
+      .wa_api(TOKEN, action, payload || {});
+  });
+}
+
+/* ---------- pantallas ---------- */
+function show(title, node, opts) {
+  opts = opts || {};
+  app.innerHTML = '';
+  var bar = el('div', { class: 'bar' });
+  if (S.stack.length > 1 && !opts.noBack) bar.appendChild(el('button', { class: 'back', 'aria-label': 'Volver', text: '‹', onclick: back }));
+  bar.appendChild(el('h1', { text: title }));
+  if (S.init) bar.appendChild(el('span', { class: 'pill ' + (S.init.rol === 'admin' ? 'p-acc' : 'p-mut'), text: S.init.rol === 'admin' ? 'Admin' : 'Empleado' }));
+  app.appendChild(bar);
+  var m = el('main'); m.appendChild(node); app.appendChild(m);
+  window.scrollTo(0, 0);
+}
+function go(fn, arg) { S.stack.push({ fn: fn, arg: arg }); fn(arg); }
+function back() { if (S.stack.length > 1) { S.stack.pop(); var t = S.stack[S.stack.length - 1]; t.fn(t.arg); } }
+function home() { S.stack = [S.stack[0]]; S.stack[0].fn(S.stack[0].arg); }
+function loading(title) { show(title || 'Álvaro Gestión', el('div', { class: 'center' }, el('span', { class: 'spin' })), { noBack: true }); }
+function fatal(title, msg) { app.innerHTML = ''; app.appendChild(el('div', { class: 'center' }, el('b', { text: title }), msg)); }
+
+function done(title, msg) {
+  var n = el('div', { class: 'ok' },
+    el('div', { class: 'tick', text: '✓' }),
+    el('b', { text: title }), el('p', { class: 'empty', text: msg || '' }),
+    el('button', { class: 'btn', text: 'Volver al inicio', onclick: function () { refreshInit().then(home); } }));
+  show('Listo', n, { noBack: true });
+}
+function refreshInit() { return api('init').then(function (d) { S.init = d; }).catch(function () {}); }
+
+/* ---------- componentes de formulario ---------- */
+function field(label, input) { return el('div', null, el('label', { text: label }), input); }
+function sel(options, value, blank) {
+  var s = el('select');
+  if (blank) s.appendChild(el('option', { value: '', text: blank }));
+  options.forEach(function (o) { var v = typeof o === 'object' ? o.v : o, t = typeof o === 'object' ? o.t : o; var op = el('option', { value: v, text: t }); if (value === v) op.selected = true; s.appendChild(op); });
+  return s;
+}
+function inp(type, ph, value) { return el('input', { type: type, placeholder: ph || '', value: value || '', autocomplete: 'off' }); }
+
+function resizeImage(file, maxDim) {
+  return new Promise(function (res, rej) {
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () {
+      var s = Math.min(1, maxDim / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      var d = c.toDataURL('image/jpeg', 0.82);
+      res({ name: 'foto.jpg', mime: 'image/jpeg', b64: d.split(',')[1], thumb: d });
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('No se pudo leer la foto.')); };
+    img.src = url;
+  });
+}
+function photoPicker(max, label) {
+  var list = [], box = el('div', { class: 'photos' }), busy = false;
+  var file = el('input', { type: 'file', accept: 'image/*', multiple: max > 1, style: 'display:none' });
+  var btn = el('button', { type: 'button', class: 'btn', text: '📷 ' + label, onclick: function () { file.click(); } });
+  function draw() {
+    box.innerHTML = '';
+    list.forEach(function (p, i) {
+      box.appendChild(el('div', { class: 'ph' }, el('img', { src: p.thumb, alt: 'Foto ' + (i + 1) }),
+        el('button', { type: 'button', 'aria-label': 'Quitar foto', text: '×', onclick: function () { list.splice(i, 1); draw(); } })));
+    });
+    btn.style.display = list.length >= max ? 'none' : '';
+  }
+  file.addEventListener('change', function () {
+    var files = Array.prototype.slice.call(file.files).slice(0, max - list.length);
+    busy = true; btn.disabled = true;
+    Promise.all(files.map(function (f) { return resizeImage(f, 1600); }))
+      .then(function (r) { list = list.concat(r); })
+      .catch(function (e) { toast(e.message, true); })
+      .then(function () { busy = false; btn.disabled = false; file.value = ''; draw(); });
+  });
+  draw();
+  return { node: el('div', null, btn, box, file), get: function () { return list.map(function (p) { return { name: p.name, mime: p.mime, b64: p.b64 }; }); }, isBusy: function () { return busy; } };
+}
+function submitBtn(text, fn) {
+  var b = el('button', { type: 'button', class: 'btn pri', text: text });
+  b.addEventListener('click', function () {
+    if (b.disabled) return;
+    var old = b.textContent; b.disabled = true; b.textContent = 'Guardando…';
+    Promise.resolve().then(fn).catch(function (e) { toast((e && e.error) || (e && e.message) || 'No se pudo guardar.', true); })
+      .then(function () { if (document.body.contains(b)) { b.disabled = false; b.textContent = old; } });
+  });
+  return b;
+}
+function need(cond, msg) { if (!cond) { var e = { error: msg }; throw e; } }
+
+/* ---------- ADMIN: inicio ---------- */
+function adminHome() {
+  var d = S.init, r = d.resumen || {};
+  function tile(ic, text, fn, wide) { return el('button', { class: 'tile' + (wide ? ' wide' : ''), onclick: fn }, el('span', { class: 'ic', text: ic }), text); }
+  var n = el('div', null,
+    el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre }),
+    el('div', { class: 'grid2', style: 'margin-bottom:14px' },
+      el('div', { class: 'metric' }, el('small', { text: 'Trabajos esta semana' }), el('b', { text: r.trabajosSemana || 0 })),
+      el('div', { class: 'metric' }, el('small', { text: 'Pendiente de cobro' }), el('b', { text: eur(r.pendienteCobro) }))),
+    el('div', { class: 'grid2' },
+      tile('📋', 'Nuevo trabajo', function () { go(viewTrabajo); }),
+      tile('🏢', 'Nuevo cliente', function () { go(viewCliente); }),
+      tile('👷', 'Nuevo empleado', function () { go(viewEmpleado); }),
+      tile('🧾', 'Apuntar gasto', function () { go(viewGasto); }),
+      tile('⏳', 'Pendientes' + (r.trabajosPendientes ? ' (' + r.trabajosPendientes + ')' : ''), function () { go(viewPendientes); }),
+      tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
+      tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
+  show('Álvaro Gestión', n, { noBack: true });
+}
+
+/* ---------- ADMIN: nuevo trabajo ---------- */
+function viewTrabajo() {
+  var d = S.init, reqId = rid();
+  var cliente = sel(d.clientes, '', 'Elige cliente'), op1 = sel(d.operarios, '', 'Elige empleado'), op2 = sel(d.operarios, '', 'Ninguno');
+  var fecha = inp('date', '', d.hoy), i1 = inp('time'), f1 = inp('time'), i2 = inp('time'), f2 = inp('time');
+  var trabajo = el('textarea', { placeholder: 'Qué hay que hacer / qué se ha hecho' }), incid = el('textarea', { placeholder: 'Opcional' });
+  var estado = sel(d.estadosTrabajo, 'Pendiente'), mat = inp('number', '0'), ubic = inp('text', 'Opcional');
+  mat.setAttribute('inputmode', 'decimal'); mat.setAttribute('step', '0.01'); mat.setAttribute('min', '0');
+  var fotos = photoPicker(5, 'Añadir fotos');
+  var bloque2 = el('div', { style: 'display:none' }, el('div', { class: 'row2' }, field('Inicio empleado 2', i2), field('Fin empleado 2', f2)));
+  op2.addEventListener('change', function () { bloque2.style.display = op2.value ? '' : 'none'; });
+  var n = el('div', null,
+    field('Cliente', cliente),
+    el('div', { class: 'row2' }, field('Empleado', op1), field('Empleado 2', op2)),
+    field('Fecha', fecha),
+    el('div', { class: 'row2' }, field('Hora inicio', i1), field('Hora fin', f1)),
+    bloque2,
+    field('Trabajo', trabajo), field('Incidencias', incid),
+    el('div', { class: 'row2' }, field('Estado', estado), field('Materiales (€)', mat)),
+    field('Ubicación', ubic), fotos.node,
+    submitBtn('Guardar trabajo', function () {
+      need(cliente.value, 'Elige un cliente.'); need(op1.value, 'Elige un empleado.'); need(fecha.value, 'Elige la fecha.');
+      need(!fotos.isBusy(), 'Espera a que terminen de cargar las fotos.');
+      return api('crearTrabajo', { reqId: reqId, cliente: cliente.value, operario: op1.value, operario2: op2.value, fecha: fecha.value,
+        horaInicio: i1.value, horaFin: f1.value, horaInicio2: i2.value, horaFin2: f2.value, trabajo: trabajo.value, incidencias: incid.value,
+        estado: estado.value, materiales: mat.value, ubicacion: ubic.value, fotos: fotos.get() })
+        .then(function () { done('Trabajo guardado', 'Ya está en la hoja de cálculo.'); });
+    }));
+  show('Nuevo trabajo', n);
+}
+
+/* ---------- ADMIN: nuevo cliente / empleado ---------- */
+function viewCliente() {
+  var reqId = rid();
+  var nom = inp('text', 'Laura'), ape = inp('text', 'Ferrer Ribas'), emp = inp('text', 'Opcional'), tel = inp('tel', '600 123 456'),
+      cif = inp('text', 'Opcional'), mail = inp('email', 'laura@correo.com'), dir = el('textarea', { placeholder: 'Calle, número, localidad' });
+  mail.setAttribute('inputmode', 'email');
+  var n = el('div', null,
+    el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
+    field('Empresa', emp),
+    el('div', { class: 'row2' }, field('Teléfono', tel), field('CIF / NIF', cif)),
+    field('Email', mail), field('Dirección', dir),
+    submitBtn('Guardar cliente', function () {
+      need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.');
+      need(tel.value.trim(), 'Escribe el teléfono.'); need(dir.value.trim(), 'Escribe la dirección.');
+      return api('crearCliente', { reqId: reqId, nombre: nom.value, apellidos: ape.value, empresa: emp.value, telefono: tel.value, cifNif: cif.value, email: mail.value, direccion: dir.value })
+        .then(function () { done('Cliente guardado', 'Ya aparece en las listas.'); });
+    }));
+  show('Nuevo cliente', n);
+}
+function viewEmpleado() {
+  var reqId = rid();
+  var nom = inp('text', 'Marc'), ape = inp('text', 'Torres'), tel = inp('tel', '611 222 333'), mail = inp('email', 'marc@correo.com');
+  var n = el('div', null,
+    el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
+    field('Teléfono', tel), field('Email', mail),
+    el('div', { class: 'note', text: 'Al guardarlo se crea su enlace personal. Lo verás en Gestión → su ficha.' }),
+    submitBtn('Guardar empleado', function () {
+      need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.'); need(tel.value.trim(), 'Escribe el teléfono.');
+      return api('crearEmpleado', { reqId: reqId, nombre: nom.value, apellidos: ape.value, telefono: tel.value, email: mail.value })
+        .then(function (r) { done('Empleado guardado', 'Entra en Gestión para compartirle su enlace personal.'); });
+    }));
+  show('Nuevo empleado', n);
+}
+
+/* ---------- ADMIN: gasto ---------- */
+function viewGasto() {
+  var d = S.init, reqId = rid();
+  var fotos = photoPicker(1, 'Hacer foto al ticket');
+  var tipo = sel(d.tiposGasto, '', 'Elige tipo'), imp = inp('number', '0,00'), est = sel(d.estadosGasto, 'Pagado'), obs = el('textarea', { placeholder: 'Opcional' });
+  imp.setAttribute('inputmode', 'decimal'); imp.setAttribute('step', '0.01'); imp.setAttribute('min', '0');
+  var n = el('div', null, fotos.node,
+    field('Tipo de gasto', tipo),
+    el('div', { class: 'row2' }, field('Importe (€)', imp), field('Estado', est)),
+    el('div', { class: 'note', text: 'Si la foto se lee bien, el importe y los datos del ticket se rellenan solos.' }),
+    field('Observaciones', obs),
+    submitBtn('Guardar gasto', function () {
+      need(tipo.value, 'Elige el tipo de gasto.'); need(!fotos.isBusy(), 'Espera a que termine de cargar la foto.');
+      var f = fotos.get();
+      return api('crearGasto', { reqId: reqId, tipo: tipo.value, importe: imp.value, estadoPago: est.value, observaciones: obs.value, fotos: f[0] || null })
+        .then(function () { done('Gasto guardado', f.length ? 'La foto se está leyendo para rellenar los datos.' : 'Sin foto: queda marcado para revisar.'); });
+    }));
+  show('Apuntar gasto', n);
+}
+
+/* ---------- ADMIN: pendientes y horas ---------- */
+function viewPendientes() {
+  loading('Pendientes');
+  api('pendientes').then(function (r) {
+    var n = el('div', null, el('h2', { text: 'Trabajos pendientes o en curso' }));
+    if (!r.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No hay trabajos pendientes.' }));
+    var l1 = el('div', { class: 'list' });
+    r.trabajos.forEach(function (t) {
+      l1.appendChild(el('div', { class: 'it static' }, el('div', { class: 'grow' }, el('b', { text: t.cliente }),
+        el('span', { text: [t.trabajo || 'Sin descripción', t.operario, t.fecha].filter(Boolean).join(' · ') })),
+        el('span', { class: 'pill ' + (t.estado === 'En curso' ? 'p-acc' : 'p-warn'), text: t.estado })));
+    });
+    n.appendChild(l1);
+    n.appendChild(el('h2', { text: 'Facturas sin cobrar · ' + eur(r.totalFacturas) }));
+    if (!r.facturas.length) n.appendChild(el('p', { class: 'empty', text: 'No hay facturas pendientes de cobro.' }));
+    var l2 = el('div', { class: 'list' });
+    r.facturas.forEach(function (f) {
+      l2.appendChild(el('div', { class: 'it static' }, el('div', { class: 'grow' }, el('b', { text: f.cliente || f.id }), el('span', { text: [f.id, f.fecha].filter(Boolean).join(' · ') })),
+        el('span', { class: 'pill p-bad', text: eur(f.total) })));
+    });
+    n.appendChild(l2);
+    show('Pendientes', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+function viewHoras(mes) {
+  loading('Horas del equipo');
+  api('horasEquipo', { mes: typeof mes === 'string' ? mes : '' }).then(function (r) {
+    var m = inp('month', '', r.mes);
+    m.addEventListener('change', function () { if (m.value) viewHoras(m.value); });
+    var n = el('div', null, field('Mes', m));
+    if (!r.equipo.length) n.appendChild(el('p', { class: 'empty', text: 'No hay horas registradas este mes.' }));
+    var l = el('div', { class: 'list', style: 'margin-top:10px' });
+    var tot = 0;
+    r.equipo.forEach(function (x) {
+      tot += x.horas;
+      l.appendChild(el('div', { class: 'it static' }, el('div', { class: 'av', text: ini(x.nombre) }), el('div', { class: 'grow' }, el('b', { text: x.nombre }), el('span', { text: x.trabajos + (x.trabajos === 1 ? ' trabajo' : ' trabajos') })), el('b', { text: horas(x.horas) })));
+    });
+    n.appendChild(l);
+    if (r.equipo.length) n.appendChild(el('div', { class: 'kv', style: 'margin-top:8px' }, el('span', { text: 'Total del equipo' }), el('b', { text: horas(tot) })));
+    show('Horas del equipo', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
+/* ---------- ADMIN: gestión de empleados y clientes ---------- */
+var G = { tab: 'e', filt: 'todos', q: '' };
+var ESTADO_PILL = { activo: ['Activo', 'p-ok'], bloqueado: ['Bloqueado', 'p-warn'], baja: ['De baja', 'p-mut'] };
+function viewGestion() {
+  loading('Gestión');
+  api('listaPersonas', { tipo: G.tab }).then(function (lista) {
+    var n = el('div');
+    var seg = el('div', { class: 'seg' },
+      el('button', { class: G.tab === 'e' ? 'on' : '', text: 'Empleados', onclick: function () { G.tab = 'e'; G.filt = 'todos'; G.q = ''; viewGestion(); } }),
+      el('button', { class: G.tab === 'c' ? 'on' : '', text: 'Clientes', onclick: function () { G.tab = 'c'; G.filt = 'todos'; G.q = ''; viewGestion(); } }));
+    var q = el('input', { type: 'search', placeholder: 'Buscar ' + (G.tab === 'e' ? 'empleado' : 'cliente'), value: G.q, style: 'margin-top:10px' });
+    var chips = el('div', { class: 'chips' });
+    var box = el('div', { class: 'list' });
+    function pintar() {
+      chips.innerHTML = '';
+      [['todos', 'Todos'], ['act', 'Activos'], ['no', 'Bloqueados o de baja']].forEach(function (f) {
+        chips.appendChild(el('button', { class: 'chip' + (G.filt === f[0] ? ' on' : ''), text: f[1], onclick: function () { G.filt = f[0]; pintar(); } }));
+      });
+      box.innerHTML = '';
+      var qq = G.q.toLowerCase();
+      var vis = lista.filter(function (x) {
+        if (G.filt === 'act' && x.estado !== 'activo') return false;
+        if (G.filt === 'no' && x.estado === 'activo') return false;
+        return !qq || (x.label + ' ' + x.email + ' ' + x.tel).toLowerCase().indexOf(qq) !== -1;
+      });
+      if (!vis.length) box.appendChild(el('p', { class: 'empty', text: 'No hay resultados.' }));
+      vis.forEach(function (x) {
+        var p = ESTADO_PILL[x.estado];
+        box.appendChild(el('div', { class: 'it', onclick: function () { go(viewFicha, x); } },
+          el('div', { class: 'av' + (x.estado === 'baja' ? ' mut' : ''), text: ini(x.label) }),
+          el('div', { class: 'grow' }, el('b', { text: x.label }), el('span', { text: G.tab === 'e' ? horas(x.horasMes) + ' este mes' : (x.nTrabajos + (x.nTrabajos === 1 ? ' trabajo' : ' trabajos')) })),
+          el('span', { class: 'pill ' + p[1], text: p[0] })));
+      });
+    }
+    q.addEventListener('input', function () { G.q = q.value; pintar(); });
+    n.appendChild(seg); n.appendChild(q); n.appendChild(chips); n.appendChild(box);
+    n.appendChild(el('button', { class: 'btn', text: '+ ' + (G.tab === 'e' ? 'Nuevo empleado' : 'Nuevo cliente'), onclick: function () { go(G.tab === 'e' ? viewEmpleado : viewCliente); } }));
+    pintar();
+    show('Gestión', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
+function viewFicha(x) {
+  var esE = G.tab === 'e', p = ESTADO_PILL[x.estado];
+  var notas = {
+    activo: esE ? 'Puede entrar a la app y aparece en las listas.' : 'Aparece al crear trabajos y facturas.',
+    bloqueado: 'No puede entrar a la app. Sigue en la plantilla y conserva sus partes.',
+    baja: esE ? 'Ya no aparece en las listas ni puede entrar. Sus partes y horas se conservan.' : 'No aparece al crear trabajos. Su historial y facturas se conservan.'
+  };
+  var n = el('div', null,
+    el('div', { style: 'display:flex;align-items:center;gap:12px;margin:4px 0 12px' },
+      el('div', { class: 'av' + (x.estado === 'baja' ? ' mut' : ''), style: 'width:48px;height:48px;font-size:16px', text: ini(x.label) }),
+      el('div', { class: 'grow' }, el('b', { style: 'font-size:17px', text: x.label }), esE ? null : el('span', { text: x.empresa ? 'Empresa' : '' })),
+      el('span', { class: 'pill ' + p[1], text: p[0] })),
+    el('div', { class: 'note', text: notas[x.estado] }),
+    el('div', { class: 'kv' }, el('span', { text: 'Teléfono' }), el('span', { text: x.tel || '—' })),
+    el('div', { class: 'kv' }, el('span', { text: 'Email' }), el('span', { text: x.email || '—' })),
+    esE ? el('div', { class: 'kv' }, el('span', { text: 'Horas este mes' }), el('span', { text: horas(x.horasMes) }))
+        : [el('div', { class: 'kv' }, el('span', { text: 'Dirección' }), el('span', { text: x.dir || '—' })),
+           el('div', { class: 'kv' }, el('span', { text: 'CIF / NIF' }), el('span', { text: x.cif || '—' })),
+           el('div', { class: 'kv' }, el('span', { text: 'Trabajos' }), el('span', { text: x.nTrabajos }))],
+    el('button', { class: 'btn', text: '✏️ Editar datos', onclick: function () { go(viewEditar, x); } }));
+
+  if (esE) n.appendChild(el('button', { class: 'btn', text: '🔗 Enlace personal', onclick: function () { verEnlace(x); } }));
+  function accion(texto, ac, peligro) { n.appendChild(el('button', { class: 'btn' + (peligro ? ' bad' : ''), text: texto, onclick: function () { confirmar(x, ac); } })); }
+  if (esE) {
+    if (x.estado === 'activo') { accion('🔒 Bloquear acceso', 'bloquear'); accion('Dar de baja', 'baja', true); }
+    if (x.estado === 'bloqueado') { accion('🔓 Desbloquear', 'desbloquear'); accion('Dar de baja', 'baja', true); }
+    if (x.estado === 'baja') accion('Reactivar', 'reactivar');
+  } else {
+    if (x.estado === 'activo') accion('Dar de baja', 'baja', true); else accion('Reactivar cliente', 'reactivar');
+  }
+  show(esE ? 'Ficha de empleado' : 'Ficha de cliente', n);
+}
+
+function confirmar(x, ac) {
+  var T = {
+    bloquear: ['¿Bloquear a ' + x.label + '?', 'No podrá entrar a la app hasta que lo desbloquees.', 'Bloquear'],
+    desbloquear: ['¿Desbloquear a ' + x.label + '?', 'Podrá volver a entrar a la app con su enlace.', 'Desbloquear'],
+    baja: ['¿Dar de baja a ' + x.label + '?', 'Dejará de aparecer en las listas. No se borra nada: el historial se conserva y se puede reactivar.', 'Dar de baja'],
+    reactivar: ['¿Reactivar a ' + x.label + '?', 'Volverá a aparecer en las listas' + (G.tab === 'e' ? ' y podrá entrar a la app.' : '.'), 'Reactivar']
+  }[ac];
+  var ov = el('div', { class: 'ov', onclick: function (ev) { if (ev.target === ov) ov.remove(); } });
+  var yes = el('button', { class: 'btn pri' + (ac === 'baja' ? ' bad' : ''), text: T[2] });
+  yes.addEventListener('click', function () {
+    yes.disabled = true; yes.textContent = 'Guardando…';
+    api('accionPersona', { tipo: G.tab, id: x.id, accion: ac }).then(function () {
+      ov.remove(); toast('Hecho');
+      S.stack.pop(); // sale de la ficha y recarga la lista
+      return refreshInit().then(function () { var t = S.stack[S.stack.length - 1]; t.fn(t.arg); });
+    }).catch(function (e) { toast(e.error || 'No se pudo completar.', true); yes.disabled = false; yes.textContent = T[2]; });
+  });
+  ov.appendChild(el('div', { class: 'sheet' }, el('b', { text: T[0] }), el('p', { class: 'empty', text: T[1] }), yes,
+    el('button', { class: 'btn', text: 'Cancelar', onclick: function () { ov.remove(); } })));
+  document.body.appendChild(ov);
+}
+
+function viewEditar(x) {
+  var esE = G.tab === 'e', reqId = rid();
+  var nom = inp('text', '', x.nombre), ape = inp('text', '', x.apellidos), tel = inp('tel', '', x.tel), mail = inp('email', '', x.email);
+  var emp = inp('text', '', x.empresa), cif = inp('text', '', x.cif), dir = el('textarea', { value: x.dir || '' });
+  var n = el('div', null, el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
+    esE ? null : field('Empresa', emp),
+    el('div', { class: 'row2' }, field('Teléfono', tel), esE ? field('Email', mail) : field('CIF / NIF', cif)),
+    esE ? null : field('Email', mail), esE ? null : field('Dirección', dir),
+    submitBtn('Guardar cambios', function () {
+      need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.'); need(tel.value.trim(), 'Escribe el teléfono.');
+      var datos = { nombre: nom.value, apellidos: ape.value, telefono: tel.value, email: mail.value };
+      if (!esE) { datos.empresa = emp.value; datos.cifNif = cif.value; datos.direccion = dir.value; }
+      return api('editarPersona', { reqId: reqId, tipo: G.tab, id: x.id, datos: datos }).then(function () {
+        toast('Cambios guardados'); S.stack.pop(); S.stack.pop();
+        var t = S.stack[S.stack.length - 1]; t.fn(t.arg);
+      });
+    }));
+  show('Editar datos', n);
+}
+
+function verEnlace(x) {
+  var ov = el('div', { class: 'ov', onclick: function (ev) { if (ev.target === ov) ov.remove(); } });
+  var cont = el('div', { class: 'sheet' }, el('b', { text: 'Enlace de ' + x.nombre }), el('p', { class: 'empty' }, el('span', { class: 'spin' })));
+  ov.appendChild(cont); document.body.appendChild(ov);
+  function pintar(enlace) {
+    cont.innerHTML = '';
+    var box = el('input', { type: 'text', readonly: true, value: enlace });
+    box.addEventListener('focus', function () { box.select(); });
+    cont.appendChild(el('b', { text: 'Enlace personal de ' + x.nombre }));
+    cont.appendChild(el('p', { class: 'empty', text: 'Solo le sirve a esa persona. Guárdalo en su móvil (Añadir a pantalla de inicio).' }));
+    cont.appendChild(box);
+    cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () {
+      box.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      if (!ok && navigator.clipboard) { navigator.clipboard.writeText(enlace).then(function () { toast('Enlace copiado'); }, function () { toast('Selecciónalo y cópialo a mano', true); }); }
+      else toast(ok ? 'Enlace copiado' : 'Selecciónalo y cópialo a mano', !ok);
+    } }));
+    cont.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
+      href: 'https://wa.me/?text=' + encodeURIComponent('Tu enlace para registrar partes de trabajo: ' + enlace) }));
+    var regen = el('button', { class: 'btn bad', text: 'Generar enlace nuevo' }), armado = false;
+    regen.addEventListener('click', function () {
+      if (!armado) {
+        armado = true; regen.textContent = 'El enlace anterior dejará de funcionar. Pulsa otra vez para confirmar';
+        setTimeout(function () { armado = false; regen.textContent = 'Generar enlace nuevo'; }, 5000);
+        return;
+      }
+      regen.disabled = true;
+      api('regenerarEnlace', { id: x.id }).then(function (r) { pintar(r.enlace); toast('Enlace nuevo generado'); }).catch(function (e) { regen.disabled = false; toast(e.error, true); });
+    });
+    cont.appendChild(regen);
+    cont.appendChild(el('button', { class: 'btn', text: 'Cerrar', onclick: function () { ov.remove(); } }));
+  }
+  api('enlaceEmpleado', { id: x.id }).then(function (r) { pintar(r.enlace); }).catch(function (e) { ov.remove(); toast(e.error, true); });
+}
+
+/* ---------- EMPLEADO ---------- */
+function empHome() {
+  var d = S.init;
+  var n = el('div', null,
+    el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre.split(' ')[0] }),
+    el('button', { class: 'big', onclick: function () { go(viewParte, null); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Registrar mi parte de hoy'),
+    el('h2', { text: 'Mis trabajos asignados' }));
+  if (!d.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes trabajos pendientes.' }));
+  var l = el('div', { class: 'list' });
+  d.trabajos.forEach(function (t) {
+    l.appendChild(el('div', { class: 'it', onclick: function () { go(viewParte, t); } },
+      el('div', { class: 'grow' }, el('b', { text: t.cliente }), el('span', { text: [t.trabajo || 'Sin descripción', t.fecha].filter(Boolean).join(' · ') })),
+      el('span', { class: 'pill ' + (t.estado === 'En curso' ? 'p-acc' : 'p-warn'), text: t.estado })));
+  });
+  n.appendChild(l);
+  n.appendChild(el('div', { class: 'metric', style: 'margin-top:16px' }, el('small', { text: 'Mis horas este mes' }), el('b', { text: horas(d.horasMes) })));
+  if (d.recientes && d.recientes.length) {
+    n.appendChild(el('h2', { text: 'Mis últimos partes' }));
+    var r = el('div', { class: 'list' });
+    d.recientes.forEach(function (t) { r.appendChild(el('div', { class: 'it static' }, el('div', { class: 'grow' }, el('b', { text: t.cliente }), el('span', { text: t.fecha })), el('b', { text: horas(t.horas) }))); });
+    n.appendChild(r);
+  }
+  show('Álvaro Gestión', n, { noBack: true });
+}
+
+function viewParte(t) {
+  var d = S.init, reqId = rid();
+  var cliente = t ? el('input', { type: 'text', value: t.cliente, readonly: true }) : sel(d.clientes, '', 'Elige cliente');
+  var i = inp('time'), f = inp('time');
+  var trabajo = el('textarea', { placeholder: 'Qué has hecho' }), incid = el('textarea', { placeholder: 'Si algo no se pudo terminar, cuéntalo aquí' });
+  var estado = sel(d.estadosParte, 'Completado'), mat = inp('number', '0');
+  mat.setAttribute('inputmode', 'decimal'); mat.setAttribute('step', '0.01'); mat.setAttribute('min', '0');
+  var fotos = photoPicker(5, 'Añadir fotos');
+  var n = el('div', null, field('Cliente', cliente),
+    el('div', { class: 'row2' }, field('Hora inicio', i), field('Hora fin', f)),
+    field('Qué has hecho', trabajo), field('Incidencias', incid),
+    el('div', { class: 'row2' }, field('Estado', estado), field('Materiales (€)', mat)),
+    fotos.node,
+    submitBtn('Enviar parte', function () {
+      need(t || cliente.value, 'Elige un cliente.'); need(i.value && f.value, 'Escribe la hora de inicio y la de fin.');
+      need(trabajo.value.trim(), 'Cuenta qué has hecho.'); need(!fotos.isBusy(), 'Espera a que terminen de cargar las fotos.');
+      return api('enviarParte', { reqId: reqId, idTrabajo: t ? t.id : '', cliente: t ? t.cliente : cliente.value, horaInicio: i.value, horaFin: f.value,
+        trabajo: trabajo.value, incidencias: incid.value, estado: estado.value, materiales: mat.value, fotos: fotos.get() })
+        .then(function () { done('Parte enviado', 'Álvaro ya lo puede ver.'); });
+    }));
+  show(t ? 'Completar trabajo' : 'Mi parte de hoy', n);
+}
+
+/* ---------- arranque ---------- */
+(function boot() {
+  if (!TOKEN) { fatal('Entra desde tu enlace personal', 'Pide a Álvaro que te lo envíe.'); return; }
+  loading();
+  api('init').then(function (d) {
+    S.init = d;
+    var fn = d.rol === 'admin' ? adminHome : empHome;
+    S.stack = [{ fn: fn }];
+    fn();
+  }).catch(function (e) {
+    fatal(e.code === 'BLOQ' ? 'Acceso desactivado' : (e.code === 'AUTH' ? 'Enlace no válido' : 'No se pudo abrir'), e.error || '');
+  });
+})();
+</script>
+</body>
+</html>
