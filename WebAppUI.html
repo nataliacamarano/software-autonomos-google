@@ -720,8 +720,10 @@ function viewMaqFicha(id) {
       m.activo && maqRota(m) ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: 'Figura como ' + m.estado.toLowerCase() + '. No la uses hasta que Álvaro la dé por reparada.' }) : null,
       maqKv('Dónde está', m.ubic || '—'),
       m.tipo ? maqKv('Tipo', m.tipo) : null, m.marca ? maqKv('Marca y modelo', m.marca) : null, m.serie ? maqKv('Nº de serie', m.serie) : null,
+      m.compra ? maqKv('Comprada el', m.compra) : null,
       maqKv('Último uso', m.ultUso ? m.ultUso + (m.operario ? ' · ' + m.operario : '') : 'Sin usos todavía'),
       m.notas ? maqKv('Notas', m.notas) : null);
+    if (m.enlace) n.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', href: m.enlace, target: '_blank', rel: 'noopener', text: '🔗 Ver en la tienda' }));
     if (m.activo) n.appendChild(el('button', { class: 'btn pri', text: 'Registrar uso', onclick: function () { go(viewMaqUso, m.id); } }));
     if (admin) {
       if (m.activo) n.appendChild(el('button', { class: 'btn', text: 'Cambiar estado', onclick: function () { hojaEstado(m); } }));
@@ -768,22 +770,62 @@ function hojaEstado(m) {
   document.body.appendChild(ov);
 }
 
+/* Rellenar el formulario desde el enlace de una tienda. SIN IA: el servidor lee los datos que la página publica
+   (ficha de producto estándar, etiquetas Open Graph y título). Solo rellena los campos que estén vacíos. */
+function bloqueEnlace(campos) {
+  var st = { foto: '', usar: true };
+  var url = inp('url', 'Pega aquí el enlace de la tienda o de una máquina igual'); url.setAttribute('inputmode', 'url');
+  var msg = el('p', { class: 'empty', style: 'margin:6px 0 0' }), vista = el('div', { style: 'margin-top:8px' });
+  var btn = el('button', { type: 'button', class: 'btn', style: 'margin-top:8px', text: '🔎 Rellenar con el enlace' });
+  function pintaFoto() {
+    vista.innerHTML = '';
+    if (!st.foto) return;
+    var im = el('img', { src: st.foto, alt: 'Foto de la tienda', referrerpolicy: 'no-referrer', style: 'width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)' });
+    im.onerror = function () { im.style.display = 'none'; };
+    var chk = el('input', { type: 'checkbox', style: 'width:auto' }); chk.checked = st.usar;
+    chk.addEventListener('change', function () { st.usar = chk.checked; });
+    vista.appendChild(el('label', { style: 'display:flex;align-items:center;gap:10px;color:var(--txt);font-size:14px;margin:0' }, chk, im, 'Usar esta foto (si no haces una tú)'));
+  }
+  btn.addEventListener('click', function () {
+    var u = url.value.trim();
+    if (!u) { toast('Pega primero el enlace.', true); return; }
+    btn.disabled = true; btn.textContent = 'Leyendo la página…'; msg.textContent = '';
+    api('maqLeerEnlace', { url: u }).then(function (r) {
+      var hechos = [];
+      function pon(campo, valor, nombre) { if (valor && !campo.value.trim()) { campo.value = valor; hechos.push(nombre); } }
+      pon(campos.nombre, r.nombre, 'nombre'); pon(campos.tipo, r.tipo, 'tipo'); pon(campos.marca, r.marcaModelo, 'marca y modelo'); pon(campos.notas, r.notas, 'notas');
+      st.foto = r.imagen || ''; st.usar = true; pintaFoto();
+      url.value = r.url || url.value;
+      msg.textContent = 'Leído de ' + r.tienda + (hechos.length ? ': he rellenado ' + hechos.join(', ') : ': esos campos ya estaban escritos y no los he tocado') + '. Revísalo antes de guardar.' + (r.aviso ? ' ⚠️ ' + r.aviso : '');
+    }).catch(function (e) { msg.textContent = (e && e.error) || 'No se pudo leer el enlace.'; toast(msg.textContent, true); })
+      .then(function () { btn.disabled = false; btn.textContent = '🔎 Rellenar con el enlace'; });
+  });
+  return { node: el('div', { class: 'note', style: 'background:#fff;border:1px solid var(--line);color:var(--txt)' }, el('label', { text: 'Enlace de la tienda (opcional)', style: 'margin-top:0' }), url, btn, msg, vista),
+    enlace: function () { return url.value.trim(); }, fotoUrl: function () { return st.foto && st.usar ? st.foto : ''; } };
+}
+
 function viewMaqNueva() {
   var reqId = rid(), d = S.init;
   var nom = inp('text', 'Desbrozadora Stihl'), tipo = inp('text', 'Desbrozadora'), marca = inp('text', 'Stihl FS 94'), serie = inp('text', 'Opcional');
+  var compra = inp('date'); compra.setAttribute('max', d.hoy);
   var notas = el('textarea', { placeholder: 'Opcional' }), dl = el('datalist', { id: 'tiposmaq' });
   tipo.setAttribute('list', 'tiposmaq'); (d.tiposMaq || []).forEach(function (t) { dl.appendChild(el('option', { value: t })); });
   var foto = photoPicker(1, 'Hacer foto a la máquina');
-  var n = el('div', null, foto.node,
+  var enl = bloqueEnlace({ nombre: nom, tipo: tipo, marca: marca, notas: notas });
+  var n = el('div', null, enl.node, foto.node,
     field('Nombre', nom), el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'Así la verán los empleados. Si hay dos iguales, distínguelas: "Desbrozadora Stihl 2".' }),
     el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)), dl,
-    field('Nº de serie', serie), field('Notas', notas),
+    el('div', { class: 'row2' }, field('Fecha de compra', compra), field('Nº de serie', serie)),
+    field('Notas', notas),
     el('div', { class: 'note', text: 'Al guardarla se crea su código QR para imprimirlo y pegarlo en la máquina.' }),
     submitBtn('Guardar máquina', function () {
       need(nom.value.trim(), 'Escribe el nombre de la máquina.'); need(!foto.isBusy(), 'Espera a que termine de cargar la foto.');
       var f = foto.get();
-      return api('maqCrear', { reqId: reqId, nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, notas: notas.value, foto: f[0] || null })
-        .then(function (r) { return refreshInit().then(function () { S.stack.pop(); go(viewMaqQR, { id: r.id, nombre: nom.value.trim().replace(/,/g, ' '), qr: r.qr, nuevo: true }); }); });
+      return api('maqCrear', { reqId: reqId, nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, fechaCompra: compra.value, notas: notas.value, enlace: enl.enlace(), fotoUrl: f[0] ? '' : enl.fotoUrl(), foto: f[0] || null })
+        .then(function (r) { return refreshInit().then(function () {
+          if (r.foto === 'no') toast('No pude guardar la foto de la tienda. Puedes añadir una tuya en Editar datos.', true);
+          S.stack.pop(); go(viewMaqQR, { id: r.id, nombre: nom.value.trim().replace(/,/g, ' '), qr: r.qr, nuevo: true });
+        }); });
     }));
   show('Nueva máquina', n);
 }
@@ -791,13 +833,15 @@ function viewMaqNueva() {
 function viewMaqEditar(m) {
   var reqId = rid();
   var nom = inp('text', '', m.nombre), tipo = inp('text', '', m.tipo), marca = inp('text', '', m.marca), serie = inp('text', '', m.serie), notas = el('textarea', { value: m.notas || '' });
+  var compra = inp('date', '', m.compraISO || ''); compra.setAttribute('max', S.init.hoy);
   var foto = photoPicker(1, m.foto ? 'Cambiar la foto' : 'Hacer foto a la máquina');
+  var enlace = inp('url', 'https://… (opcional)', m.enlace || ''); enlace.setAttribute('inputmode', 'url');
   var n = el('div', null, foto.node, field('Nombre', nom), el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)),
-    field('Nº de serie', serie), field('Notas', notas),
+    el('div', { class: 'row2' }, field('Fecha de compra', compra), field('Nº de serie', serie)), field('Enlace de la tienda', enlace), field('Notas', notas),
     submitBtn('Guardar cambios', function () {
       need(nom.value.trim(), 'Escribe el nombre de la máquina.'); need(!foto.isBusy(), 'Espera a que termine de cargar la foto.');
       var f = foto.get();
-      return api('maqEditar', { reqId: reqId, id: m.id, datos: { nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, notas: notas.value, foto: f[0] || null } })
+      return api('maqEditar', { reqId: reqId, id: m.id, datos: { nombre: nom.value, tipo: tipo.value, marca: marca.value, serie: serie.value, fechaCompra: compra.value, enlace: enlace.value.trim(), notas: notas.value, foto: f[0] || null } })
         .then(function () { return refreshInit(); }).then(function () { toast('Cambios guardados'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; t.fn(t.arg); });
     }));
   show('Editar máquina', n);

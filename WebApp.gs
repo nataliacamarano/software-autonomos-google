@@ -106,6 +106,7 @@ function _wa_actions_() {
     maqLista:         { roles: AE, fn: wa_maqLista_ },
     maqFicha:         { roles: AE, fn: wa_maqFicha_ },
     maqUso:           { roles: AE, fn: wa_maqUso_,    write: true },
+    maqLeerEnlace:    { roles: A,  fn: wa_maqLeerEnlace_ },
     maqCrear:         { roles: A,  fn: wa_maqCrear_,  write: true },
     maqEditar:        { roles: A,  fn: wa_maqEditar_, write: true },
     maqEstado:        { roles: A,  fn: wa_maqEstado_, write: true },

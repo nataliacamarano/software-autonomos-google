@@ -20,9 +20,9 @@ var MAQ_ = {
   SHEET:      'MAQUINARIA',
   SHEET_USOS: 'MAQ_USOS',
   HEAD: ['ID_Maquina', 'Fecha_Alta', 'Nombre', 'Tipo', 'Marca_Modelo', 'Num_Serie', 'Estado', 'Ubicacion',
-         'Cliente_Actual', 'Ultimo_Operario', 'Ultimo_Uso', 'Foto_URL', 'Foto_ID', 'Notas', 'Activo'],
+         'Cliente_Actual', 'Ultimo_Operario', 'Ultimo_Uso', 'Foto_URL', 'Foto_ID', 'Notas', 'Activo', 'Fecha_Compra', 'Enlace'],
   COL: { ID: 1, ALTA: 2, NOMBRE: 3, TIPO: 4, MARCA: 5, SERIE: 6, ESTADO: 7, UBIC: 8, CLIENTE: 9,
-         OPERARIO: 10, ULTUSO: 11, FOTO_URL: 12, FOTO_ID: 13, NOTAS: 14, ACTIVO: 15 },
+         OPERARIO: 10, ULTUSO: 11, FOTO_URL: 12, FOTO_ID: 13, NOTAS: 14, ACTIVO: 15, COMPRA: 16, ENLACE: 17 },
   HEAD_USOS: ['ID_Uso', 'Fecha_Hora', 'ID_Maquina', 'Maquina', 'ID_Trabajo', 'Cliente', 'Operario',
               'Dejada_En', 'Incidencia', 'Descripcion', 'Estado_Resultante', 'Origen'],
   ESTADOS: ['Disponible', 'En uso', 'En reparación', 'Rota'],
@@ -38,8 +38,33 @@ var MAQ_ = {
 
 function _maq_hoja_() {
   var sh = getOrCreateSheet(MAQ_.SHEET);
-  if (sh.getLastRow() === 0) { sh.appendRow(MAQ_.HEAD); applyHeaderStyle_(sh, MAQ_.HEAD.length); }
+  if (sh.getLastRow() === 0) { sh.appendRow(MAQ_.HEAD); applyHeaderStyle_(sh, MAQ_.HEAD.length); return sh; }
+  // Hojas creadas antes de añadir la fecha de compra: se añade su columna al final, sin tocar nada más.
+  if (sh.getMaxColumns() < MAQ_.COL.ENLACE) sh.insertColumnsAfter(sh.getMaxColumns(), MAQ_.COL.ENLACE - sh.getMaxColumns());
+  [[MAQ_.COL.COMPRA, 'Fecha_Compra'], [MAQ_.COL.ENLACE, 'Enlace']].forEach(function(d) {
+    var celda = sh.getRange(1, d[0]), cur = String(celda.getValue() || '').trim();
+    if (!cur) celda.setValue(d[1]);
+    else if (cur !== d[1]) throw new Error('MAQUINARIA: la columna ' + d[0] + ' ya se usa para "' + cur + '".');
+  });
   return sh;
+}
+
+/** Fecha de compra opcional: '' → sin fecha; 'YYYY-MM-DD' → Date. Rechaza fechas inventadas, futuras o anteriores a 1950. */
+function _maq_fechaCompra_(iso) {
+  var s = String(iso == null ? '' : iso).trim();
+  if (!s) return '';
+  var d = _parseReportDate_(_wa_fechaDMY_(s));   // _wa_fechaDMY_ ya rechaza fechas inexistentes
+  if (!d) _wa_fail_('La fecha de compra no es válida.');
+  if (d.getFullYear() < 1950) _wa_fail_('La fecha de compra no es válida (año anterior a 1950).');
+  var manana = new Date(); manana.setHours(0, 0, 0, 0); manana.setDate(manana.getDate() + 1);
+  if (d.getTime() >= manana.getTime()) _wa_fail_('La fecha de compra no puede ser futura.');
+  return d;
+}
+
+function _maq_ponFechaCompra_(sh, row, valor) {
+  var celda = sh.getRange(row, MAQ_.COL.COMPRA);
+  celda.setValue(valor);
+  if (valor) celda.setNumberFormat('dd/MM/yyyy');
 }
 
 function _maq_hojaUsos_() {
@@ -53,6 +78,14 @@ function _maq_fecha_(v) {
     return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM HH:mm');
   }
   return String(v || '');
+}
+
+/** Date → texto con el formato pedido; si la celda no es una fecha real, se devuelve tal cual (o vacío si soloFecha). */
+function _maq_fechaTxt_(v, formato, soloFecha) {
+  if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), formato);
+  }
+  return soloFecha ? '' : String(v || '').trim();
 }
 
 function _maq_todas_() {
@@ -70,7 +103,9 @@ function _maq_todas_() {
       ubic: String(r[C.UBIC - 1] || '').trim(), cliente: String(r[C.CLIENTE - 1] || '').trim(),
       operario: String(r[C.OPERARIO - 1] || '').trim(), ultUso: _maq_fecha_(r[C.ULTUSO - 1]),
       fotoId: String(r[C.FOTO_ID - 1] || '').trim(), notas: String(r[C.NOTAS - 1] || '').trim(),
-      activo: _wa_bool_(r[C.ACTIVO - 1])
+      activo: _wa_bool_(r[C.ACTIVO - 1]),
+      compra: _maq_fechaTxt_(r[C.COMPRA - 1], 'dd/MM/yyyy'), compraISO: _maq_fechaTxt_(r[C.COMPRA - 1], 'yyyy-MM-dd', true),
+      enlace: /^https?:\/\//i.test(String(r[C.ENLACE - 1] || '')) ? String(r[C.ENLACE - 1]).trim() : ''
     });
   });
   return out;
@@ -90,6 +125,7 @@ function _maq_pub_(m) {
   return {
     id: m.id, nombre: m.nombre, tipo: m.tipo, marca: m.marca, serie: m.serie, estado: m.estado,
     ubic: m.ubic, cliente: m.cliente, operario: m.operario, ultUso: m.ultUso, notas: m.notas, activo: m.activo,
+    compra: m.compra, compraISO: m.compraISO, enlace: m.enlace,
     foto: m.fotoId ? 'https://drive.google.com/thumbnail?id=' + m.fotoId + '&sz=w640' : '',
     qr: _maq_qrUrl_(m.id)
   };
@@ -190,6 +226,10 @@ function wa_maqCrear_(user, p) {
   if (!nombre) _wa_fail_('Escribe el nombre de la máquina.');
   var tipo = _maq_limpia_(p.tipo, 40), marca = _maq_limpia_(p.marca, 80), serie = _maq_limpia_(p.serie, 40), notas = _wa_s_(p.notas, 500);
   var fotos = _wa_validaFotos_(p.foto ? [p.foto] : []);
+  var compra = _maq_fechaCompra_(p.fechaCompra);
+  var enlace = _maq_urlSegura_(p.enlace);
+  var fotoWeb = !fotos.length && p.fotoUrl ? _maqe_bajaFoto_(p.fotoUrl) : null;   // la foto propia manda sobre la de la tienda
+  if (fotoWeb) fotos = _wa_validaFotos_([fotoWeb]);
   return _wa_withLock_(function() {
     _maq_nombreLibre_(nombre, '');
     var sh = _maq_hoja_(), C = MAQ_.COL, id = nextId(MAQ_.SHEET, 'MAQ');
@@ -198,9 +238,11 @@ function wa_maqCrear_(user, p) {
     fila[C.ID - 1] = id; fila[C.ALTA - 1] = new Date(); fila[C.NOMBRE - 1] = nombre; fila[C.TIPO - 1] = tipo;
     fila[C.MARCA - 1] = marca; fila[C.SERIE - 1] = serie; fila[C.ESTADO - 1] = 'Disponible';
     fila[C.UBIC - 1] = 'Depósito'; fila[C.FOTO_ID - 1] = fotoId; fila[C.NOTAS - 1] = notas; fila[C.ACTIVO - 1] = true;
+    fila[C.ENLACE - 1] = enlace;
     sh.appendRow(fila);
+    if (compra) _maq_ponFechaCompra_(sh, sh.getLastRow(), compra);
     logEvent('INFO', 'wa_maqCrear', 'Máquina creada: ' + id, nombre);
-    return { id: id, qr: _maq_qrUrl_(id) };
+    return { id: id, qr: _maq_qrUrl_(id), foto: fotoId ? (fotoWeb ? 'tienda' : 'propia') : (p.fotoUrl ? 'no' : '') };
   });
 }
 
@@ -209,9 +251,17 @@ function wa_maqEditar_(user, p) {
   var nombre = _maq_limpia_(d.nombre, 80);
   if (!nombre) _wa_fail_('Escribe el nombre de la máquina.');
   var fotos = _wa_validaFotos_(d.foto ? [d.foto] : []);
+  var cambiaCompra = d.fechaCompra !== undefined;   // si no viene, no se toca; si viene vacía, se borra
+  var compra = cambiaCompra ? _maq_fechaCompra_(d.fechaCompra) : '';
+  var cambiaEnlace = d.enlace !== undefined;
+  var enlace = cambiaEnlace ? _maq_urlSegura_(d.enlace) : '';
+  var fotoWeb = !fotos.length && d.fotoUrl ? _maqe_bajaFoto_(d.fotoUrl) : null;
+  if (fotoWeb) fotos = _wa_validaFotos_([fotoWeb]);
   return _wa_withLock_(function() {
     var m = _maq_buscar_(p.id, false), C = MAQ_.COL, sh = _maq_hoja_();
-    if (m.activo) _maq_nombreLibre_(nombre, m.id);
+    if (m.activo) _maq_nombreLibre_(nombre, m.id);   // primero todas las comprobaciones, luego se escribe
+    if (cambiaCompra) _maq_ponFechaCompra_(sh, m.row, compra);
+    if (cambiaEnlace) sh.getRange(m.row, C.ENLACE).setValue(enlace);
     sh.getRange(m.row, C.NOMBRE).setValue(nombre);
     sh.getRange(m.row, C.TIPO).setValue(_maq_limpia_(d.tipo, 40));
     sh.getRange(m.row, C.MARCA).setValue(_maq_limpia_(d.marca, 80));
