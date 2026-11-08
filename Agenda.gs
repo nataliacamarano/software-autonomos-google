@@ -197,6 +197,23 @@ function wa_agPendientes_(user, p) {
   return { hoy: r.ahora.hoy, atrasados: atrasados, paraHoy: hoy, proximos: proximos };
 }
 
+/**
+ * Quita un trabajo de los pendientes SIN borrarlo: lo marca como Cancelado (el registro queda en la hoja
+ * por si está ligado a horas, facturas o informes). Solo si sigue Pendiente o En curso.
+ */
+function wa_trabajoCancelar_(user, p) {
+  var id = String(p.id || '');
+  if (!/^TRA-\d{3,6}$/.test(id)) _wa_fail_('Ese trabajo no existe.');
+  return _wa_withLock_(function() {
+    var t = _wa_trabajos_().filter(function(x) { return x.id === id; })[0];
+    if (!t) _wa_fail_('Ese trabajo no existe.');
+    if (t.estado !== 'Pendiente' && t.estado !== 'En curso') _wa_fail_('Solo se pueden cancelar trabajos pendientes o en curso.');
+    getSheet('TRABAJOS').getRange(t.row, COL_TRA.ESTADO).setValue('Cancelado');
+    logEvent('INFO', 'wa_trabajoCancelar', id + ' cancelado (' + t.estado + ')', t.cliente + ' ' + _ag_iso_(t.fecha));
+    return { ok: true };
+  });
+}
+
 function wa_agCrear_(user, p) {
   var fecha = _ag_fechaIso_(p.fecha);
   var titulo = _wa_s_(p.titulo, 120);

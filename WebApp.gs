@@ -118,6 +118,7 @@ function _wa_actions_() {
     maqBaja:          { roles: A,  fn: wa_maqBaja_,   write: true },
     agMes:            { roles: A,  fn: wa_agMes_ },
     agPendientes:     { roles: A,  fn: wa_agPendientes_ },
+    trabajoCancelar:  { roles: A,  fn: wa_trabajoCancelar_, write: true },
     agDia:            { roles: A,  fn: wa_agDia_ },
     agCrear:          { roles: A,  fn: wa_agCrear_, write: true },
     agHecho:          { roles: A,  fn: wa_agHecho_, write: true },
