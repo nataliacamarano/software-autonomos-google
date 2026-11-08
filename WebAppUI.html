@@ -82,6 +82,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .estado-lib{font-size:13px;color:var(--mut);margin:6px 2px 10px;min-height:18px}.estado-lib.mal{color:var(--bad);font-weight:600}.estado-lib.ok{color:var(--ok)}
 .prevlib{white-space:pre-wrap;background:#fffef8;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px;max-height:180px;overflow:hidden;position:relative}
 .cal .dia .l{background:#f3efe0;color:#6b5a1a}
+#nueva{position:fixed;top:0;left:0;right:0;z-index:40;background:var(--acc);color:#fff;text-align:center;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}#nueva small{display:block;font-weight:400;font-size:12px;opacity:.9}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -104,6 +105,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 <script>
 var TOKEN = <?!= tokenJson ?>;
 var MAQ = <?!= maqJson ?>;   // código de máquina cuando se entra escaneando su QR
+var VERSION = <?!= versionJson ?>;   // versión con la que se cargó esta pantalla
 /* El móvil recuerda el enlace personal para que el QR de una máquina abra directamente, sin volver a pedirlo. */
 try { if (TOKEN) localStorage.setItem('wa_t', TOKEN); else TOKEN = localStorage.getItem('wa_t') || ''; } catch (e) {}
 var S = { init: null, stack: [] };
@@ -243,6 +245,7 @@ function adminHome() {
   function tile(ic, text, fn, wide) { return el('button', { class: 'tile' + (wide ? ' wide' : ''), onclick: fn }, el('span', { class: 'ic', text: ic }), text); }
   var n = el('div', null,
     el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre }),
+    libretaTarjeta(),
     el('div', { class: 'grid2', style: 'margin-bottom:14px' },
       el('div', { class: 'metric' }, el('small', { text: 'Trabajos esta semana' }), el('b', { text: r.trabajosSemana || 0 })),
       el('button', { class: 'metric', onclick: function () { go(viewPendientes, 'cobros'); } }, el('small', { text: 'Pendiente de cobro ›' }), el('b', { text: eur(r.pendienteCobro) }))),
@@ -453,6 +456,35 @@ function viewAtrasos() {
   }).catch(function (e) { toast(e.error, true); back(); });
 }
 
+/* Cuadro "Libreta de hoy": enseña lo escrito hoy (o invita a escribir) y abre la libreta al tocarlo. */
+function libretaTarjeta() {
+  var cuerpo = el('span', { style: 'display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;color:var(--mut);font-size:13px;font-weight:400;margin-top:3px', text: 'Cargando…' });
+  var t = el('button', { class: 'big', style: 'align-items:flex-start', onclick: function () { go(viewLibreta, S.init.hoy); } },
+    el('span', { style: 'font-size:26px', text: '✍️' }),
+    el('span', { style: 'flex:1;min-width:0' }, el('b', { text: 'Libreta de hoy' }), el('br'), cuerpo));
+  api('libretaGet', { fecha: S.init.hoy }).then(function (r) {
+    var x = (r.texto || '').trim();
+    cuerpo.textContent = x ? x : 'Aún no has escrito nada hoy. Toca para escribir: se guarda sola y queda en el calendario.';
+  }).catch(function () { cuerpo.textContent = 'Toca para escribir en la libreta.'; });
+  return t;
+}
+
+/* Libretas de días anteriores (se rellena al cargar). */
+function libretasAnteriores() {
+  var caja = el('div');
+  api('libretaLista').then(function (r) {
+    var antes = (r.dias || []).filter(function (x) { return x.fecha !== S.init.hoy; });
+    if (!antes.length) return;
+    caja.appendChild(el('h2', { text: 'Libretas de días anteriores' }));
+    antes.forEach(function (x) {
+      caja.appendChild(el('div', { class: 'pen', onclick: function () { go(viewLibreta, x.fecha); } },
+        el('span', { class: 'ic', text: '✍️' }),
+        el('div', { class: 'grow' }, el('b', { text: fechaLarga(x.fecha).replace(/ de \d{4}$/, '').replace(/^./, function (c) { return c.toUpperCase(); }) }), el('small', { style: 'white-space:pre-wrap', text: x.resumen }))));
+    });
+  }).catch(function () {});
+  return caja;
+}
+
 /* ---------- LIBRETA DEL DÍA: texto libre con guardado automático ---------- */
 function viewLibreta(fecha) {
   loading('Libreta');
@@ -540,11 +572,12 @@ function viewNotas() {
       chips.appendChild(el('button', { type: 'button', class: 'chip' + (NF.filtro === f[0] ? ' on' : ''), text: f[1] + ' (' + r.cuenta[f[0]] + ')', onclick: function () { NF.filtro = f[0]; viewNotas(); } }));
     });
     var n = el('div', null,
-      el('button', { class: 'big', onclick: function () { go(viewLibreta, S.init.hoy); } }, el('span', { style: 'font-size:26px', text: '✍️' }), el('span', null, 'Libreta de hoy', el('small', { style: 'display:block;font-weight:400;color:var(--mut)', text: 'Escribe libremente: se guarda sola y queda en el calendario' }))),
+      libretaTarjeta(),
       chips);
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: NF.filtro === 'pendientes' ? 'No tienes notas pendientes. 🎉' : 'No hay notas en este filtro.' }));
     r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { alCambiar: viewNotas })); });
     n.appendChild(el('button', { class: 'btn pri', text: S.init.rol === 'admin' ? '+ Nueva nota (con lista, aviso o para compartir)' : '+ Nueva nota (con lista o para compartir)', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
+    n.appendChild(libretasAnteriores());
     show('Notas diarias', n);
   }).catch(function (e) { toast(e.error, true); back(); });
 }
@@ -973,6 +1006,7 @@ function empHome() {
   var d = S.init;
   var n = el('div', null,
     el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre.split(' ')[0] }),
+    libretaTarjeta(),
     el('button', { class: 'big', onclick: function () { go(viewTrabajosHechos); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Trabajos hechos'),
     el('button', { class: 'big', onclick: function () { go(viewCalendario); } }, el('span', { style: 'font-size:26px', text: '📅' }), 'Calendario'),
     (function () { var b = el('button', { class: 'big', onclick: function () { go(viewAtrasos); }, style: d.atrasados ? 'background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:600' : '' }, el('span', { style: 'font-size:26px', text: '⚠️' }), d.atrasados ? 'Pendientes: ' + d.atrasados + (d.atrasados === 1 ? ' atrasado' : ' atrasados') : 'Pendientes'); return b; })(),
@@ -1459,6 +1493,25 @@ function doneMaq(u) {
 }
 
 /* ---------- arranque ---------- */
+/* ---------- aviso de versión nueva ---------- */
+var VER = { avisado: false, ultimo: 0 };
+function compruebaVersion() {
+  if (VER.avisado || !TOKEN || !VERSION) return;
+  if (Date.now() - VER.ultimo < 20000) return;   // no más de una vez cada 20 s
+  VER.ultimo = Date.now();
+  api('version').then(function (r) { if (r && r.v && r.v !== VERSION) avisoVersion(r.url); }).catch(function () {});
+}
+function avisoVersion(urlApp) {
+  if (VER.avisado) return;
+  VER.avisado = true;
+  var url = (urlApp || '') + '?t=' + encodeURIComponent(TOKEN) + (MAQ ? '&m=' + encodeURIComponent(MAQ) : '');
+  var b = el('div', { id: 'nueva', role: 'button', onclick: function () { try { window.open(url, '_top'); } catch (e) { location.reload(); } } },
+    'Hay una versión nueva de la app', el('small', { text: 'Toca aquí para actualizar (guarda antes lo que estés escribiendo)' }));
+  document.body.appendChild(b);
+}
+document.addEventListener('visibilitychange', function () { if (!document.hidden) compruebaVersion(); });
+setInterval(compruebaVersion, 5 * 60 * 1000);
+
 (function boot() {
   if (!TOKEN) {
     if (MAQ) fatal('Primero, tu enlace personal', 'Es la primera vez que escaneas una máquina en este móvil. Abre una vez el enlace personal que te envió Álvaro; después, el QR de cada máquina abrirá directamente su pantalla de uso.');
@@ -1468,6 +1521,7 @@ function doneMaq(u) {
   loading();
   api('init').then(function (d) {
     S.init = d;
+    compruebaVersion();
     var fn = d.rol === 'admin' ? adminHome : empHome;
     S.stack = [{ fn: fn }];
     if (MAQ) {   // entró escaneando el QR de una máquina: Álvaro ve su ficha; el empleado, registrar el uso

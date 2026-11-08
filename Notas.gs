@@ -272,6 +272,18 @@ function wa_libretaGet_(user, p) {
   return { fecha: fecha, texto: x ? x.texto : '', actualizado: x ? _maq_fecha_(x.act) : '' };
 }
 
+/** Libretas de días anteriores de esta persona (las más recientes primero), con un trozo del texto. */
+function wa_libretaLista_(user, p) {
+  var filas = _lib_filas_().filter(function(x) { return _ag_esMio_(x.autor, user) && x.texto.trim(); });
+  filas.sort(function(a, b) { return a.fecha < b.fecha ? 1 : (a.fecha > b.fecha ? -1 : 0); });
+  return {
+    dias: filas.slice(0, 30).map(function(x) {
+      var t = x.texto.trim();
+      return { fecha: x.fecha, resumen: t.length > 160 ? t.slice(0, 160) + '…' : t, largo: t.length };
+    })
+  };
+}
+
 /** Guarda el texto completo del día (lo llama la app cada pocos segundos mientras se escribe). Texto vacío = borra el día. */
 function wa_libretaGuardar_(user, p) {
   var fecha = _ag_fechaIso_(p.fecha);

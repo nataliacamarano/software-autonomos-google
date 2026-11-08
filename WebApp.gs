@@ -30,7 +30,10 @@ var WA_ = {
   TOKEN_RE:        /^[A-Za-z0-9]{16,128}$/,
   URL_RE:          /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/,
   URL_BASE:        'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec',
-  ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado']
+  ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
+  // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
+  // y avisan de que hay una versión nueva.
+  VERSION:         '51'
 };
 
 // ---- Entrada web ----
@@ -43,6 +46,7 @@ function doGet(e) {
   var tpl = HtmlService.createTemplateFromFile('WebAppUI');
   tpl.tokenJson = JSON.stringify(t);
   tpl.maqJson = JSON.stringify(m);
+  tpl.versionJson = JSON.stringify(WA_.VERSION);
   return tpl.evaluate()
     .setTitle('Álvaro Gestión')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -128,6 +132,7 @@ function _wa_actions_() {
     agBorrar:         { roles: AE,  fn: wa_agBorrar_, write: true },
     libretaGet:       { roles: AE,  fn: wa_libretaGet_ },
     libretaGuardar:   { roles: AE,  fn: wa_libretaGuardar_, write: true },
+    libretaLista:     { roles: AE, fn: wa_libretaLista_ },
     notaLista:        { roles: AE,  fn: wa_notaLista_ },
     notaGuardar:      { roles: AE,  fn: wa_notaGuardar_, write: true },
     notaItem:         { roles: AE, fn: wa_notaItem_, write: true },
@@ -135,6 +140,7 @@ function _wa_actions_() {
     notaBorrar:       { roles: AE,  fn: wa_notaBorrar_, write: true },
     miNotas:          { roles: E,  fn: wa_miNotas_ },
     empCrearTrabajo:  { roles: E,  fn: _wa_empCrearTrabajo_, write: true },
+    version:          { roles: AE, fn: _wa_version_ },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
     enviarParte:      { roles: AE, fn: _wa_enviarParte_,   write: true }
   };
@@ -423,6 +429,11 @@ function _wa_facturasPendientes_() {
 }
 
 // ---- Acciones comunes ----
+
+/** Versión que está publicada ahora y dirección de la app (para recargar). */
+function _wa_version_(user, p) {
+  return { v: WA_.VERSION, url: _wa_baseUrl_() };
+}
 
 function _wa_init_(user, p) {
   var base = { rol: user.rol, nombre: user.nombre, hoy: _wa_hoyISO_() };
