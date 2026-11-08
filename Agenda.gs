@@ -14,17 +14,42 @@
 
 var AG_ = {
   SHEET: 'AGENDA',
-  HEAD: ['ID_Item', 'Fecha', 'Hora', 'Titulo', 'Detalle', 'Hecho', 'Aviso_Min', 'ID_Evento', 'Creado'],
-  COL: { ID: 1, FECHA: 2, HORA: 3, TITULO: 4, DETALLE: 5, HECHO: 6, AVISO: 7, EVENTO: 8, CREADO: 9 },
+  HEAD: ['ID_Item', 'Fecha', 'Hora', 'Titulo', 'Detalle', 'Hecho', 'Aviso_Min', 'ID_Evento', 'Creado', 'Autor'],
+  COL: { ID: 1, FECHA: 2, HORA: 3, TITULO: 4, DETALLE: 5, HECHO: 6, AVISO: 7, EVENTO: 8, CREADO: 9, AUTOR: 10 },
   AVISOS: [0, 5, 10, 15, 30, 60, 120, 1440],   // minutos antes
   DURACION_MIN: 30,
   ID_RE: /^AGE-\d{3,6}$/
 };
 
+/** Añade (si falta) una columna al final de una hoja ya creada, sin tocar nada más. */
+function _ag_aseguraColumna_(sh, col, nombre) {
+  if (sh.getMaxColumns() < col) sh.insertColumnsAfter(sh.getMaxColumns(), col - sh.getMaxColumns());
+  var c = sh.getRange(1, col);
+  if (!String(c.getValue() || '').trim()) c.setValue(nombre);
+}
+
 function _ag_hoja_() {
   var sh = getOrCreateSheet(AG_.SHEET);
-  if (sh.getLastRow() === 0) { sh.appendRow(AG_.HEAD); applyHeaderStyle_(sh, AG_.HEAD.length); }
+  if (sh.getLastRow() === 0) { sh.appendRow(AG_.HEAD); applyHeaderStyle_(sh, AG_.HEAD.length); return sh; }
+  _ag_aseguraColumna_(sh, AG_.COL.AUTOR, 'Autor');   // hojas anteriores a que cada persona tuviera su agenda
   return sh;
+}
+
+/** ¿Es de esta persona? Lo que no tiene autor (anterior a esta versión) es de Álvaro. */
+function _ag_esMio_(autor, user) {
+  return _wa_norm_(autor || 'Álvaro') === _wa_norm_(user.nombre);
+}
+
+/** Trabajos que ve cada persona: Álvaro todos; un empleado solo los suyos (como 1º o 2º empleado). */
+function _ag_trabajosDe_(user) {
+  var todos = _wa_trabajos_();
+  if (user.rol === 'admin') return todos;
+  var yo = _wa_norm_(user.nombre);
+  return todos.filter(function(t) { return _wa_norm_(t.operario) === yo || (t.op2 && _wa_norm_(t.op2) === yo); });
+}
+
+function _ag_misTareas_(user) {
+  return _ag_todos_().filter(function(x) { return _ag_esMio_(x.autor, user); });
 }
 
 function _ag_iso_(d) {
@@ -65,7 +90,8 @@ function _ag_todos_() {
       titulo: String(r[C.TITULO - 1] || ''), detalle: String(r[C.DETALLE - 1] || ''),
       hecho: _wa_bool_(r[C.HECHO - 1]),
       aviso: (aviso === '' || aviso == null || isNaN(Number(aviso))) ? '' : Number(aviso),
-      evento: String(r[C.EVENTO - 1] || '').trim()
+      evento: String(r[C.EVENTO - 1] || '').trim(),
+      autor: String(r[C.AUTOR - 1] || '').trim() || 'Álvaro'
     });
   });
   return out;
@@ -131,19 +157,19 @@ function wa_agMes_(user, p) {
   var dias = {};
   var ahora = _ag_ahora_();
   function dia(k) { return dias[k] || (dias[k] = { t: 0, a: 0, h: 0, n: 0, o: 0 }); }
-  _wa_trabajos_().forEach(function(t) {
+  _ag_trabajosDe_(user).forEach(function(t) {
     var k = _ag_iso_(t.fecha);
     if (k && k.indexOf(mes) === 0) { dia(k).t++; if (_ag_trabajoAtrasado_(t, ahora)) dia(k).o++; }
   });
-  _ag_todos_().forEach(function(x) {
+  _ag_misTareas_(user).forEach(function(x) {
     if (x.fecha && x.fecha.indexOf(mes) === 0) {
       if (x.hecho) dia(x.fecha).h++; else { dia(x.fecha).a++; if (_ag_vencido_(x.fecha, x.hora, ahora)) dia(x.fecha).o++; }
     }
   });
-  _not_todas_().forEach(function(n) {
+  _not_todas_().filter(function(n) { return _not_visible_(n, user); }).forEach(function(n) {
     if (n.fecha && n.fecha.indexOf(mes) === 0 && n.pendiente) { dia(n.fecha).n++; if (n.atrasado) dia(n.fecha).o++; }
   });
-  _lib_filas_().forEach(function(x) {
+  _lib_filas_().filter(function(x) { return _ag_esMio_(x.autor, user); }).forEach(function(x) {
     if (x.fecha.indexOf(mes) === 0 && x.texto.trim()) dia(x.fecha).l = 1;
   });
   return { mes: mes, dias: dias };
@@ -153,7 +179,7 @@ function wa_agMes_(user, p) {
 function wa_agDia_(user, p) {
   var fecha = _ag_fechaIso_(p.fecha);
   var trabajos = [], ahora = _ag_ahora_(), todasMaq = _maq_todas_();
-  _wa_trabajos_().forEach(function(t) {
+  _ag_trabajosDe_(user).forEach(function(t) {
     if (_ag_iso_(t.fecha) !== fecha) return;
     trabajos.push({
       id: t.id, cliente: t.cliente, operario: t.operario, op2: t.op2,
@@ -163,46 +189,46 @@ function wa_agDia_(user, p) {
     });
   });
   trabajos.sort(function(a, b) { return (a.hIni || '99:99') < (b.hIni || '99:99') ? -1 : 1; });
-  var items = _ag_todos_().filter(function(x) { return x.fecha === fecha; }).map(_ag_pub_);
+  var items = _ag_misTareas_(user).filter(function(x) { return x.fecha === fecha; }).map(_ag_pub_);
   items.sort(function(a, b) {
     if (a.hecho !== b.hecho) return a.hecho ? 1 : -1;
     return (a.hora || '99:99') < (b.hora || '99:99') ? -1 : ((a.hora || '99:99') > (b.hora || '99:99') ? 1 : 0);
   });
-  var notas = _not_todas_().filter(function(n) { return n.fecha === fecha; });
+  var notas = _not_todas_().filter(function(n) { return n.fecha === fecha && _not_visible_(n, user); });
   notas.sort(function(a, b) { return a.pendiente !== b.pendiente ? (a.pendiente ? -1 : 1) : (a.id < b.id ? -1 : 1); });
-  var lib = _lib_dia_(fecha);
-  return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(_not_pub_), libreta: lib ? lib.texto : '' };
+  var lib = _lib_dia_(fecha, user);
+  return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(function(n) { return _not_pub_(n, user); }), libreta: lib ? lib.texto : '' };
 }
 
 /** Todo lo que está sin hacer (trabajos, tareas y notas), con su marca de atrasado. */
-function _ag_pendientesTodos_() {
+function _ag_pendientesTodos_(user) {
   var ahora = _ag_ahora_(), out = [];
-  _wa_trabajos_().forEach(function(t) {
+  _ag_trabajosDe_(user).forEach(function(t) {
     if (t.estado !== 'Pendiente' && t.estado !== 'En curso') return;
     var f = _ag_iso_(t.fecha); if (!f) return;
     var hIni = _wa_horaTxt_(t.hIni), hFin = _wa_horaTxt_(t.hFin);
     out.push({ tipo: 'trabajo', id: t.id, titulo: t.cliente, detalle: [t.trabajo, [t.operario, t.op2].filter(Boolean).join(' y ')].filter(Boolean).join(' · '),
-               fecha: f, hora: hIni ? hIni + (hFin ? '–' + hFin : '') : '', horaIni: hIni, orden: hIni || hFin || '', atrasado: _ag_trabajoAtrasado_(t, ahora) });
+               fecha: f, hora: hIni ? hIni + (hFin ? '–' + hFin : '') : '', horaIni: hIni, orden: hIni || hFin || '', atrasado: _ag_trabajoAtrasado_(t, ahora), puede: user.rol === 'admin' });
   });
-  _ag_todos_().forEach(function(x) {
+  _ag_misTareas_(user).forEach(function(x) {
     if (x.hecho || !x.fecha) return;
-    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, horaIni: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora) });
+    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, horaIni: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora), puede: true });
   });
-  _not_todas_().forEach(function(n) {
+  _not_todas_().filter(function(n) { return _not_visible_(n, user); }).forEach(function(n) {
     if (!n.pendiente || !n.fecha) return;
     var pend = n.items.filter(function(i) { return !i.h; }).length;
-    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: n.hora, horaIni: n.hora, orden: n.hora, atrasado: n.atrasado });
+    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: _not_esMia_(n, user) ? n.hora : '', horaIni: _not_esMia_(n, user) ? n.hora : '', orden: n.hora, atrasado: n.atrasado, puede: _not_esMia_(n, user) });
   });
   return { ahora: ahora, items: out };
 }
 
-function _ag_cuentaAtrasados_() {
-  return _ag_pendientesTodos_().items.filter(function(x) { return x.atrasado; }).length;
+function _ag_cuentaAtrasados_(user) {
+  return _ag_pendientesTodos_(user).items.filter(function(x) { return x.atrasado; }).length;
 }
 
 /** Pendientes de Álvaro: atrasado (rojo), para hoy y próximos 7 días. */
 function wa_agPendientes_(user, p) {
-  var r = _ag_pendientesTodos_(), limite = _ag_iso_(new Date(Date.now() + 7 * 86400000));
+  var r = _ag_pendientesTodos_(user), limite = _ag_iso_(new Date(Date.now() + 7 * 86400000));
   function porFecha(a, b) { return a.fecha !== b.fecha ? (a.fecha < b.fecha ? -1 : 1) : ((a.orden || '99:99') < (b.orden || '99:99') ? -1 : ((a.orden || '99:99') > (b.orden || '99:99') ? 1 : 0)); }
   var atrasados = [], hoy = [], proximos = [];
   r.items.forEach(function(x) {
@@ -270,7 +296,7 @@ function wa_agMover_(user, p) {
   if (!AG_.ID_RE.test(id)) _wa_fail_('Esa tarea no existe.');
   var m = _ag_nuevoMomento_(p);
   return _wa_withLock_(function() {
-    var x = _ag_todos_().filter(function(y) { return y.id === id; })[0];
+    var x = _ag_misTareas_(user).filter(function(y) { return y.id === id; })[0];
     if (!x) _wa_fail_('Esa tarea no existe.');
     if (x.hecho) _wa_fail_('Esa tarea ya está hecha.');
     var hora = m.hora === null ? x.hora : m.hora, sh = _ag_hoja_(), C = AG_.COL;
@@ -291,6 +317,7 @@ function wa_agCrear_(user, p) {
   var hora = _wa_hora_(p.hora);
   var aviso = '';
   if (p.aviso !== '' && p.aviso != null) {
+    if (user.rol !== 'admin') _wa_fail_('Los avisos en el móvil solo los puede pedir Álvaro (se envían a su Google Calendar).');
     aviso = Number(p.aviso);
     if (AG_.AVISOS.indexOf(aviso) === -1) _wa_fail_('El aviso no es válido.');
     if (!hora) _wa_fail_('Para pedir un aviso indica la hora.');
@@ -303,7 +330,7 @@ function wa_agCrear_(user, p) {
       var f = _wa_fechaDMY_(fecha), d = _parseReportDate_(f);
       var fila = new Array(AG_.HEAD.length).fill('');
       fila[C.ID - 1] = id; fila[C.FECHA - 1] = d; fila[C.HORA - 1] = ''; fila[C.TITULO - 1] = titulo; fila[C.DETALLE - 1] = detalle;
-      fila[C.HECHO - 1] = false; fila[C.AVISO - 1] = aviso; fila[C.EVENTO - 1] = evento; fila[C.CREADO - 1] = new Date();
+      fila[C.HECHO - 1] = false; fila[C.AVISO - 1] = aviso; fila[C.EVENTO - 1] = evento; fila[C.CREADO - 1] = new Date(); fila[C.AUTOR - 1] = user.nombre;
       sh.appendRow(fila);
       var row = sh.getLastRow();
       sh.getRange(row, C.FECHA).setNumberFormat('dd/MM/yyyy');
@@ -319,7 +346,7 @@ function wa_agHecho_(user, p) {
   if (!AG_.ID_RE.test(id)) _wa_fail_('Esa tarea no existe.');
   var hecho = p.hecho === true;
   return _wa_withLock_(function() {
-    var x = _ag_todos_().filter(function(y) { return y.id === id; })[0];
+    var x = _ag_misTareas_(user).filter(function(y) { return y.id === id; })[0];
     if (!x) _wa_fail_('Esa tarea no existe.');
     var sh = _ag_hoja_();
     sh.getRange(x.row, AG_.COL.HECHO).setValue(hecho);
@@ -332,7 +359,7 @@ function wa_agBorrar_(user, p) {
   var id = String(p.id || '');
   if (!AG_.ID_RE.test(id)) _wa_fail_('Esa tarea no existe.');
   return _wa_withLock_(function() {
-    var x = _ag_todos_().filter(function(y) { return y.id === id; })[0];
+    var x = _ag_misTareas_(user).filter(function(y) { return y.id === id; })[0];
     if (!x) _wa_fail_('Esa tarea no existe.');
     _ag_borraEvento_(x.evento);
     _ag_hoja_().deleteRow(x.row);

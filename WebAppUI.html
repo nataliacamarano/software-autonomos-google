@@ -313,18 +313,18 @@ function viewDia(fecha) {
         el('div', { text: [t.operario, t.op2].filter(Boolean).join(' y ') + (t.estado ? ' · ' + t.estado : '') }),
         t.trabajo ? el('div', { style: 'color:var(--mut)', text: t.trabajo }) : null,
         t.maq && t.maq.length ? el('div', { style: 'color:var(--mut)', text: '🛠️ ' + t.maq.map(function (m) { return m.nombre; }).join(', ') }) : null,
-        (t.operario === S.init.nombre && (t.estado === 'Pendiente' || t.estado === 'En curso')) ? el('button', { type: 'button', class: 'btn pri', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '✔ Completar este trabajo', onclick: function () { go(viewParte, { id: t.id, cliente: t.cliente, maq: t.maq }); } }) : null,
-        el('button', { type: 'button', class: 'btn', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '⏰ Recordarme este trabajo',
-          onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } })));
+        ((t.operario === S.init.nombre || t.op2 === S.init.nombre) && (t.estado === 'Pendiente' || t.estado === 'En curso')) ? el('button', { type: 'button', class: 'btn pri', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '✔ Completar este trabajo', onclick: function () { go(viewParte, { id: t.id, cliente: t.cliente, maq: t.maq }); } }) : null,
+        S.init.rol === 'admin' ? el('button', { type: 'button', class: 'btn', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '⏰ Recordarme este trabajo',
+          onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } }) : null));
     });
-    n.appendChild(el('button', { class: 'btn', text: '+ Añadir un trabajo este día', onclick: function () { go(viewTrabajo, fecha); } }));
+    n.appendChild(el('button', { class: 'btn', text: S.init.rol === 'admin' ? '+ Añadir un trabajo este día' : '+ Apuntar un trabajo este día', onclick: function () { go(S.init.rol === 'admin' ? viewTrabajo : viewReservaTrabajo, fecha); } }));
     n.appendChild(el('h2', { text: '✍️ Libreta del día' }));
     if (r.libreta && r.libreta.trim()) n.appendChild(el('div', { class: 'prevlib', text: r.libreta.length > 600 ? r.libreta.slice(0, 600) + '…' : r.libreta }));
     else n.appendChild(el('p', { class: 'empty', text: 'No hay nada escrito en la libreta de este día.' }));
     n.appendChild(el('button', { class: 'btn', text: r.libreta && r.libreta.trim() ? '✍️ Abrir y seguir escribiendo' : '✍️ Escribir en la libreta de este día', onclick: function () { go(viewLibreta, fecha); } }));
     n.appendChild(el('h2', { text: '📝 Notas del día' }));
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: 'No hay notas este día.' }));
-    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: function () { viewDia(fecha); } })); });
+    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { alCambiar: function () { viewDia(fecha); } })); });
     n.appendChild(el('button', { class: 'btn', text: '+ Añadir una nota este día', onclick: function () { go(viewNotaForm, { fecha: fecha }); } }));
     n.appendChild(el('h2', { text: '⏰ Tareas y recordatorios' }));
     if (!r.items.length) n.appendChild(el('p', { class: 'empty', text: 'No hay tareas ni recordatorios este día.' }));
@@ -355,17 +355,36 @@ function viewAgNueva(pre) {
   var reqId = rid();
   var titulo = inp('text', 'Por ejemplo: llamar al proveedor', pre.titulo || ''), detalle = el('textarea', { placeholder: 'Opcional', value: pre.detalle || '' });
   var fecha = inp('date', '', pre.fecha || S.init.hoy), hora = inp('time'); if (pre.hora) hora.value = pre.hora;
+  var esAdmin = S.init.rol === 'admin';
   var aviso = sel(AVISOS_TXT, '');
   var nota = el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso se crea en tu Google Calendar: te llegará la notificación al móvil (con la app de Google Calendar) aunque esta app esté cerrada. Necesita indicar la hora.' });
   var n = el('div', null, field('¿Qué hay que hacer o recordar?', titulo), field('Detalle', detalle),
-    el('div', { class: 'row2' }, field('Fecha', fecha), field('Hora', hora)), field('Aviso', aviso), nota,
+    el('div', { class: 'row2' }, field('Fecha', fecha), field('Hora', hora)), esAdmin ? field('Aviso', aviso) : null, esAdmin ? nota : null,
     submitBtn('Guardar', function () {
       need(titulo.value.trim().length >= 2, 'Escribe qué hay que hacer o recordar.'); need(fecha.value, 'Elige la fecha.');
       if (aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
-      return api('agCrear', { reqId: reqId, titulo: titulo.value, detalle: detalle.value, fecha: fecha.value, hora: hora.value, aviso: aviso.value })
+      return api('agCrear', { reqId: reqId, titulo: titulo.value, detalle: detalle.value, fecha: fecha.value, hora: hora.value, aviso: esAdmin ? aviso.value : '' })
         .then(function (r) { toast(r.calendario ? 'Guardado con aviso en Google Calendar' : 'Guardado'); AG.mes = fecha.value.slice(0, 7); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) { t.arg = fecha.value; } t.fn(t.arg); });
     }));
   show('Tarea o recordatorio', n);
+}
+
+/* ---------- EMPLEADO: apuntar un trabajo en el calendario (queda pendiente a su nombre) ---------- */
+function viewReservaTrabajo(fechaIni) {
+  var d = S.init, reqId = rid();
+  var cliente = sel(d.clientes, '', 'Elige cliente'), fecha = inp('date', '', fechaIni || d.hoy), i1 = inp('time'), f1 = inp('time');
+  var trabajo = el('textarea', { placeholder: 'Qué hay que hacer' }), ubic = inp('text', 'Opcional');
+  var n = el('div', null, field('Cliente', cliente), field('Fecha', fecha),
+    el('div', { class: 'row2' }, field('Hora inicio (opcional)', i1), field('Hora fin (opcional)', f1)),
+    field('Qué hay que hacer', trabajo), field('Ubicación', ubic),
+    el('p', { class: 'empty', text: 'Queda como pendiente a tu nombre: lo verás en tu calendario y en «Trabajos hechos» para completarlo cuando lo termines, y Álvaro lo verá en el suyo.' }),
+    submitBtn('Guardar trabajo', function () {
+      need(cliente.value, 'Elige un cliente.'); need(fecha.value, 'Elige la fecha.'); need(trabajo.value.trim().length >= 3, 'Cuenta qué hay que hacer.');
+      return api('empCrearTrabajo', { reqId: reqId, cliente: cliente.value, fecha: fecha.value, horaInicio: i1.value, horaFin: f1.value, trabajo: trabajo.value, ubicacion: ubic.value })
+        .then(function () { return refreshInit(); })
+        .then(function () { toast('Trabajo apuntado'); AG.mes = fecha.value.slice(0, 7); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) t.arg = fecha.value; t.fn(t.arg); });
+    }));
+  show('Apuntar un trabajo', n);
 }
 
 /* ---------- ADMIN: pendientes y atrasados ---------- */
@@ -415,7 +434,7 @@ function viewAtrasos() {
       var cuando = x.fecha === r.hoy ? 'Hoy' : fechaLarga(x.fecha).replace(/ de \d{4}$/, '');
       return el('div', { class: 'pen' + (x.atrasado ? ' atras' : ''), onclick: function () { go(viewDia, x.fecha); } },
         el('span', { class: 'ic', text: ICONO_TIPO[x.tipo] || '•' }),
-        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null, el('div', null, mover(x), quitar(x))),
+        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null, x.puede ? el('div', null, mover(x), quitar(x)) : null),
         el('span', { class: 'cuando', text: [cuando, x.hora].filter(Boolean).join(' · ') }));
     }
     function bloque(titulo, lista, vacio) {
@@ -425,7 +444,7 @@ function viewAtrasos() {
       return b;
     }
     var n = el('div', null);
-    n.appendChild(r.atrasados.length ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: '⚠️ Hay ' + r.atrasados.length + (r.atrasados.length === 1 ? ' cosa atrasada' : ' cosas atrasadas') + ': su día o su hora ya pasó y no están hechas. Toca una para abrir su día, o muévela de fecha o cancélala con sus botones.' })
+    n.appendChild(r.atrasados.length ? el('div', { class: 'note', style: 'background:var(--badbg);color:var(--bad)', text: '⚠️ Hay ' + r.atrasados.length + (r.atrasados.length === 1 ? ' cosa atrasada' : ' cosas atrasadas') + ': su día o su hora ya pasó y no están hechas. Toca una para abrir su día' + (S.init.rol === 'admin' ? ', o muévela de fecha o cancélala con sus botones.' : '; las tuyas las puedes mover o cancelar con sus botones.') })
       : el('div', { class: 'note', style: 'background:var(--okbg);color:var(--ok)', text: '✓ No hay nada atrasado.' }));
     n.appendChild(bloque('⚠️ Atrasado', r.atrasados, 'Nada atrasado.'));
     n.appendChild(bloque('Para hoy', r.paraHoy, 'Nada más para hoy.'));
@@ -481,12 +500,14 @@ function progreso(x) { return x.nItems ? el('div', { class: 'pbar' }, el('i', { 
 function notaTarjeta(x, o) {
   o = o || {};
   var tit = el('b', { text: x.titulo });
-  var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') + (o.admin && x.atrasado ? ' atras' : '') });
+  var puede = x.mia !== false;   // las notas de otros (compartidas contigo) no se editan: solo se marcan
+  var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') + (x.atrasado ? ' atras' : '') });
   var cab = el('div', { class: 'nt' }, tit);
-  if (o.admin) { tit.style.cursor = 'pointer'; tit.addEventListener('click', function () { go(viewNotaForm, x); }); cab.appendChild(el('button', { type: 'button', class: 'btn', style: 'width:auto;flex:none;margin:0;padding:4px 12px;font-size:12px', text: 'Editar', onclick: function () { go(viewNotaForm, x); } })); }
+  if (puede) { tit.style.cursor = 'pointer'; tit.addEventListener('click', function () { go(viewNotaForm, x); }); cab.appendChild(el('button', { type: 'button', class: 'btn', style: 'width:auto;flex:none;margin:0;padding:4px 12px;font-size:12px', text: 'Editar', onclick: function () { go(viewNotaForm, x); } })); }
   card.appendChild(cab);
-  var meta = [o.admin && x.atrasado ? '⚠️ Atrasada' : '', o.admin ? fechaLarga(x.fecha).replace(/ de \d{4}$/, '') : '', x.nItems ? x.nHechos + '/' + x.nItems : '',
-    o.admin && x.compartida.length ? '👥 ' + x.compartida.join(', ') : '', x.calendario ? '🔔 ' + x.hora + ' (' + avisoTxt(x.aviso) + ')' : ''].filter(Boolean).join(' · ');
+  var meta = [x.atrasado ? '⚠️ Atrasada' : '', fechaLarga(x.fecha).replace(/ de \d{4}$/, ''), x.nItems ? x.nHechos + '/' + x.nItems : '',
+    puede ? (x.compartida.length ? '👥 ' + x.compartida.map(function (c) { return c === '*' ? 'Todo el equipo' : c; }).join(', ') : '') : 'De ' + x.autor,
+    x.calendario ? '🔔 ' + x.hora + ' (' + avisoTxt(x.aviso) + ')' : ''].filter(Boolean).join(' · ');
   if (meta) card.appendChild(el('div', { class: 'meta', text: meta }));
   if (x.texto) card.appendChild(el('div', { class: 'txt', text: x.texto }));
   function cambia() { if (o.alCambiar) o.alCambiar(); }
@@ -522,8 +543,8 @@ function viewNotas() {
       el('button', { class: 'big', onclick: function () { go(viewLibreta, S.init.hoy); } }, el('span', { style: 'font-size:26px', text: '✍️' }), el('span', null, 'Libreta de hoy', el('small', { style: 'display:block;font-weight:400;color:var(--mut)', text: 'Escribe libremente: se guarda sola y queda en el calendario' }))),
       chips);
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: NF.filtro === 'pendientes' ? 'No tienes notas pendientes. 🎉' : 'No hay notas en este filtro.' }));
-    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: viewNotas })); });
-    n.appendChild(el('button', { class: 'btn pri', text: '+ Nueva nota (con lista, aviso o para compartir)', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
+    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { alCambiar: viewNotas })); });
+    n.appendChild(el('button', { class: 'btn pri', text: S.init.rol === 'admin' ? '+ Nueva nota (con lista, aviso o para compartir)' : '+ Nueva nota (con lista o para compartir)', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
     show('Notas diarias', n);
   }).catch(function (e) { toast(e.error, true); back(); });
 }
@@ -548,11 +569,13 @@ function viewNotaForm(x) {
     filaHecha.style.display = puntos.length ? 'none' : 'flex';
   }
   pinta();
+  var esAdmin = d.rol === 'admin';
   var comp = {}; (x.compartida || []).forEach(function (c) { comp[c] = true; });
+  var opcionesComp = [{ v: '*', t: 'Todo el equipo' }].concat(esAdmin ? [] : [{ v: 'Álvaro', t: 'Álvaro' }]).concat((esAdmin ? d.operarios : d.equipo) || []).map(function (o) { return typeof o === 'object' ? o : { v: o, t: o }; });
   var chips = el('div', { class: 'chips' });
   function pintaComp() {
     chips.innerHTML = '';
-    (d.operarios || []).forEach(function (o) { chips.appendChild(el('button', { type: 'button', class: 'chip' + (comp[o] ? ' on' : ''), text: (comp[o] ? '✓ ' : '') + o, onclick: function () { comp[o] = !comp[o]; pintaComp(); } })); });
+    opcionesComp.forEach(function (o) { chips.appendChild(el('button', { type: 'button', class: 'chip' + (comp[o.v] ? ' on' : ''), text: (comp[o.v] ? '✓ ' : '') + o.t, onclick: function () { comp[o.v] = !comp[o.v]; pintaComp(); } })); });
   }
   pintaComp();
   var hora = inp('time'); if (x.hora) hora.value = x.hora;
@@ -560,15 +583,17 @@ function viewNotaForm(x) {
   var n = el('div', null, field('Título', titulo), field('Fecha', fecha), field('Texto', texto),
     el('label', { text: 'Lista (opcional)' }), caja,
     el('button', { type: 'button', class: 'btn', text: '+ Añadir punto', onclick: function () { puntos.push({ t: '', h: false }); pinta(puntos.length - 1); } }), filaHecha);
-  if ((d.operarios || []).length) { n.appendChild(el('label', { text: 'Compartir con' })); n.appendChild(chips); n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El empleado la verá en su pantalla y podrá marcar los puntos.' })); }
-  n.appendChild(el('div', { class: 'row2' }, field('Recordar a las', hora), field('Aviso', aviso)));
-  n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso va a tu Google Calendar (notificación en el móvil). Necesita la hora.' }));
+  n.appendChild(el('label', { text: 'Compartir con' })); n.appendChild(chips); n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'Elige a todo el equipo' + (esAdmin ? '' : ', a Álvaro') + ' o a personas concretas. Lo verán en sus notas y podrán marcar los puntos; solo tú puedes editarla o borrarla.' }));
+  if (esAdmin) {
+    n.appendChild(el('div', { class: 'row2' }, field('Recordar a las', hora), field('Aviso', aviso)));
+    n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso va a tu Google Calendar (notificación en el móvil). Necesita la hora.' }));
+  }
   n.appendChild(submitBtn(esEdicion ? 'Guardar cambios' : 'Guardar nota', function () {
     need(titulo.value.trim().length >= 2, 'Ponle un título a la nota.'); need(fecha.value, 'Elige la fecha.');
-    if (aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
+    if (esAdmin && aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
     var items = puntos.filter(function (p) { return p.t.trim(); });
     return api('notaGuardar', { reqId: reqId, id: x.id || '', titulo: titulo.value, texto: texto.value, fecha: fecha.value, items: items, hecha: !items.length && hechaChk.checked,
-      compartida: Object.keys(comp).filter(function (k) { return comp[k]; }), hora: hora.value, aviso: aviso.value })
+      compartida: Object.keys(comp).filter(function (k) { return comp[k]; }), hora: esAdmin ? hora.value : '', aviso: esAdmin ? aviso.value : '' })
       .then(function (r) { toast(r.calendario ? 'Nota guardada con aviso en Google Calendar' : 'Nota guardada'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) t.arg = fecha.value; t.fn(t.arg); });
   }));
   if (esEdicion) {
@@ -927,13 +952,32 @@ function verEnlace(x) {
 }
 
 /* ---------- EMPLEADO ---------- */
+/* Empleado: lo que ha hecho. Primero los trabajos que le asignó Álvaro; si no está, "Nuevo trabajo". */
+function viewTrabajosHechos() {
+  var d = S.init;
+  var n = el('div', null,
+    el('p', { class: 'empty', style: 'margin:0 0 8px', text: 'Elige el trabajo que te asignó Álvaro y complétalo. Si el trabajo que has hecho no está en la lista, pulsa «Nuevo trabajo».' }));
+  if (!d.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes trabajos asignados pendientes.' }));
+  var l = el('div', { class: 'list' });
+  d.trabajos.forEach(function (t) {
+    l.appendChild(el('div', { class: 'it', onclick: function () { go(viewParte, t); } },
+      el('div', { class: 'grow' }, el('b', { text: t.cliente }), el('span', { text: [t.trabajo || 'Sin descripción', t.fecha, t.hora, t.maq && t.maq.length ? '🛠️ ' + t.maq.map(function (m) { return m.nombre; }).join(', ') : ''].filter(Boolean).join(' · ') })),
+      el('span', { class: 'pill ' + (t.estado === 'En curso' ? 'p-acc' : 'p-warn'), text: t.estado })));
+  });
+  n.appendChild(l);
+  n.appendChild(el('button', { class: 'btn pri', text: '+ Nuevo trabajo', onclick: function () { go(viewParte, null); } }));
+  show('Trabajos hechos', n);
+}
+
 function empHome() {
   var d = S.init;
   var n = el('div', null,
     el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre.split(' ')[0] }),
-    el('button', { class: 'big', onclick: function () { go(viewParte, null); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Registrar mi parte de hoy'),
+    el('button', { class: 'big', onclick: function () { go(viewTrabajosHechos); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Trabajos hechos'),
+    el('button', { class: 'big', onclick: function () { go(viewCalendario); } }, el('span', { style: 'font-size:26px', text: '📅' }), 'Calendario'),
+    (function () { var b = el('button', { class: 'big', onclick: function () { go(viewAtrasos); }, style: d.atrasados ? 'background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:600' : '' }, el('span', { style: 'font-size:26px', text: '⚠️' }), d.atrasados ? 'Pendientes: ' + d.atrasados + (d.atrasados === 1 ? ' atrasado' : ' atrasados') : 'Pendientes'); return b; })(),
+    el('button', { class: 'big', onclick: function () { go(viewNotas); } }, el('span', { style: 'font-size:26px', text: '📝' }), 'Notas y libreta'),
     el('button', { class: 'big', onclick: function () { go(viewMaquinas); } }, el('span', { style: 'font-size:26px', text: '🛠️' }), 'Maquinaria: ver y registrar uso'),
-    el('button', { class: 'big', onclick: function () { go(viewMisNotas); } }, el('span', { style: 'font-size:26px', text: '📝' }), 'Notas compartidas conmigo'),
     el('h2', { text: 'Trabajos por hacer' }),
     el('p', { class: 'empty', style: 'margin:-4px 0 6px', text: 'Los que te asigna Álvaro. Toca uno para completarlo cuando lo termines.' }));
   if (!d.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes trabajos pendientes.' }));
@@ -980,7 +1024,7 @@ function viewParte(t) {
         trabajo: trabajo.value, incidencias: incid.value, estado: estado.value, materiales: mat.value, fotos: fotos.get(), maquinas: maq.get(), dejadas: dej.get() })
         .then(function () { done(estado.value === 'Completado' ? 'Trabajo cerrado' : 'Parte enviado', d.rol === 'admin' ? 'Queda guardado en la hoja de cálculo.' : 'Álvaro ya lo puede ver.'); });
     }));
-  show(t ? 'Completar trabajo' : 'Mi parte de hoy', n);
+  show(t ? 'Completar trabajo' : 'Nuevo trabajo hecho', n);
 }
 
 /* ---------- MAQUINARIA ---------- */
@@ -1008,6 +1052,11 @@ function maqThumb(m) {
 function maqRota(m) { return m.estado === 'Rota' || m.estado === 'En reparación'; }
 
 /* Selector múltiple de maquinaria para trabajos (solo las utilizables) y partes (todas). */
+/** " — Stihl FS 94 · Desbrozadora": modelo y qué es, para reconocer la máquina. */
+function maqDesc(m) {
+  var partes = [m.marca, m.tipo].filter(Boolean).filter(function (x) { return (m.nombre || '').toLowerCase().indexOf(String(x).toLowerCase()) === -1; });
+  return partes.length ? ' — ' + partes.join(' · ') : '';
+}
 function maqChips(lista, todas, opt) {
   opt = opt || {};
   var marcadas = {}; (opt.pre || []).forEach(function (id) { marcadas[id] = true; });
@@ -1018,7 +1067,7 @@ function maqChips(lista, todas, opt) {
     box.innerHTML = '';
     disp.forEach(function (m) {
       box.appendChild(el('button', { type: 'button', class: 'chip' + (marcadas[m.id] ? ' on' : ''),
-        text: (marcadas[m.id] ? '✓ ' : '') + m.nombre + (maqRota(m) ? ' (' + m.estado.toLowerCase() + ')' : ''),
+        text: (marcadas[m.id] ? '✓ ' : '') + m.nombre + maqDesc(m) + (maqRota(m) ? ' (' + m.estado.toLowerCase() + ')' : ''),
         onclick: function () { marcadas[m.id] = !marcadas[m.id]; pintar(); if (opt.onChange) opt.onChange(); } }));
     });
   }
@@ -1047,7 +1096,8 @@ function dejadasUI(maq, requerido) {
         b.addEventListener('click', function () { st.dejada = o; cajaLugar.style.display = o === 'En otro sitio' ? 'block' : 'none'; [].forEach.call(cajas.children, function (c) { c.classList.toggle('on', c === b); }); });
         cajas.appendChild(b);
       });
-      caja.appendChild(el('div', { style: 'background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0' }, el('b', { text: nombreDe(id) }), cajas, cajaLugar));
+      var mm = (S.init.maquinas || []).filter(function (x) { return x.id === id; })[0] || {};
+      caja.appendChild(el('div', { style: 'background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0' }, el('b', { text: nombreDe(id) }), maqDesc(mm) ? el('small', { style: 'display:block;color:var(--mut)', text: maqDesc(mm).replace(/^ — /, '') }) : null, cajas, cajaLugar));
     });
   }
   return {

@@ -116,24 +116,25 @@ function _wa_actions_() {
     maqReparacion:    { roles: A,  fn: wa_maqReparacion_, write: true },
     maqReparacionBorrar: { roles: A, fn: wa_maqReparacionBorrar_, write: true },
     maqBaja:          { roles: A,  fn: wa_maqBaja_,   write: true },
-    agMes:            { roles: A,  fn: wa_agMes_ },
-    agPendientes:     { roles: A,  fn: wa_agPendientes_ },
+    agMes:            { roles: AE,  fn: wa_agMes_ },
+    agPendientes:     { roles: AE,  fn: wa_agPendientes_ },
     trabajoCancelar:  { roles: A,  fn: wa_trabajoCancelar_, write: true },
     trabajoMover:     { roles: A,  fn: wa_trabajoMover_, write: true },
-    agMover:          { roles: A,  fn: wa_agMover_, write: true },
-    notaMover:        { roles: A,  fn: wa_notaMover_, write: true },
-    agDia:            { roles: A,  fn: wa_agDia_ },
-    agCrear:          { roles: A,  fn: wa_agCrear_, write: true },
-    agHecho:          { roles: A,  fn: wa_agHecho_, write: true },
-    agBorrar:         { roles: A,  fn: wa_agBorrar_, write: true },
-    libretaGet:       { roles: A,  fn: wa_libretaGet_ },
-    libretaGuardar:   { roles: A,  fn: wa_libretaGuardar_, write: true },
-    notaLista:        { roles: A,  fn: wa_notaLista_ },
-    notaGuardar:      { roles: A,  fn: wa_notaGuardar_, write: true },
+    agMover:          { roles: AE,  fn: wa_agMover_, write: true },
+    notaMover:        { roles: AE,  fn: wa_notaMover_, write: true },
+    agDia:            { roles: AE,  fn: wa_agDia_ },
+    agCrear:          { roles: AE,  fn: wa_agCrear_, write: true },
+    agHecho:          { roles: AE,  fn: wa_agHecho_, write: true },
+    agBorrar:         { roles: AE,  fn: wa_agBorrar_, write: true },
+    libretaGet:       { roles: AE,  fn: wa_libretaGet_ },
+    libretaGuardar:   { roles: AE,  fn: wa_libretaGuardar_, write: true },
+    notaLista:        { roles: AE,  fn: wa_notaLista_ },
+    notaGuardar:      { roles: AE,  fn: wa_notaGuardar_, write: true },
     notaItem:         { roles: AE, fn: wa_notaItem_, write: true },
     notaHecha:        { roles: AE, fn: wa_notaHecha_, write: true },
-    notaBorrar:       { roles: A,  fn: wa_notaBorrar_, write: true },
+    notaBorrar:       { roles: AE,  fn: wa_notaBorrar_, write: true },
     miNotas:          { roles: E,  fn: wa_miNotas_ },
+    empCrearTrabajo:  { roles: E,  fn: _wa_empCrearTrabajo_, write: true },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
     enviarParte:      { roles: AE, fn: _wa_enviarParte_,   write: true }
   };
@@ -436,13 +437,15 @@ function _wa_init_(user, p) {
     base.estadosMaq = MAQ_.ESTADOS;
     base.combustibles = MAQ_.COMBUSTIBLES;
     base.estadosParte = WA_.ESTADOS_PARTE;   // Álvaro también puede cerrar sus propios trabajos
-    try { base.atrasados = _ag_cuentaAtrasados_(); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
+    try { base.atrasados = _ag_cuentaAtrasados_(user); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
     base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
     return base;
   }
   base.clientes = _wa_listaClientesActivos_();
   base.estadosParte = WA_.ESTADOS_PARTE;
   base.maquinas = _maq_activasCorto_();
+  base.equipo = _wa_listaOperariosActivos_().filter(function(o) { return _wa_norm_(o) !== _wa_norm_(user.nombre); });
+  try { base.atrasados = _ag_cuentaAtrasados_(user); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
   var mi = _wa_miInicio_(user, {});
   base.trabajos = mi.trabajos; base.recientes = mi.recientes; base.horasMes = mi.horasMes;
   return base;
@@ -904,6 +907,28 @@ function _wa_miInicio_(user, p) {
       return { id: t.id, cliente: t.cliente, fecha: _wa_fechaTxt_(t.fecha), horas: _wa_redondea_(_wa_horasDe_(t, n)) };
     });
   return { trabajos: asignados, recientes: recientes, horasMes: _wa_redondea_(horas) };
+}
+
+/** El empleado apunta un trabajo (por ejemplo, uno futuro): queda Pendiente a su nombre y lo ve Álvaro en su calendario. */
+function _wa_empCrearTrabajo_(user, p) {
+  var cliente = _wa_enActivos_(p.cliente, _wa_listaClientesActivos_());
+  if (!cliente) _wa_fail_('Elige un cliente de la lista.');
+  var fecha = _wa_fechaDMY_(p.fecha);
+  var h1 = _wa_hora_(p.horaInicio), h2 = _wa_hora_(p.horaFin);
+  if (h2 && !h1) _wa_fail_('Pon también la hora de inicio, o deja las dos vacías.');
+  if (h1 && h2 && _wa_minutos_(h2) <= _wa_minutos_(h1)) _wa_fail_('La hora de fin debe ser posterior a la de inicio.');
+  var texto = _wa_s_(p.trabajo, 2000);
+  if (texto.length < 3) _wa_fail_('Cuenta qué hay que hacer.');
+  return _wa_withLock_(function() {
+    var id = nextId('TRABAJOS', 'TRA');
+    var r = createTrabajo({
+      id: id, cliente: cliente, operario: user.nombre, fechaTrabajo: fecha, horaInicio: h1, horaFin: h2,
+      trabajoRealizado: texto, ubicacion: _wa_s_(p.ubicacion, 250), estado: 'Pendiente'
+    });
+    if (!r.success) _wa_fail_(r.error || 'No se pudo guardar el trabajo.');
+    logEvent('INFO', 'wa_empCrearTrabajo', id + ' apuntado por ' + user.nombre, cliente);
+    return { id: id };
+  });
 }
 
 function _wa_enviarParte_(user, p) {

@@ -198,7 +198,7 @@ function _maq_ordenadas_(lista) {
 function _maq_activasCorto_() {
   try {
     return _maq_ordenadas_(_maq_todas_().filter(function(m) { return m.activo; }))
-      .map(function(m) { return { id: m.id, nombre: m.nombre, estado: m.estado }; });
+      .map(function(m) { return { id: m.id, nombre: m.nombre, estado: m.estado, tipo: m.tipo, marca: m.marca }; });
   } catch (e) {
     logEvent('WARN', '_maq_activasCorto_', e.message, '');
     return [];
