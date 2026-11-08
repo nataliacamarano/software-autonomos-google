@@ -717,6 +717,16 @@ function viewMaquinas() {
   }).catch(function (e) { toast(e.error, true); back(); });
 }
 
+/* Historial de reparaciones: fecha, qué se reparó y quién la reparó. */
+function repLista(lista) {
+  var box = el('div');
+  if (!lista || !lista.length) { box.appendChild(el('p', { class: 'empty', text: 'Todavía no hay reparaciones anotadas.' })); return box; }
+  lista.forEach(function (x) {
+    box.appendChild(el('div', { class: 'hist' }, el('b', { text: '🔧 ' + x.fecha + ' · ' + x.quien }), el('div', { class: 'why', text: x.que })));
+  });
+  return box;
+}
+
 function viewMaqFicha(id) {
   loading('Máquina');
   api('maqFicha', { id: id }).then(function (r) {
@@ -748,8 +758,12 @@ function viewMaqFicha(id) {
       });
       n.appendChild(baja);
     }
+    if (admin) {
+      n.appendChild(el('h2', { text: 'Reparaciones' }));
+      n.appendChild(repLista(r.reparaciones));
+    }
     if (r.usos && r.usos.length) {
-      n.appendChild(el('h2', { text: admin ? 'Historial' : 'Últimos usos' }));
+      n.appendChild(el('h2', { text: admin ? 'Historial de usos' : 'Últimos usos' }));
       r.usos.forEach(function (u) {
         var cambio = u.origen === 'Cambio de estado';
         n.appendChild(el('div', { class: 'hist' },
@@ -842,6 +856,37 @@ function viewMaqNueva() {
   show('Nueva máquina', n);
 }
 
+/* En "Editar máquina": ver las reparaciones y anotar una nueva (se guarda al momento, aparte de los demás datos). */
+function repSeccion(m) {
+  var d = S.init, lista = el('div'), estadoActual = m.estado, marcadoUnaVez = false;
+  var fecha = inp('date'); fecha.value = d.hoy; fecha.setAttribute('max', d.hoy);
+  var que = el('textarea', { placeholder: 'Por ejemplo: cambiado el cable del acelerador y limpiado el carburador' });
+  var quien = inp('text', 'Persona o taller que la reparó'), dl = el('datalist', { id: 'quienrep' });
+  quien.setAttribute('list', 'quienrep'); (d.operarios || []).concat(['Taller', 'Álvaro']).forEach(function (o) { dl.appendChild(el('option', { value: o })); });
+  var chk = el('input', { type: 'checkbox', style: 'width:auto' });
+  var filaChk = el('label', { style: 'display:none;align-items:center;gap:10px;color:var(--txt);font-size:14px;margin:8px 0 0' }, chk, 'Ya está reparada: dejarla como Disponible');
+  function opcionDisponible() {
+    var rota = m.activo && (estadoActual === 'Rota' || estadoActual === 'En reparación');
+    filaChk.style.display = rota ? 'flex' : 'none';
+    if (rota && !marcadoUnaVez) { chk.checked = true; marcadoUnaVez = true; }
+  }
+  function carga() {
+    api('maqFicha', { id: m.id }).then(function (r) { lista.innerHTML = ''; lista.appendChild(repLista(r.reparaciones)); estadoActual = r.maquina.estado; opcionDisponible(); })
+      .catch(function () { lista.textContent = 'No se pudo cargar el historial.'; });
+  }
+  var rq = rid();
+  var btn = submitBtn('Guardar reparación', function () {
+    need(fecha.value, 'Indica la fecha de la reparación.'); need(que.value.trim().length >= 3, 'Cuenta qué se ha reparado.'); need(quien.value.trim().length >= 2, 'Indica quién la ha reparado.');
+    return api('maqReparacion', { reqId: rq, id: m.id, fecha: fecha.value, que: que.value, quien: quien.value, reparada: filaChk.style.display !== 'none' && chk.checked })
+      .then(function () { rq = rid(); que.value = ''; return refreshInit(); }).then(function () { toast('Reparación anotada'); carga(); });
+  });
+  btn.className = 'btn';
+  carga();
+  return el('div', null, el('h2', { text: 'Reparaciones' }), lista, dl,
+    el('div', { class: 'note', style: 'background:#fff;border:1px solid var(--line);color:var(--txt)' },
+      el('b', { text: 'Anotar una reparación' }), field('Fecha', fecha), field('¿Qué se ha reparado?', que), field('¿Quién la ha reparado?', quien), filaChk, btn));
+}
+
 function viewMaqEditar(m) {
   var reqId = rid();
   var nom = inp('text', '', m.nombre), tipo = inp('text', '', m.tipo), marca = inp('text', '', m.marca), serie = inp('text', '', m.serie), notas = el('textarea', { value: m.notas || '' });
@@ -851,6 +896,7 @@ function viewMaqEditar(m) {
   var enlace = inp('url', 'https://… (opcional)', m.enlace || ''); enlace.setAttribute('inputmode', 'url');
   var n = el('div', null, foto.node, field('Nombre', nom), el('div', { class: 'row2' }, field('Tipo', tipo), field('Marca y modelo', marca)), field('Combustible', comb),
     el('div', { class: 'row2' }, field('Fecha de compra', compra), field('Nº de serie', serie)), field('Enlace de la tienda', enlace), field('Notas', notas),
+    repSeccion(m),
     submitBtn('Guardar cambios', function () {
       need(nom.value.trim(), 'Escribe el nombre de la máquina.'); need(!foto.isBusy(), 'Espera a que termine de cargar la foto.');
       var f = foto.get();

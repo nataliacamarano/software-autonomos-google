@@ -19,6 +19,8 @@
 var MAQ_ = {
   SHEET:      'MAQUINARIA',
   SHEET_USOS: 'MAQ_USOS',
+  SHEET_REP:  'MAQ_REPARACIONES',
+  HEAD_REP: ['ID_Reparacion', 'Fecha', 'ID_Maquina', 'Maquina', 'Que_Se_Reparo', 'Quien_La_Reparo', 'Registrado_Por', 'Registrado_El'],
   HEAD: ['ID_Maquina', 'Fecha_Alta', 'Nombre', 'Tipo', 'Marca_Modelo', 'Num_Serie', 'Estado', 'Ubicacion',
          'Cliente_Actual', 'Ultimo_Operario', 'Ultimo_Uso', 'Foto_URL', 'Foto_ID', 'Notas', 'Activo', 'Fecha_Compra', 'Enlace', 'Combustible'],
   COL: { ID: 1, ALTA: 2, NOMBRE: 3, TIPO: 4, MARCA: 5, SERIE: 6, ESTADO: 7, UBIC: 8, CLIENTE: 9,
@@ -72,6 +74,37 @@ function _maq_hojaUsos_() {
   var sh = getOrCreateSheet(MAQ_.SHEET_USOS);
   if (sh.getLastRow() === 0) { sh.appendRow(MAQ_.HEAD_USOS); applyHeaderStyle_(sh, MAQ_.HEAD_USOS.length); }
   return sh;
+}
+
+function _maq_hojaRep_() {
+  var sh = getOrCreateSheet(MAQ_.SHEET_REP);
+  if (sh.getLastRow() === 0) { sh.appendRow(MAQ_.HEAD_REP); applyHeaderStyle_(sh, MAQ_.HEAD_REP.length); }
+  return sh;
+}
+
+/** Fecha (ISO yyyy-mm-dd) que no puede ser futura. */
+function _maq_fechaPasada_(iso, que) {
+  var s = String(iso == null ? '' : iso).trim();
+  if (!s) _wa_fail_('Indica ' + que + '.');
+  var d = _parseReportDate_(_wa_fechaDMY_(s));
+  if (!d || d.getFullYear() < 1950) _wa_fail_('La fecha no es válida.');
+  var manana = new Date(); manana.setHours(0, 0, 0, 0); manana.setDate(manana.getDate() + 1);
+  if (d.getTime() >= manana.getTime()) _wa_fail_('La fecha no puede ser futura.');
+  return d;
+}
+
+/** Historial de reparaciones de una máquina, la más reciente primero. */
+function _maq_reparaciones_(idMaq, n) {
+  var sh = _maq_hojaRep_(), last = sh.getLastRow();
+  if (last < 2) return [];
+  var vals = sh.getRange(2, 1, last - 1, MAQ_.HEAD_REP.length).getValues(), out = [];
+  vals.forEach(function(r) {
+    if (String(r[2]) !== idMaq) return;
+    var t = r[1] && r[1].getTime ? r[1].getTime() : 0;
+    out.push({ t: t, id: String(r[0]), fecha: _maq_fechaTxt_(r[1], 'dd/MM/yyyy'), que: String(r[4] || ''), quien: String(r[5] || ''), registro: String(r[6] || '') });
+  });
+  out.sort(function(a, b) { return b.t - a.t || (a.id < b.id ? 1 : -1); });
+  return out.slice(0, n).map(function(x) { return { id: x.id, fecha: x.fecha, que: x.que, quien: x.quien, registro: x.registro }; });
 }
 
 function _maq_fecha_(v) {
@@ -225,7 +258,8 @@ function wa_maqLista_(user, p) {
 
 function wa_maqFicha_(user, p) {
   var m = _maq_buscar_(p.id, user.rol !== 'admin');
-  return { maquina: _maq_pub_(m), usos: _maq_usos_(m.id, user.rol === 'admin' ? 15 : 3) };
+  var admin = user.rol === 'admin';
+  return { maquina: _maq_pub_(m), usos: _maq_usos_(m.id, admin ? 15 : 3), reparaciones: admin ? _maq_reparaciones_(m.id, 30) : [] };
 }
 
 // ---- Acciones: alta y edición (Álvaro) ----
@@ -282,6 +316,32 @@ function wa_maqEditar_(user, p) {
     sh.getRange(m.row, C.NOTAS).setValue(_wa_s_(d.notas, 500));
     if (fotos.length) sh.getRange(m.row, C.FOTO_ID).setValue(_maq_subirFoto_(fotos[0], m.id));
     return { ok: true };
+  });
+}
+
+/**
+ * Álvaro anota una reparación: cuándo, qué se reparó y quién la reparó (taller o persona).
+ * Si la máquina figuraba rota o en reparación y marca "ya está reparada", pasa a Disponible.
+ */
+function wa_maqReparacion_(user, p) {
+  var fecha = _maq_fechaPasada_(p.fecha, 'la fecha de la reparación');
+  var que = _wa_s_(p.que, 300);
+  if (que.length < 3) _wa_fail_('Cuenta qué se ha reparado.');
+  var quien = _maq_limpia_(p.quien, 80);
+  if (quien.length < 2) _wa_fail_('Indica quién la ha reparado (persona o taller).');
+  return _wa_withLock_(function() {
+    var m = _maq_buscar_(p.id, false), C = MAQ_.COL, sh = _maq_hoja_();
+    var id = nextId(MAQ_.SHEET_REP, 'REP'), rep = _maq_hojaRep_();
+    rep.appendRow([id, fecha, m.id, m.nombre, que, quien, user.nombre, new Date()]);
+    rep.getRange(rep.getLastRow(), 2).setNumberFormat('dd/MM/yyyy');
+    var estado = m.estado;
+    if (p.reparada === true && m.activo && (m.estado === 'Rota' || m.estado === 'En reparación')) {
+      estado = 'Disponible';
+      sh.getRange(m.row, C.ESTADO).setValue(estado);
+      _maq_registraUso_(m, '', '', user.nombre, m.ubic, false, 'Reparada por ' + quien + ': ' + que, estado, 'Cambio de estado');
+    }
+    logEvent('INFO', 'wa_maqReparacion', m.id + ' reparada por ' + quien, que);
+    return { ok: true, id: id, estado: estado };
   });
 }
 
