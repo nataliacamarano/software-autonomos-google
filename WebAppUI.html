@@ -939,6 +939,93 @@ function viewGestion() {
   }).catch(function (e) { toast(e.error, true); back(); });
 }
 
+/* ---------- Trabajos y horas de un cliente o empleado en un periodo ---------- */
+var PER = { modo: 'mes', y: 0, m: 0, desde: '', hasta: '' };
+function fechaCorta(iso) { var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+
+function viewPeriodo(x) {
+  var esE = G.tab === 'e', hoy = S.init.hoy;
+  if (!PER.y) { PER.y = +hoy.slice(0, 4); PER.m = +hoy.slice(5, 7) - 1; PER.desde = hoy.slice(0, 8) + '01'; PER.hasta = hoy; }
+  var res = el('div'), ctl = el('div');
+  function rango() {
+    if (PER.modo === 'mes') return { desde: isoDe(PER.y, PER.m, 1), hasta: isoDe(PER.y, PER.m, new Date(PER.y, PER.m + 1, 0).getDate()) };
+    return { desde: PER.desde, hasta: PER.hasta };
+  }
+  function cambiaMes(d) { var dt = new Date(PER.y, PER.m + d, 1); PER.y = dt.getFullYear(); PER.m = dt.getMonth(); controles(); carga(); }
+  function controles() {
+    ctl.innerHTML = '';
+    ctl.appendChild(el('div', { class: 'seg' },
+      el('button', { class: PER.modo === 'mes' ? 'on' : '', text: 'Por mes', onclick: function () { PER.modo = 'mes'; controles(); carga(); } }),
+      el('button', { class: PER.modo === 'fechas' ? 'on' : '', text: 'De una fecha a otra', onclick: function () { PER.modo = 'fechas'; controles(); carga(); } })));
+    if (PER.modo === 'mes') {
+      var selM = sel(MESES.map(function (nm, i) { return { v: String(i), t: nm.charAt(0).toUpperCase() + nm.slice(1) }; }), String(PER.m));
+      var anios = []; for (var a = +hoy.slice(0, 4) - 4; a <= +hoy.slice(0, 4) + 1; a++) anios.push(String(a));
+      var selY = sel(anios, String(PER.y));
+      selM.addEventListener('change', function () { PER.m = +selM.value; carga(); });
+      selY.addEventListener('change', function () { PER.y = +selY.value; carga(); });
+      ctl.appendChild(el('div', { class: 'mes', style: 'margin-top:10px' },
+        el('button', { type: 'button', 'aria-label': 'Mes anterior', text: '‹', onclick: function () { cambiaMes(-1); } }), selM, selY,
+        el('button', { type: 'button', 'aria-label': 'Mes siguiente', text: '›', onclick: function () { cambiaMes(1); } })));
+    } else {
+      var d1 = inp('date', '', PER.desde), d2 = inp('date', '', PER.hasta);
+      d1.addEventListener('change', function () { PER.desde = d1.value; if (PER.desde && PER.hasta) carga(); });
+      d2.addEventListener('change', function () { PER.hasta = d2.value; if (PER.desde && PER.hasta) carga(); });
+      ctl.appendChild(el('div', { class: 'row2', style: 'margin-top:10px' }, field('Desde', d1), field('Hasta', d2)));
+    }
+  }
+  var ultima = 0;
+  function carga() {
+    var r = rango(), mi = ++ultima;
+    if (!r.desde || !r.hasta) { res.innerHTML = ''; return; }
+    res.innerHTML = ''; res.appendChild(el('div', { class: 'center', style: 'padding:30px 0' }, el('span', { class: 'spin' })));
+    api('gestionPeriodo', { tipo: G.tab, id: x.id, desde: r.desde, hasta: r.hasta }).then(function (d) {
+      if (mi !== ultima) return;   // llegó tarde: ya se pidió otro periodo
+      res.innerHTML = '';
+      var rs = d.resumen;
+      res.appendChild(el('p', { class: 'empty', style: 'margin:10px 0 6px', text: fechaCorta(d.desde) + ' → ' + fechaCorta(d.hasta) }));
+      res.appendChild(el('div', { class: 'grid2' },
+        el('div', { class: 'metric' }, el('small', { text: 'Trabajos hechos' }), el('b', { text: rs.hechos })),
+        el('div', { class: 'metric' }, el('small', { text: 'Horas' }), el('b', { text: horas(rs.horas) }))));
+      if (rs.sinCompletar) res.appendChild(el('p', { class: 'empty', style: 'margin:6px 0 0', text: '+ ' + rs.sinCompletar + (rs.sinCompletar === 1 ? ' trabajo sin completar (pendiente o en curso), que no cuenta en las horas.' : ' trabajos sin completar (pendientes o en curso), que no cuentan en las horas.') }));
+      if (!esE) {
+        res.appendChild(el('div', { class: 'grid2', style: 'margin-top:10px' },
+          el('div', { class: 'metric' }, el('small', { text: 'Sin facturar' }), el('b', { style: rs.sinFacturar ? 'color:var(--warn)' : '', text: rs.sinFacturar })),
+          el('div', { class: 'metric' }, el('small', { text: 'Pendientes de pago' }), el('b', { style: rs.pendientesPago ? 'color:var(--bad)' : '', text: rs.pendientesPago }), rs.importePendiente ? el('small', { text: eur(rs.importePendiente) + ' por cobrar' }) : null)));
+        res.appendChild(el('p', { class: 'empty', style: 'margin:6px 0 0', text: rs.facturados + ' en factura o proforma · ' + rs.pagados + ' ya pagados' }));
+      }
+      res.appendChild(el('h2', { text: 'Trabajos (' + d.trabajos.length + ')' }));
+      if (!d.trabajos.length) res.appendChild(el('p', { class: 'empty', text: 'No hay trabajos en estas fechas.' }));
+      d.trabajos.forEach(function (t) {
+        var pill = t.estado === 'Completado' ? 'p-ok' : (t.estado === 'En curso' ? 'p-acc' : 'p-warn');
+        var fact = null;
+        if (!esE && t.estado === 'Completado') {
+          fact = t.factura
+            ? el('span', { class: 'pill ' + (t.factura.pago === 'pagada' ? 'p-ok' : 'p-bad'), text: (t.factura.tipo === 'Proforma' ? 'Proforma ' : 'Factura ') + t.factura.id + ' · ' + (t.factura.pago === 'pagada' ? 'pagada' : 'pendiente de pago') })
+            : el('span', { class: 'pill p-warn', text: 'Sin facturar' });
+        }
+        res.appendChild(el('div', { class: 'pen', onclick: function () { go(viewDia, t.fecha); } },
+          el('span', { class: 'ic', text: '📋' }),
+          el('div', { class: 'grow' },
+            el('b', { text: fechaCorta(t.fecha) + (esE ? ' · ' + t.cliente : '') }),
+            t.trabajo ? el('small', { text: t.trabajo }) : null,
+            el('small', { text: [t.operarios, t.hIni ? t.hIni + (t.hFin ? '–' + t.hFin : '') : '', t.horas ? horas(t.horas) : ''].filter(Boolean).join(' · ') }),
+            fact ? el('div', { style: 'margin-top:4px' }, fact) : null),
+          el('span', { class: 'pill ' + pill, text: t.estado })));
+      });
+      if (!esE && d.documentos && d.documentos.length) {
+        res.appendChild(el('h2', { text: 'Facturas y proformas que intervienen' }));
+        d.documentos.forEach(function (c) {
+          res.appendChild(el('div', { class: 'hist' }, el('b', { text: (c.tipo === 'Proforma' ? 'Proforma ' : 'Factura ') + c.id }),
+            el('span', { text: ' · ' + eur(c.total) + ' · ' }), el('span', { class: 'pill ' + (c.pago === 'pagada' ? 'p-ok' : 'p-bad'), text: c.pago === 'pagada' ? 'pagada' : 'pendiente de pago' })));
+        });
+      }
+    }).catch(function (e) { if (mi !== ultima) return; res.innerHTML = ''; res.appendChild(el('p', { class: 'empty', text: (e && e.error) || 'No se pudo cargar.' })); });
+  }
+  controles();
+  show(x.label, el('div', null, el('p', { class: 'empty', style: 'margin:0 0 8px', text: esE ? 'Trabajos y horas de este empleado.' : 'Trabajos y horas de este cliente, y si están facturados y cobrados.' }), ctl, res));
+  carga();
+}
+
 function viewFicha(x) {
   var esE = G.tab === 'e', p = ESTADO_PILL[x.estado];
   var notas = {
@@ -958,6 +1045,7 @@ function viewFicha(x) {
         : [el('div', { class: 'kv' }, el('span', { text: 'Dirección' }), el('span', { text: x.dir || '—' })),
            el('div', { class: 'kv' }, el('span', { text: 'CIF / NIF' }), el('span', { text: x.cif || '—' })),
            el('div', { class: 'kv' }, el('span', { text: 'Trabajos' }), el('span', { text: x.nTrabajos }))],
+    el('button', { class: 'btn pri', text: '📊 Trabajos y horas por fechas', onclick: function () { go(viewPeriodo, x); } }),
     el('button', { class: 'btn', text: '✏️ Editar datos', onclick: function () { go(viewEditar, x); } }));
 
   if (esE) n.appendChild(el('button', { class: 'btn', text: '🔗 Enlace personal', onclick: function () { verEnlace(x); } }));

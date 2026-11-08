@@ -33,7 +33,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '52'
+  VERSION:         '53'
 };
 
 // ---- Entrada web ----
@@ -137,6 +137,7 @@ function _wa_actions_() {
     libretaGet:       { roles: AE,  fn: wa_libretaGet_ },
     libretaGuardar:   { roles: AE,  fn: wa_libretaGuardar_, write: true },
     libretaLista:     { roles: AE, fn: wa_libretaLista_ },
+    gestionPeriodo:   { roles: A,  fn: wa_gestionPeriodo_ },
     notaLista:        { roles: AE,  fn: wa_notaLista_ },
     notaGuardar:      { roles: AE,  fn: wa_notaGuardar_, write: true },
     notaItem:         { roles: AE, fn: wa_notaItem_, write: true },
