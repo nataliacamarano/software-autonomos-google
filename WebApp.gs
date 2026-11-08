@@ -36,7 +36,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '54'
+  VERSION:         '55'
 };
 
 // ---- Entrada web ----

@@ -1684,7 +1684,11 @@ setInterval(compruebaVersion, 5 * 60 * 1000);
       pantalla(MAQ);
     } else fn();
   }).catch(function (e) {
-    if (e.code === 'AUTH') { try { localStorage.removeItem('wa_t'); } catch (_) {} }
+    if (e.code === 'AUTH') {
+      try { localStorage.removeItem('wa_t'); } catch (_) {}
+      // Dentro de la app instalable: se le avisa para que olvide el enlace y pida otro.
+      try { window.top.postMessage('ag-enlace-invalido', '*'); } catch (_) {}
+    }
     fatal(e.code === 'BLOQ' ? 'Acceso desactivado' : (e.code === 'AUTH' ? 'Enlace no válido' : 'No se pudo abrir'), e.error || '');
   });
 })();
