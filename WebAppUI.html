@@ -681,6 +681,7 @@ function viewMaquinas() {
           el('small', { text: e }), el('b', { text: res[e] || 0 })));
       });
       chips.innerHTML = '';
+      chips.appendChild(el('button', { class: 'chip' + (MQ.grupo ? ' on' : ''), text: '📍 Ver por ubicación', onclick: function () { MQ.grupo = !MQ.grupo; pintar(); } }));
       if (admin && hayBajas) {
         chips.appendChild(el('button', { class: 'chip' + (MQ.filt === 'baja' ? ' on' : ''), text: 'De baja', onclick: function () { MQ.filt = MQ.filt === 'baja' ? 'todas' : 'baja'; pintar(); } }));
       }
@@ -690,11 +691,20 @@ function viewMaquinas() {
         return m.activo && (MQ.filt === 'todas' || m.estado === MQ.filt) && coincide(m);
       });
       if (!vis.length) box.appendChild(el('p', { class: 'empty', text: lista.length ? 'No hay máquinas con ese filtro.' : (admin ? 'Todavía no hay maquinaria. Añade la primera.' : 'Todavía no hay maquinaria dada de alta.') }));
-      vis.forEach(function (m) {
-        box.appendChild(el('div', { class: 'it', onclick: function () { go(viewMaqFicha, m.id); } }, maqThumb(m),
-          el('div', { class: 'grow' }, el('b', { text: m.nombre }), el('span', { text: [m.tipo, m.ubic].filter(Boolean).join(' · ') })),
-          el('span', { class: 'pill ' + (m.activo ? MAQ_PILL[m.estado] : 'p-mut'), text: m.activo ? m.estado : 'De baja' })));
-      });
+      function fila(m) {
+        return el('div', { class: 'it', onclick: function () { go(viewMaqFicha, m.id); } }, maqThumb(m),
+          el('div', { class: 'grow' }, el('b', { text: m.nombre }),
+            el('span', { text: m.tipo || '' }),
+            m.activo ? el('span', { style: 'color:var(--txt)', text: '📍 ' + (m.ubic || '—') }) : null,
+            m.activo ? el('span', { text: m.ultUso ? 'Última vez: ' + m.ultUso + (m.operario ? ' · ' + m.operario : '') : 'Sin usos todavía' }) : null),
+          el('span', { class: 'pill ' + (m.activo ? MAQ_PILL[m.estado] : 'p-mut'), text: m.activo ? m.estado : 'De baja' }));
+      }
+      if (MQ.grupo && MQ.filt !== 'baja') {
+        var grupos = {}, orden = [];
+        vis.forEach(function (m) { var k = m.ubic || 'Sin ubicación'; if (!grupos[k]) { grupos[k] = []; orden.push(k); } grupos[k].push(m); });
+        orden.sort(function (a, b) { return a.localeCompare(b); });
+        orden.forEach(function (k) { box.appendChild(el('h2', { text: '📍 ' + k + ' (' + grupos[k].length + ')' })); grupos[k].forEach(function (m) { box.appendChild(fila(m)); }); });
+      } else vis.forEach(function (m) { box.appendChild(fila(m)); });
     }
     q.addEventListener('input', function () { MQ.q = q.value; pintar(); });
     var n = el('div', null, cards, q, chips, box);
@@ -724,7 +734,7 @@ function viewMaqFicha(id) {
       maqKv('Último uso', m.ultUso ? m.ultUso + (m.operario ? ' · ' + m.operario : '') : 'Sin usos todavía'),
       m.notas ? maqKv('Notas', m.notas) : null);
     if (m.enlace) n.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', href: m.enlace, target: '_blank', rel: 'noopener', text: '🔗 Ver en la tienda' }));
-    if (m.activo) n.appendChild(el('button', { class: 'btn pri', text: 'Registrar uso', onclick: function () { go(viewMaqUso, m.id); } }));
+    if (m.activo) n.appendChild(el('button', { class: 'btn pri', text: admin ? 'Anotar un uso' : 'Registrar uso', onclick: function () { go(viewMaqUso, m.id); } }));
     if (admin) {
       if (m.activo) n.appendChild(el('button', { class: 'btn', text: 'Cambiar estado', onclick: function () { hojaEstado(m); } }));
       n.appendChild(el('button', { class: 'btn', text: '🏷️ Ver QR e imprimir etiqueta', onclick: function () { go(viewMaqQR, { id: m.id, nombre: m.nombre, qr: m.qr }); } }));
