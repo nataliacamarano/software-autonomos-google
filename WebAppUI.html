@@ -18,6 +18,7 @@ main{padding:16px;flex:1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 .metric small{display:block;color:var(--mut);font-size:12px}.metric b{font-size:22px;font-weight:600}
+button.metric{font:inherit;color:var(--txt);text-align:left;cursor:pointer;width:100%}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);font:inherit;color:var(--txt);text-align:left;cursor:pointer;min-height:92px}
 .tile .ic{font-size:26px;line-height:1}
 .tile.wide{grid-column:1/3;flex-direction:row;align-items:center;min-height:0}
@@ -203,13 +204,13 @@ function adminHome() {
     el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre }),
     el('div', { class: 'grid2', style: 'margin-bottom:14px' },
       el('div', { class: 'metric' }, el('small', { text: 'Trabajos esta semana' }), el('b', { text: r.trabajosSemana || 0 })),
-      el('div', { class: 'metric' }, el('small', { text: 'Pendiente de cobro' }), el('b', { text: eur(r.pendienteCobro) }))),
+      el('button', { class: 'metric', onclick: function () { go(viewPendientes, 'cobros'); } }, el('small', { text: 'Pendiente de cobro ›' }), el('b', { text: eur(r.pendienteCobro) }))),
     el('div', { class: 'grid2' },
       tile('📋', 'Nuevo trabajo', function () { go(viewTrabajo); }),
       tile('🏢', 'Nuevo cliente', function () { go(viewCliente); }),
       tile('👷', 'Nuevo empleado', function () { go(viewEmpleado); }),
       tile('🧾', 'Apuntar gasto', function () { go(viewGasto); }),
-      tile('⏳', 'Pendientes' + (r.trabajosPendientes ? ' (' + r.trabajosPendientes + ')' : ''), function () { go(viewPendientes); }),
+      tile('⏳', 'Trabajos por hacer' + (r.trabajosPendientes ? ' (' + r.trabajosPendientes + ')' : ''), function () { go(viewPendientes, 'trabajos'); }),
       tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
       tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
   show('Álvaro Gestión', n, { noBack: true });
@@ -271,13 +272,38 @@ function viewEmpleado() {
   var n = el('div', null,
     el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
     field('Teléfono', tel), field('Email', mail),
-    el('div', { class: 'note', text: 'Al guardarlo se crea su enlace personal. Lo verás en Gestión → su ficha.' }),
+    el('div', { class: 'note', text: 'Al guardarlo se crea su enlace personal y te lo muestro al momento para que se lo envíes.' }),
     submitBtn('Guardar empleado', function () {
       need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.'); need(tel.value.trim(), 'Escribe el teléfono.');
+      var nombre = nom.value.trim() + ' ' + ape.value.trim();
       return api('crearEmpleado', { reqId: reqId, nombre: nom.value, apellidos: ape.value, telefono: tel.value, email: mail.value })
-        .then(function (r) { done('Empleado guardado', 'Entra en Gestión para compartirle su enlace personal.'); });
+        .then(function (r) {
+          if (r && r.enlace) doneEmpleado(nombre, r.enlace);
+          else done('Empleado guardado', 'Entra en Gestión para compartirle su enlace personal.');
+        });
     }));
   show('Nuevo empleado', n);
+}
+
+function copiarEnlace(box, enlace) {
+  box.focus(); box.select();
+  var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  if (!ok && navigator.clipboard) { navigator.clipboard.writeText(enlace).then(function () { toast('Enlace copiado'); }, function () { toast('Selecciónalo y cópialo a mano', true); }); }
+  else toast(ok ? 'Enlace copiado' : 'Selecciónalo y cópialo a mano', !ok);
+}
+function doneEmpleado(nombre, enlace) {
+  var box = el('input', { type: 'text', readonly: true, value: enlace });
+  box.addEventListener('focus', function () { box.select(); });
+  var n = el('div', null,
+    el('div', { class: 'ok', style: 'padding:24px 0 8px' }, el('div', { class: 'tick', text: '✓' }), el('b', { text: 'Empleado guardado' })),
+    el('div', { class: 'note', text: 'Este es el enlace personal de ' + nombre + '. Solo le sirve a esa persona: le abre su pantalla para registrar partes. Envíaselo ahora.' }),
+    box,
+    el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }),
+    el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
+      href: 'https://wa.me/?text=' + encodeURIComponent('Tu enlace para registrar partes de trabajo: ' + enlace) }),
+    el('p', { class: 'empty', text: 'Si lo pierdes, lo tienes siempre en Gestión → su ficha → Enlace personal.' }),
+    el('button', { class: 'btn', text: 'Volver al inicio', onclick: function () { refreshInit().then(home); } }));
+  show('Listo', n, { noBack: true });
 }
 
 /* ---------- ADMIN: gasto ---------- */
@@ -301,27 +327,29 @@ function viewGasto() {
 }
 
 /* ---------- ADMIN: pendientes y horas ---------- */
-function viewPendientes() {
-  loading('Pendientes');
+function viewPendientes(sec) {
+  sec = sec === 'cobros' ? 'cobros' : 'trabajos';
+  var titulo = sec === 'cobros' ? 'Por cobrar' : 'Trabajos por hacer';
+  loading(titulo);
   api('pendientes').then(function (r) {
-    var n = el('div', null, el('h2', { text: 'Trabajos pendientes o en curso' }));
-    if (!r.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No hay trabajos pendientes.' }));
+    var sT = el('div', null, el('h2', { text: 'Trabajos por hacer (pendientes o en curso)' }));
+    if (!r.trabajos.length) sT.appendChild(el('p', { class: 'empty', text: 'No hay trabajos por hacer.' }));
     var l1 = el('div', { class: 'list' });
     r.trabajos.forEach(function (t) {
       l1.appendChild(el('div', { class: 'it static' }, el('div', { class: 'grow' }, el('b', { text: t.cliente }),
         el('span', { text: [t.trabajo || 'Sin descripción', t.operario, t.fecha].filter(Boolean).join(' · ') })),
         el('span', { class: 'pill ' + (t.estado === 'En curso' ? 'p-acc' : 'p-warn'), text: t.estado })));
     });
-    n.appendChild(l1);
-    n.appendChild(el('h2', { text: 'Facturas sin cobrar · ' + eur(r.totalFacturas) }));
-    if (!r.facturas.length) n.appendChild(el('p', { class: 'empty', text: 'No hay facturas pendientes de cobro.' }));
+    sT.appendChild(l1);
+    var sC = el('div', null, el('h2', { text: 'Facturas sin cobrar · ' + eur(r.totalFacturas) }));
+    if (!r.facturas.length) sC.appendChild(el('p', { class: 'empty', text: 'No hay facturas pendientes de cobro.' }));
     var l2 = el('div', { class: 'list' });
     r.facturas.forEach(function (f) {
       l2.appendChild(el('div', { class: 'it static' }, el('div', { class: 'grow' }, el('b', { text: f.cliente || f.id }), el('span', { text: [f.id, f.fecha].filter(Boolean).join(' · ') })),
         el('span', { class: 'pill p-bad', text: eur(f.total) })));
     });
-    n.appendChild(l2);
-    show('Pendientes', n);
+    sC.appendChild(l2);
+    show(titulo, el('div', null, sec === 'cobros' ? [sC, sT] : [sT, sC]));
   }).catch(function (e) { toast(e.error, true); back(); });
 }
 function viewHoras(mes) {
@@ -471,12 +499,7 @@ function verEnlace(x) {
     cont.appendChild(el('b', { text: 'Enlace personal de ' + x.nombre }));
     cont.appendChild(el('p', { class: 'empty', text: 'Solo le sirve a esa persona. Guárdalo en su móvil (Añadir a pantalla de inicio).' }));
     cont.appendChild(box);
-    cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () {
-      box.select();
-      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
-      if (!ok && navigator.clipboard) { navigator.clipboard.writeText(enlace).then(function () { toast('Enlace copiado'); }, function () { toast('Selecciónalo y cópialo a mano', true); }); }
-      else toast(ok ? 'Enlace copiado' : 'Selecciónalo y cópialo a mano', !ok);
-    } }));
+    cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }));
     cont.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
       href: 'https://wa.me/?text=' + encodeURIComponent('Tu enlace para registrar partes de trabajo: ' + enlace) }));
     var regen = el('button', { class: 'btn bad', text: 'Generar enlace nuevo' }), armado = false;
