@@ -554,17 +554,21 @@ function _wa_crearTrabajo_(user, p) {
     if (_wa_norm_(operario2) === _wa_norm_(operario)) _wa_fail_('El empleado 2 tiene que ser distinto del primero.');
   }
   var fecha = _wa_fechaDMY_(p.fecha);
+  var estado = String(p.estado || 'Pendiente');
+  if (ESTADOS_TRABAJO.indexOf(estado) === -1) _wa_fail_('El estado no es válido.');
+  // Un trabajo futuro puede llevar solo la hora de inicio (no se sabe cuánto durará): el empleado
+  // pondrá las horas reales al completarlo. Un trabajo ya completado sí necesita las dos.
   var h1 = _wa_hora_(p.horaInicio), h2 = _wa_hora_(p.horaFin);
-  if ((h1 && !h2) || (!h1 && h2)) _wa_fail_('Rellena hora de inicio y de fin, o deja las dos vacías.');
-  if (h1 && _wa_minutos_(h2) <= _wa_minutos_(h1)) _wa_fail_('La hora de fin debe ser posterior a la de inicio.');
+  if (h2 && !h1) _wa_fail_('Pon también la hora de inicio, o deja las dos vacías.');
+  if (h1 && !h2 && estado === 'Completado') _wa_fail_('Un trabajo completado necesita hora de inicio y de fin.');
+  if (h1 && h2 && _wa_minutos_(h2) <= _wa_minutos_(h1)) _wa_fail_('La hora de fin debe ser posterior a la de inicio.');
   var i2 = '', f2 = '';
   if (operario2) {
     i2 = _wa_hora_(p.horaInicio2); f2 = _wa_hora_(p.horaFin2);
-    if ((i2 && !f2) || (!i2 && f2)) _wa_fail_('Rellena hora de inicio y de fin del empleado 2, o deja las dos vacías.');
-    if (i2 && _wa_minutos_(f2) <= _wa_minutos_(i2)) _wa_fail_('La hora de fin del empleado 2 debe ser posterior a la de inicio.');
+    if (f2 && !i2) _wa_fail_('Pon también la hora de inicio del empleado 2, o deja las dos vacías.');
+    if (i2 && !f2 && estado === 'Completado') _wa_fail_('Un trabajo completado necesita hora de inicio y de fin del empleado 2.');
+    if (i2 && f2 && _wa_minutos_(f2) <= _wa_minutos_(i2)) _wa_fail_('La hora de fin del empleado 2 debe ser posterior a la de inicio.');
   }
-  var estado = String(p.estado || 'Pendiente');
-  if (ESTADOS_TRABAJO.indexOf(estado) === -1) _wa_fail_('El estado no es válido.');
   var fotos = _wa_validaFotos_(p.fotos);
   var maqs = _maq_resolver_(p.maquinas, true);   // las rotas o en reparación no se pueden asignar
 

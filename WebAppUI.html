@@ -486,6 +486,7 @@ function viewTrabajo(fechaIni) {
     el('div', { class: 'row2' }, field('Empleado', op1), field('Empleado 2', op2)),
     field('Fecha', fecha),
     el('div', { class: 'row2' }, field('Hora inicio', i1), field('Hora fin', f1)),
+    el('p', { class: 'empty', style: 'margin:-6px 0 8px', text: 'Si es un trabajo futuro y no sabes cuánto durará, pon solo la hora de inicio (o ninguna): el empleado pondrá las horas reales al completarlo. Tampoco hace falta elegir maquinaria ahora.' }),
     bloque2,
     field('Trabajo', trabajo), field('Incidencias', incid),
     el('div', { class: 'row2' }, field('Estado', estado), field('Materiales (€)', mat)),
