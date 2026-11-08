@@ -127,6 +127,9 @@ function wa_agMes_(user, p) {
   _not_todas_().forEach(function(n) {
     if (n.fecha && n.fecha.indexOf(mes) === 0 && n.pendiente) { dia(n.fecha).n++; if (n.atrasado) dia(n.fecha).o++; }
   });
+  _lib_filas_().forEach(function(x) {
+    if (x.fecha.indexOf(mes) === 0 && x.texto.trim()) dia(x.fecha).l = 1;
+  });
   return { mes: mes, dias: dias };
 }
 
@@ -150,7 +153,8 @@ function wa_agDia_(user, p) {
   });
   var notas = _not_todas_().filter(function(n) { return n.fecha === fecha; });
   notas.sort(function(a, b) { return a.pendiente !== b.pendiente ? (a.pendiente ? -1 : 1) : (a.id < b.id ? -1 : 1); });
-  return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(_not_pub_) };
+  var lib = _lib_dia_(fecha);
+  return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(_not_pub_), libreta: lib ? lib.texto : '' };
 }
 
 /** Todo lo que está sin hacer (trabajos, tareas y notas), con su marca de atrasado. */

@@ -78,6 +78,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .tile.alerta{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:600}
 .pen{display:flex;gap:10px;align-items:flex-start;padding:10px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}.pen .ic{font-size:20px;line-height:1.2}.pen.atras{background:var(--badbg);border-color:var(--bad);border-left-width:5px}.pen.atras b{color:var(--bad)}
 .pen small{display:block;color:var(--mut);font-size:12px}.pen .cuando{font-size:12px;font-weight:600;white-space:nowrap}.pen.atras .cuando{color:var(--bad)}
+.libreta{width:100%;min-height:58vh;resize:vertical;font:inherit;font-size:16px;line-height:1.5;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fffef8}
+.estado-lib{font-size:13px;color:var(--mut);margin:6px 2px 10px;min-height:18px}.estado-lib.mal{color:var(--bad);font-weight:600}.estado-lib.ok{color:var(--ok)}
+.prevlib{white-space:pre-wrap;background:#fffef8;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px;max-height:180px;overflow:hidden;position:relative}
+.cal .dia .l{background:#f3efe0;color:#6b5a1a}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -283,13 +287,14 @@ function viewCalendario() {
         info.t ? el('i', { class: 't', text: '📋 ' + info.t }) : null,
         info.a ? el('i', { class: 'a', text: '⏰ ' + info.a }) : null,
         info.n ? el('i', { class: 'n', text: '📝 ' + info.n }) : null,
+        info.l ? el('i', { class: 'l', text: '✍️' }) : null,
         info.o ? el('i', { class: 'o', text: '⚠️ ' + info.o }) : null,
         info.h && !info.a ? el('i', { class: 'h', text: '✓ ' + info.h }) : null));
     })(d);
     var n2 = el('div', null,
       el('div', { class: 'mes' }, el('button', { type: 'button', 'aria-label': 'Mes anterior', text: '‹', onclick: function () { mover(-1); } }), el('b', { text: MESES[m] + ' ' + y }), el('button', { type: 'button', 'aria-label': 'Mes siguiente', text: '›', onclick: function () { mover(1); } })),
       grid,
-      el('p', { class: 'empty', text: 'Verde: trabajos 📋 · Rojo: notas pendientes 📝 · Naranja: tareas pendientes ⏰ · ✓ hechas. Día con borde rojo y ⚠️: tiene algo atrasado. Toca un día para ver y añadir.' }),
+      el('p', { class: 'empty', text: 'Verde: trabajos 📋 · Rojo: notas pendientes 📝 · Naranja: tareas pendientes ⏰ · ✓ hechas. Día con borde rojo y ⚠️: tiene algo atrasado. ✍️: tiene libreta. Toca un día para ver y añadir.' }),
       el('button', { class: 'btn', text: 'Ir a hoy', onclick: function () { AG.mes = S.init.hoy.slice(0, 7); viewCalendario(); } }));
     show('Calendario', n2);
   }).catch(function (e) { toast(e.error, true); back(); });
@@ -311,6 +316,10 @@ function viewDia(fecha) {
           onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } })));
     });
     n.appendChild(el('button', { class: 'btn', text: '+ Añadir un trabajo este día', onclick: function () { go(viewTrabajo, fecha); } }));
+    n.appendChild(el('h2', { text: '✍️ Libreta del día' }));
+    if (r.libreta && r.libreta.trim()) n.appendChild(el('div', { class: 'prevlib', text: r.libreta.length > 600 ? r.libreta.slice(0, 600) + '…' : r.libreta }));
+    else n.appendChild(el('p', { class: 'empty', text: 'No hay nada escrito en la libreta de este día.' }));
+    n.appendChild(el('button', { class: 'btn', text: r.libreta && r.libreta.trim() ? '✍️ Abrir y seguir escribiendo' : '✍️ Escribir en la libreta de este día', onclick: function () { go(viewLibreta, fecha); } }));
     n.appendChild(el('h2', { text: '📝 Notas del día' }));
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: 'No hay notas este día.' }));
     r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: function () { viewDia(fecha); } })); });
@@ -385,6 +394,45 @@ function viewAtrasos() {
   }).catch(function (e) { toast(e.error, true); back(); });
 }
 
+/* ---------- LIBRETA DEL DÍA: texto libre con guardado automático ---------- */
+function viewLibreta(fecha) {
+  loading('Libreta');
+  api('libretaGet', { fecha: fecha }).then(function (r) {
+    var ta = el('textarea', { class: 'libreta', placeholder: 'Escribe aquí lo que quieras: lo que has hecho, lo que se te ocurre, recados… Se guarda solo.', spellcheck: 'true' });
+    ta.value = r.texto || '';
+    var est = el('div', { class: 'estado-lib', text: r.actualizado ? 'Guardado ✓ ' + r.actualizado : 'Aún no has escrito nada hoy.' });
+    var ultimo = ta.value, timer = null, guardando = false;
+    function estado(t, cls) { est.textContent = t; est.className = 'estado-lib' + (cls ? ' ' + cls : ''); }
+    function hhmm() { var d = new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+    function guarda() {
+      clearTimeout(timer);
+      if (guardando) { timer = setTimeout(guarda, 700); return; }
+      if (ta.value === ultimo) return;
+      var enviado = ta.value; guardando = true; estado('Guardando…');
+      api('libretaGuardar', { reqId: rid(), fecha: fecha, texto: enviado }).then(function () {
+        ultimo = enviado; estado(enviado.trim() ? 'Guardado ✓ ' + hhmm() : 'Libreta vacía', enviado.trim() ? 'ok' : '');
+      }).catch(function (e) {
+        estado('⚠️ No se pudo guardar (' + ((e && e.error) || 'sin conexión') + '). Reintentando…', 'mal'); timer = setTimeout(guarda, 4000);
+      }).then(function () { guardando = false; if (ta.value !== ultimo && !timer) timer = setTimeout(guarda, 800); });
+    }
+    ta.addEventListener('input', function () { estado('Escribiendo…'); clearTimeout(timer); timer = setTimeout(guarda, 1200); });
+    ta.addEventListener('blur', guarda);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) guarda(); });
+    var borrar = el('button', { type: 'button', class: 'btn bad', text: 'Borrar todo lo escrito' }), armado = false;
+    borrar.addEventListener('click', function () {
+      if (!armado) { armado = true; borrar.textContent = 'Pulsa otra vez para borrarlo todo'; setTimeout(function () { armado = false; borrar.textContent = 'Borrar todo lo escrito'; }, 5000); return; }
+      ta.value = ''; guarda();
+    });
+    var n = el('div', null,
+      el('p', { style: 'margin:0 0 8px;font-size:17px;font-weight:600', text: fechaLarga(fecha).charAt(0).toUpperCase() + fechaLarga(fecha).slice(1) }),
+      ta, est,
+      el('button', { type: 'button', class: 'btn', text: '📅 Ver este día en el calendario', onclick: function () { guarda(); go(viewDia, fecha); } }),
+      borrar);
+    show('Libreta', n);
+    if (fecha === S.init.hoy && !ta.value) setTimeout(function () { ta.focus(); }, 100);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
 /* ---------- NOTAS DIARIAS ---------- */
 var NF = { filtro: 'pendientes' };
 function progreso(x) { return x.nItems ? el('div', { class: 'pbar' }, el('i', { style: 'width:' + Math.round(100 * x.nHechos / x.nItems) + '%' })) : null; }
@@ -430,10 +478,12 @@ function viewNotas() {
     [['pendientes', 'Pendientes'], ['todas', 'Todas'], ['compartidas', 'Compartidas'], ['hechas', 'Hechas']].forEach(function (f) {
       chips.appendChild(el('button', { type: 'button', class: 'chip' + (NF.filtro === f[0] ? ' on' : ''), text: f[1] + ' (' + r.cuenta[f[0]] + ')', onclick: function () { NF.filtro = f[0]; viewNotas(); } }));
     });
-    var n = el('div', null, chips);
+    var n = el('div', null,
+      el('button', { class: 'big', onclick: function () { go(viewLibreta, S.init.hoy); } }, el('span', { style: 'font-size:26px', text: '✍️' }), el('span', null, 'Libreta de hoy', el('small', { style: 'display:block;font-weight:400;color:var(--mut)', text: 'Escribe libremente: se guarda sola y queda en el calendario' }))),
+      chips);
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: NF.filtro === 'pendientes' ? 'No tienes notas pendientes. 🎉' : 'No hay notas en este filtro.' }));
     r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: viewNotas })); });
-    n.appendChild(el('button', { class: 'btn pri', text: '+ Nueva nota', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
+    n.appendChild(el('button', { class: 'btn pri', text: '+ Nueva nota (con lista, aviso o para compartir)', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
     show('Notas diarias', n);
   }).catch(function (e) { toast(e.error, true); back(); });
 }

@@ -205,3 +205,54 @@ function wa_notaBorrar_(user, p) {
     return { ok: true };
   });
 }
+
+// =============================================================
+// Libreta del día: un texto libre por día, que se guarda solo mientras se escribe
+// y aparece en el calendario de ese día. Una fila por día en la hoja LIBRETA.
+// =============================================================
+
+var LIB_ = { SHEET: 'LIBRETA', HEAD: ['Fecha', 'Texto', 'Actualizado'], MAX: 20000 };
+
+function _lib_hoja_() {
+  var sh = getOrCreateSheet(LIB_.SHEET);
+  if (sh.getLastRow() === 0) { sh.appendRow(LIB_.HEAD); applyHeaderStyle_(sh, LIB_.HEAD.length); }
+  return sh;
+}
+
+function _lib_filas_() {
+  var sh = _lib_hoja_(), last = sh.getLastRow();
+  if (last < 2) return [];
+  var vals = sh.getRange(2, 1, last - 1, LIB_.HEAD.length).getValues(), out = [];
+  vals.forEach(function(r, i) {
+    var f = _ag_iso_(r[0]);
+    if (f) out.push({ row: i + 2, fecha: f, texto: String(r[1] || ''), act: r[2] });
+  });
+  return out;
+}
+
+function _lib_dia_(fecha) {
+  var f = _lib_filas_().filter(function(x) { return x.fecha === fecha; });
+  return f.length ? f[f.length - 1] : null;
+}
+
+function wa_libretaGet_(user, p) {
+  var fecha = _ag_fechaIso_(p.fecha), x = _lib_dia_(fecha);
+  return { fecha: fecha, texto: x ? x.texto : '', actualizado: x ? _maq_fecha_(x.act) : '' };
+}
+
+/** Guarda el texto completo del día (lo llama la app cada pocos segundos mientras se escribe). Texto vacío = borra el día. */
+function wa_libretaGuardar_(user, p) {
+  var fecha = _ag_fechaIso_(p.fecha);
+  var texto = String(p.texto == null ? '' : p.texto).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  if (texto.length > LIB_.MAX) _wa_fail_('La libreta de un día admite como mucho ' + LIB_.MAX + ' letras. Pasa lo que sobre a otra nota.');
+  var vacio = !texto.trim();
+  return _wa_withLock_(function() {
+    var sh = _lib_hoja_(), x = _lib_dia_(fecha);
+    if (vacio) { if (x) sh.deleteRow(x.row); return { ok: true, guardado: '' }; }
+    var row = x ? x.row : sh.getLastRow() + 1, ahora = new Date();
+    var cT = sh.getRange(row, 2); cT.setNumberFormat('@'); cT.setValue(texto);   // formato texto: nunca se interpreta como fórmula
+    var cF = sh.getRange(row, 1); cF.setNumberFormat('dd/MM/yyyy'); cF.setValue(_parseReportDate_(_wa_fechaDMY_(fecha)));
+    sh.getRange(row, 3).setValue(ahora);
+    return { ok: true, guardado: _maq_fecha_(ahora) };
+  });
+}
