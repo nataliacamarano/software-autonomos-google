@@ -110,6 +110,7 @@ var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=ne
 var TOKEN = <?!= tokenJson ?>;
 var MAQ = <?!= maqJson ?>;   // código de máquina cuando se entra escaneando su QR
 var VERSION = <?!= versionJson ?>;   // versión con la que se cargó esta pantalla
+var WRAP = <?!= wrapJson ?>;   // true si se abrió dentro de la app instalable (muestra el botón de Ajustes)
 /* El móvil recuerda el enlace personal para que el QR de una máquina abra directamente, sin volver a pedirlo. */
 try { if (TOKEN) localStorage.setItem('wa_t', TOKEN); else TOKEN = localStorage.getItem('wa_t') || ''; } catch (e) {}
 var S = { init: null, stack: [] };
@@ -164,6 +165,9 @@ function show(title, node, opts) {
   if (S.stack.length > 1 && !opts.noBack) bar.appendChild(el('button', { class: 'back', 'aria-label': 'Volver', text: '‹', onclick: back }));
   bar.appendChild(el('h1', { text: title }));
   if (S.init) bar.appendChild(el('span', { class: 'pill ' + (S.init.rol === 'admin' ? 'p-acc' : 'p-mut'), text: S.init.rol === 'admin' ? 'Admin' : 'Empleado' }));
+  // Solo en la pantalla de inicio y dentro de la app instalable: Ajustes (PIN y cerrar sesión).
+  if (WRAP && S.stack.length <= 1) bar.appendChild(el('button', { class: 'back', 'aria-label': 'Ajustes de la app', title: 'Ajustes', text: '⚙️', style: 'padding:4px 0 4px 4px;font-size:20px',
+    onclick: function () { try { window.top.postMessage('ag-ajustes', '*'); } catch (e) {} } }));
   app.appendChild(bar);
   var m = el('main'); m.appendChild(node); app.appendChild(m);
   window.scrollTo(0, 0);

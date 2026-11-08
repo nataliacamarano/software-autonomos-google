@@ -36,7 +36,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '55'
+  VERSION:         '56'
 };
 
 // ---- Entrada web ----
@@ -50,6 +50,7 @@ function doGet(e) {
   tpl.tokenJson = JSON.stringify(t);
   tpl.maqJson = JSON.stringify(m);
   tpl.versionJson = JSON.stringify(WA_.VERSION);
+  tpl.wrapJson = JSON.stringify(!!(e && e.parameter && e.parameter.w === '1'));   // dentro de la app instalable
   return tpl.evaluate()
     .setTitle('Álvaro Gestión')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
