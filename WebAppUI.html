@@ -1043,6 +1043,7 @@ function viewFicha(x) {
       el('div', { class: 'grow' }, el('b', { style: 'font-size:17px', text: x.label }), esE ? null : el('span', { text: x.empresa ? 'Empresa' : '' })),
       el('span', { class: 'pill ' + p[1], text: p[0] })),
     el('div', { class: 'note', text: notas[x.estado] }),
+    (esE && x.admin) ? el('div', { class: 'note', style: 'background:var(--accbg);color:var(--acc)', text: '👑 Es el administrador: su enlace personal da acceso a todo.' }) : null,
     el('div', { class: 'kv' }, el('span', { text: 'Teléfono' }), el('span', { text: x.tel || '—' })),
     el('div', { class: 'kv' }, el('span', { text: 'Email' }), el('span', { text: x.email || '—' })),
     esE ? el('div', { class: 'kv' }, el('span', { text: 'Horas este mes' }), el('span', { text: horas(x.horasMes) }))
@@ -1055,6 +1056,7 @@ function viewFicha(x) {
   if (esE) n.appendChild(el('button', { class: 'btn', text: '🔗 Enlace personal', onclick: function () { verEnlace(x); } }));
   function accion(texto, ac, peligro) { n.appendChild(el('button', { class: 'btn' + (peligro ? ' bad' : ''), text: texto, onclick: function () { confirmar(x, ac); } })); }
   if (esE) {
+    if (x.estado === 'activo') accion(x.admin ? 'Quitar acceso de administrador' : '👑 Hacer administrador (acceso total)', x.admin ? 'quitarAdmin' : 'hacerAdmin');
     if (x.estado === 'activo') { accion('🔒 Bloquear acceso', 'bloquear'); accion('Dar de baja', 'baja', true); }
     if (x.estado === 'bloqueado') { accion('🔓 Desbloquear', 'desbloquear'); accion('Dar de baja', 'baja', true); }
     if (x.estado === 'baja') accion('Reactivar', 'reactivar');
@@ -1069,7 +1071,9 @@ function confirmar(x, ac) {
     bloquear: ['¿Bloquear a ' + x.label + '?', 'No podrá entrar a la app hasta que lo desbloquees.', 'Bloquear'],
     desbloquear: ['¿Desbloquear a ' + x.label + '?', 'Podrá volver a entrar a la app con su enlace.', 'Desbloquear'],
     baja: ['¿Dar de baja a ' + x.label + '?', 'Dejará de aparecer en las listas. No se borra nada: el historial se conserva y se puede reactivar.', 'Dar de baja'],
-    reactivar: ['¿Reactivar a ' + x.label + '?', 'Volverá a aparecer en las listas' + (G.tab === 'e' ? ' y podrá entrar a la app.' : '.'), 'Reactivar']
+    reactivar: ['¿Reactivar a ' + x.label + '?', 'Volverá a aparecer en las listas' + (G.tab === 'e' ? ' y podrá entrar a la app.' : '.'), 'Reactivar'],
+    hacerAdmin: ['¿Dar acceso de administrador a ' + x.label + '?', 'Su enlace personal pasará a abrir la app como administrador: verá y podrá cambiar todo (clientes, gastos, empleados…). Solo puede haber una persona así; si ya había otra, deja de serlo. Úsalo solo para Álvaro.', 'Hacer administrador'],
+    quitarAdmin: ['¿Quitar el acceso de administrador a ' + x.label + '?', 'Su enlace personal volverá a abrir solo su zona de empleado.', 'Quitar']
   }[ac];
   var ov = el('div', { class: 'ov', onclick: function (ev) { if (ev.target === ov) ov.remove(); } });
   var yes = el('button', { class: 'btn pri' + (ac === 'baja' ? ' bad' : ''), text: T[2] });
@@ -1116,7 +1120,9 @@ function verEnlace(x) {
     var box = el('input', { type: 'text', readonly: true, value: enlace });
     box.addEventListener('focus', function () { box.select(); });
     cont.appendChild(el('b', { text: 'Enlace personal de ' + x.nombre }));
-    cont.appendChild(el('p', { class: 'empty', text: 'Solo le sirve a esa persona. Guárdalo en su móvil (Añadir a pantalla de inicio).' }));
+    cont.appendChild(el('p', { class: 'empty', text: x.admin
+      ? 'Este enlace da acceso de ADMINISTRADOR (a todo). Mándaselo solo a ' + x.nombre + ', por WhatsApp. Él lo pega en la app la primera vez.'
+      : 'Solo le sirve a esa persona. Mándaselo por WhatsApp: instala la app y pega este enlace la primera vez.' }));
     cont.appendChild(box);
     cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }));
     cont.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',

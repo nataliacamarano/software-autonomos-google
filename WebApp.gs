@@ -23,6 +23,7 @@
 
 var WA_ = {
   CFG_ADMIN_TOKEN: 'webapp_admin_token',
+  CFG_ADMIN_OPE:   'webapp_admin_operario_id',   // empleado cuyo enlace personal da acceso de administrador (el jefe que también trabaja)
   COL_BLOQ:        9,
   COL_TOKEN:       10,
   MAX_FOTOS:       5,
@@ -36,7 +37,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '56'
+  VERSION:         '57'
 };
 
 // ---- Entrada web ----
@@ -179,6 +180,8 @@ function _wa_auth_(token) {
   for (var i = 0; i < ope.length; i++) {
     if (ope[i].token && ope[i].token === token) {
       if (!ope[i].activo || ope[i].bloq) return { bloqueado: true };
+      // El jefe que también trabaja: su enlace de empleado entra como administrador (misma identidad que el enlace de admin).
+      if (String(getConfig(WA_.CFG_ADMIN_OPE) || '') === ope[i].id) return { rol: 'admin', nombre: 'Álvaro', id: ope[i].id };
       return { rol: 'empleado', id: ope[i].id, nombre: ope[i].label };
     }
   }
@@ -783,12 +786,14 @@ function _wa_listaPersonas_(user, p) {
   var hoy = new Date(), y = hoy.getFullYear(), m = hoy.getMonth();
 
   if (tipo === 'e') {
+    var idAdmin = String(getConfig(WA_.CFG_ADMIN_OPE) || '');
     return _wa_operarios_().map(function(o) {
       var n = _wa_norm_(o.label), h = 0;
       trabajos.forEach(function(t) { if (_wa_esDelMes_(t.fecha, y, m)) h += _wa_horasDe_(t, n); });
       return {
         id: o.id, nombre: o.nombre, apellidos: o.apellidos, label: o.label, tel: o.tel, email: o.email,
-        estado: !o.activo ? 'baja' : (o.bloq ? 'bloqueado' : 'activo'), horasMes: _wa_redondea_(h)
+        estado: !o.activo ? 'baja' : (o.bloq ? 'bloqueado' : 'activo'), horasMes: _wa_redondea_(h),
+        admin: !!idAdmin && o.id === idAdmin
       };
     });
   }
@@ -810,10 +815,21 @@ function _wa_accionPersona_(user, p) {
   var tipo = String(p.tipo || ''), accion = String(p.accion || ''), id = String(p.id || '');
   return _wa_withLock_(function() {
     if (tipo === 'e') {
-      if (['bloquear', 'desbloquear', 'baja', 'reactivar'].indexOf(accion) === -1) _wa_fail_('Acción no válida.');
+      if (['bloquear', 'desbloquear', 'baja', 'reactivar', 'hacerAdmin', 'quitarAdmin'].indexOf(accion) === -1) _wa_fail_('Acción no válida.');
       var sheet = _wa_ensureOperarioCols_();
       var row = findRowById_(sheet, id);
       if (!row) _wa_fail_('No se encuentra al empleado.');
+      if (accion === 'hacerAdmin' || accion === 'quitarAdmin') {
+        if (accion === 'hacerAdmin') {
+          var ficha = _wa_operarios_().filter(function(o) { return o.id === id; })[0];
+          if (!ficha || !ficha.activo || ficha.bloq) _wa_fail_('Para dar acceso de administrador, el empleado debe estar activo y sin bloquear.');
+          setConfig(WA_.CFG_ADMIN_OPE, id);
+        } else if (String(getConfig(WA_.CFG_ADMIN_OPE) || '') === id) {
+          setConfig(WA_.CFG_ADMIN_OPE, '');
+        }
+        logEvent('INFO', 'wa_accionPersona', (accion === 'hacerAdmin' ? 'Acceso de administrador dado a ' : 'Acceso de administrador quitado a ') + id, user.nombre);
+        return { ok: true };
+      }
       if (accion === 'bloquear')    { sheet.getRange(row, WA_.COL_BLOQ).setValue(true); }
       if (accion === 'desbloquear') { sheet.getRange(row, WA_.COL_BLOQ).setValue(false); }
       if (accion === 'baja')        { sheet.getRange(row, COL_OPE.ACTIVO).setValue(false); }
