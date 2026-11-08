@@ -132,7 +132,7 @@ function _wa_actions_() {
     notaBorrar:       { roles: A,  fn: wa_notaBorrar_, write: true },
     miNotas:          { roles: E,  fn: wa_miNotas_ },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
-    enviarParte:      { roles: E,  fn: _wa_enviarParte_,   write: true }
+    enviarParte:      { roles: AE, fn: _wa_enviarParte_,   write: true }
   };
 }
 
@@ -432,6 +432,7 @@ function _wa_init_(user, p) {
     base.maquinas = _maq_activasCorto_();
     base.estadosMaq = MAQ_.ESTADOS;
     base.combustibles = MAQ_.COMBUSTIBLES;
+    base.estadosParte = WA_.ESTADOS_PARTE;   // Álvaro también puede cerrar sus propios trabajos
     try { base.atrasados = _ag_cuentaAtrasados_(); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
     base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
     return base;
@@ -551,6 +552,8 @@ function _wa_crearTrabajo_(user, p) {
   var cliente = _wa_enActivos_(p.cliente, clientes);
   if (!cliente) _wa_fail_('Elige un cliente de la lista.');
   var operario = _wa_enActivos_(p.operario, operarios);
+  var esPropio = !operario && _wa_norm_(p.operario) === _wa_norm_(user.nombre);   // trabajo que hace el propio Álvaro
+  if (esPropio) operario = user.nombre;
   if (!operario) _wa_fail_('Elige un empleado de la lista.');
   var operario2 = '';
   if (p.operario2) {
@@ -576,6 +579,19 @@ function _wa_crearTrabajo_(user, p) {
   }
   var fotos = _wa_validaFotos_(p.fotos);
   var maqs = _maq_resolver_(p.maquinas, true);   // las rotas o en reparación no se pueden asignar
+  // Si se crea ya completado y lleva maquinaria, hay que decir dónde se ha dejado cada máquina.
+  var dejNuevo = estado === 'Completado' ? _maq_validaDejadas_(maqs, p.dejadas) : {};
+  // Invitación por Google Calendar al empleado (le llega por correo): necesita un correo válido en su ficha.
+  var invitados = [];
+  if (p.invitar === true) {
+    [operario, operario2].filter(Boolean).forEach(function(lab) {
+      if (_wa_norm_(lab) === _wa_norm_(user.nombre)) return;
+      var o = _wa_operarios_().filter(function(x) { return _wa_norm_(x.label) === _wa_norm_(lab); })[0];
+      if (!o || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.email)) _wa_fail_('"' + lab + '" no tiene un correo válido en su ficha: añádelo para enviarle la invitación del calendario.');
+      if (invitados.indexOf(o.email) === -1) invitados.push(o.email);
+    });
+    if (!invitados.length) _wa_fail_('La invitación del calendario es para un empleado: elige a quién se asigna el trabajo.');
+  }
   // Aviso opcional en el Google Calendar de Álvaro (necesita la hora de inicio). Se valida ANTES de crear el trabajo.
   var aviso = '';
   if (p.aviso !== '' && p.aviso != null) {
@@ -598,9 +614,20 @@ function _wa_crearTrabajo_(user, p) {
     });
     if (!r.success) _wa_fail_(r.error || 'No se pudo guardar el trabajo.');
     _maq_ponerEnTrabajo_(id, maqs);
+    _maq_aplicaDejadas_(maqs, dejNuevo, cliente, operario, id);
     return { id: id };
   });
-  // El aviso va aparte (fuera del bloqueo): si Calendar falla, el trabajo ya está guardado y se avisa de ello.
+  // La invitación y el aviso van aparte (fuera del bloqueo): si Calendar falla, el trabajo ya está guardado y se avisa de ello.
+  if (invitados.length) {
+    try {
+      _ag_invitarTrabajo_('Trabajo: ' + cliente, _wa_s_(p.trabajo, 500), _wa_s_(p.ubicacion, 250), p.fecha, h1, h2, invitados);
+      creado.invitacion = 'ok';
+    } catch (e) {
+      creado.invitacion = 'error';
+      creado.invitacionError = String(e && e.message || e).replace(/^USR:/, '');
+      logEvent('WARN', 'wa_crearTrabajo', 'Invitación no enviada para ' + creado.id + ': ' + creado.invitacionError, '');
+    }
+  }
   if (aviso !== '') {
     try {
       wa_agCrear_(user, { fecha: p.fecha, hora: h1, titulo: 'Trabajo: ' + cliente, detalle: _wa_s_(p.trabajo, 500), aviso: aviso });
@@ -860,10 +887,12 @@ function _wa_miInicio_(user, p) {
   var horas = 0;
   mios.forEach(function(t) { if (_wa_esDelMes_(t.fecha, y, m)) horas += _wa_horasDe_(t, n); });
 
+  var todasMaq = _maq_todas_();
   var asignados = mios.filter(function(t) { return t.estado === 'Pendiente' || t.estado === 'En curso'; })
     .sort(function(a, b) { return (a.fecha ? a.fecha.getTime() : 0) - (b.fecha ? b.fecha.getTime() : 0); })
     .slice(0, 30)
-    .map(function(t) { return { id: t.id, cliente: t.cliente, fecha: _wa_fechaTxt_(t.fecha), trabajo: t.trabajo, estado: t.estado }; });
+    .map(function(t) { return { id: t.id, cliente: t.cliente, fecha: _wa_fechaTxt_(t.fecha), hora: _wa_horaTxt_(t.hIni), trabajo: t.trabajo, estado: t.estado,
+      maq: _maq_deTrabajo_(t.maq, todasMaq).map(function(m) { return { id: m.id, nombre: m.nombre }; }) }; });
 
   var recientes = mios.filter(function(t) { return t.estado === 'Completado'; })
     .sort(function(a, b) { return (b.fecha ? b.fecha.getTime() : 0) - (a.fecha ? a.fecha.getTime() : 0); })
@@ -899,6 +928,13 @@ function _wa_enviarParte_(user, p) {
       var esOp2 = !esOp1 && _wa_norm_(r[COL_TRA.OPERARIO_2 - 1]) === miNorm;
       if (!esOp1 && !esOp2) _wa_fail_('Ese trabajo no es tuyo.');
       var id = String(p.idTrabajo);
+      // Para cerrarlo: la maquinaria asignada por Álvaro y la que se haya usado deben decir dónde se dejó. Se comprueba ANTES de escribir nada.
+      var todasMaq = maqs.slice(), dejJob = {};
+      if (estado === 'Completado') {
+        var celdaMaq = sheet.getMaxColumns() >= MAQ_.COL_TRA ? String(sheet.getRange(row, MAQ_.COL_TRA).getValue() || '') : '';
+        _maq_deTrabajo_(celdaMaq).forEach(function(a) { if (!todasMaq.some(function(x) { return x.id === a.id; })) todasMaq.push(a); });
+        dejJob = _maq_validaDejadas_(todasMaq, p.dejadas);
+      }
 
       if (esOp1) { sheet.getRange(row, COL_TRA.HORA_INICIO).setValue(h1); sheet.getRange(row, COL_TRA.HORA_FIN).setValue(h2); }
       else       { sheet.getRange(row, COL_TRA.HORA_INICIO_2).setValue(h1); sheet.getRange(row, COL_TRA.HORA_FIN_2).setValue(h2); }
@@ -921,6 +957,7 @@ function _wa_enviarParte_(user, p) {
         if (f.carpeta) sheet.getRange(row, COL_TRA.CARPETA_FOTOS).setValue(f.carpeta);
       }
       _maq_ponerEnTrabajo_(id, maqs);
+      if (estado === 'Completado') _maq_aplicaDejadas_(todasMaq, dejJob, String(r[COL_TRA.CLIENTE - 1] || ''), user.nombre, id);
       logEvent('INFO', 'wa_enviarParte', 'Parte completado: ' + id, user.nombre);
       return { id: id };
     });
@@ -929,6 +966,7 @@ function _wa_enviarParte_(user, p) {
   // Parte nuevo
   var cliente = _wa_enActivos_(p.cliente, _wa_listaClientesActivos_());
   if (!cliente) _wa_fail_('Elige un cliente de la lista.');
+  var dejParte = estado === 'Completado' ? _maq_validaDejadas_(maqs, p.dejadas) : {};
   return _wa_withLock_(function() {
     var id = nextId('TRABAJOS', 'TRA');
     var f = _wa_subirFotosTrabajo_(fotos, id);
@@ -940,6 +978,7 @@ function _wa_enviarParte_(user, p) {
     });
     if (!r.success) _wa_fail_(r.error || 'No se pudo guardar el parte.');
     _maq_ponerEnTrabajo_(id, maqs);
+    _maq_aplicaDejadas_(maqs, dejParte, cliente, user.nombre, id);
     logEvent('INFO', 'wa_enviarParte', 'Parte nuevo: ' + id, user.nombre);
     return { id: id };
   });

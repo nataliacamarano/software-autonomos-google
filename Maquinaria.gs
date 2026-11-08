@@ -487,6 +487,50 @@ function _maq_resolver_(ids, soloUsables) {
   return out;
 }
 
+/** Máquinas activas cuyo nombre figura en la celda "Maquinaria" de un trabajo (ahí se guardan por nombre). */
+function _maq_deTrabajo_(textoCelda, todas) {
+  var nombres = String(textoCelda || '').split(/\s*,\s*/).map(_wa_norm_).filter(Boolean);
+  if (!nombres.length) return [];
+  return (todas || _maq_todas_()).filter(function(m) { return m.activo && nombres.indexOf(_wa_norm_(m.nombre)) !== -1; });
+}
+
+/**
+ * Para CERRAR un trabajo que lleva maquinaria hay que decir dónde se dejó cada máquina.
+ * dejadas = { 'MAQ-001': { dejada: 'En el depósito', lugar: '' }, ... }. Devuelve lo validado (o falla con aviso claro).
+ */
+function _maq_validaDejadas_(maqs, dejadas) {
+  var out = {};
+  dejadas = dejadas && typeof dejadas === 'object' ? dejadas : {};
+  maqs.forEach(function(m) {
+    var d = dejadas[m.id] || {}, dej = String(d.dejada || ''), lugar = '';
+    if (MAQ_.DEJADA.indexOf(dej) === -1) _wa_fail_('Para cerrar el trabajo indica dónde has dejado "' + m.nombre + '".');
+    if (dej === 'En otro sitio') {
+      lugar = _maq_limpia_(d.lugar, 80);
+      if (lugar.length < 3) _wa_fail_('Escribe dónde has dejado "' + m.nombre + '" (por ejemplo "Prestada a Juan").');
+    }
+    out[m.id] = { dejada: dej, lugar: lugar };
+  });
+  return out;
+}
+
+/** Aplica lo validado: ubicación y estado de cada máquina, y queda anotado en su historial. */
+function _maq_aplicaDejadas_(maqs, validas, cliente, quien, idTrabajo) {
+  if (!maqs.length) return;
+  var sh = _maq_hoja_(), C = MAQ_.COL;
+  maqs.forEach(function(m) {
+    var v = validas[m.id];
+    if (!v) return;
+    var estado = (v.dejada === 'En casa del cliente' || v.dejada === 'Sigo usándola yo' || v.dejada === 'En otro sitio') ? 'En uso' : 'Disponible';
+    if (m.estado === 'Rota' || m.estado === 'En reparación') estado = m.estado;   // solo Álvaro la saca de ahí
+    sh.getRange(m.row, C.ESTADO).setValue(estado);
+    sh.getRange(m.row, C.UBIC).setValue(_maq_ubicacionDe_(v.dejada, cliente, quien, v.lugar));
+    sh.getRange(m.row, C.CLIENTE).setValue(v.dejada === 'En casa del cliente' ? cliente : '');
+    sh.getRange(m.row, C.OPERARIO).setValue(quien);
+    sh.getRange(m.row, C.ULTUSO).setValue(new Date());
+    _maq_registraUso_(m, idTrabajo, cliente, quien, v.dejada, false, '', '', 'Cierre de trabajo');
+  });
+}
+
 /** Añade los nombres de las máquinas a la fila del trabajo sin repetir. */
 function _maq_ponerEnTrabajo_(idTrabajo, maquinas) {
   if (!idTrabajo || !maquinas || !maquinas.length) return;

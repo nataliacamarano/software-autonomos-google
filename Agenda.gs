@@ -98,6 +98,22 @@ function _ag_crearEvento_(titulo, detalle, fechaISO, hora, aviso, icono) {
   return ev.getId();
 }
 
+/** Evento del trabajo con invitación (le llega por correo y a su Google Calendar) al empleado. */
+function _ag_invitarTrabajo_(titulo, detalle, lugar, fechaISO, hIni, hFin, emails) {
+  var cal = CalendarApp.getDefaultCalendar();
+  var opts = { description: (detalle ? detalle + '\n\n' : '') + 'Enviado desde Álvaro Gestión.', guests: emails.join(','), sendInvites: true };
+  if (lugar) opts.location = lugar;
+  var ev;
+  if (hIni) {
+    var ini = _ag_inicio_(fechaISO, hIni), fin = hFin ? _ag_inicio_(fechaISO, hFin) : new Date(ini.getTime() + 60 * 60000);
+    ev = cal.createEvent('📋 ' + titulo, ini, fin, opts);
+  } else {
+    var p = fechaISO.split('-');
+    ev = cal.createAllDayEvent('📋 ' + titulo, new Date(+p[0], +p[1] - 1, +p[2]), opts);
+  }
+  return ev.getId();
+}
+
 function _ag_borraEvento_(idEvento) {
   if (!idEvento) return;
   try {
@@ -136,13 +152,14 @@ function wa_agMes_(user, p) {
 /** Todo lo de un día: trabajos y tareas/recordatorios. */
 function wa_agDia_(user, p) {
   var fecha = _ag_fechaIso_(p.fecha);
-  var trabajos = [], ahora = _ag_ahora_();
+  var trabajos = [], ahora = _ag_ahora_(), todasMaq = _maq_todas_();
   _wa_trabajos_().forEach(function(t) {
     if (_ag_iso_(t.fecha) !== fecha) return;
     trabajos.push({
       id: t.id, cliente: t.cliente, operario: t.operario, op2: t.op2,
       hIni: _wa_horaTxt_(t.hIni), hFin: _wa_horaTxt_(t.hFin), trabajo: t.trabajo, estado: t.estado,
-      atrasado: _ag_trabajoAtrasado_(t, ahora)
+      atrasado: _ag_trabajoAtrasado_(t, ahora),
+      maq: _maq_deTrabajo_(t.maq, todasMaq).map(function(m) { return { id: m.id, nombre: m.nombre }; })
     });
   });
   trabajos.sort(function(a, b) { return (a.hIni || '99:99') < (b.hIni || '99:99') ? -1 : 1; });

@@ -312,6 +312,8 @@ function viewDia(fecha) {
         el('b', { text: (t.atrasado ? '⚠️ Atrasado · ' : '') + hora + ' · ' + t.cliente }),
         el('div', { text: [t.operario, t.op2].filter(Boolean).join(' y ') + (t.estado ? ' · ' + t.estado : '') }),
         t.trabajo ? el('div', { style: 'color:var(--mut)', text: t.trabajo }) : null,
+        t.maq && t.maq.length ? el('div', { style: 'color:var(--mut)', text: '🛠️ ' + t.maq.map(function (m) { return m.nombre; }).join(', ') }) : null,
+        (t.operario === S.init.nombre && (t.estado === 'Pendiente' || t.estado === 'En curso')) ? el('button', { type: 'button', class: 'btn pri', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '✔ Completar este trabajo', onclick: function () { go(viewParte, { id: t.id, cliente: t.cliente, maq: t.maq }); } }) : null,
         el('button', { type: 'button', class: 'btn', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: '⏰ Recordarme este trabajo',
           onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } })));
     });
@@ -569,36 +571,45 @@ function viewMisNotas() {
 /* ---------- ADMIN: nuevo trabajo ---------- */
 function viewTrabajo(fechaIni) {
   var d = S.init, reqId = rid();
-  var cliente = sel(d.clientes, '', 'Elige cliente'), op1 = sel(d.operarios, '', 'Elige empleado'), op2 = sel(d.operarios, '', 'Ninguno');
+  var cliente = sel(d.clientes, '', 'Elige cliente'), op1 = sel([{ v: d.nombre, t: 'Yo (' + d.nombre + '): lo hago yo' }].concat(d.operarios), '', 'Elige quién lo hace'), op2 = sel(d.operarios, '', 'Ninguno');
   var fecha = inp('date', '', fechaIni || d.hoy), i1 = inp('time'), f1 = inp('time'), i2 = inp('time'), f2 = inp('time');
   var trabajo = el('textarea', { placeholder: 'Qué hay que hacer / qué se ha hecho' }), incid = el('textarea', { placeholder: 'Opcional' });
   var estado = sel(d.estadosTrabajo, 'Pendiente'), mat = inp('number', '0'), ubic = inp('text', 'Opcional');
   mat.setAttribute('inputmode', 'decimal'); mat.setAttribute('step', '0.01'); mat.setAttribute('min', '0');
   var fotos = photoPicker(5, 'Añadir fotos');
-  var maq = maqChips(d.maquinas, false);
+  var dej;
+  var maq = maqChips(d.maquinas, false, { onChange: function () { dej.pinta(); } });
+  dej = dejadasUI(maq, function () { return estado.value === 'Completado'; });
+  estado.addEventListener('change', function () { dej.pinta(); });
   var avisoT = sel(AVISOS_TXT, '');
+  var invChk = el('input', { type: 'checkbox', style: 'width:auto' });
+  var filaInv = el('label', { style: 'display:none;align-items:center;gap:10px;color:var(--txt);font-size:14px;margin:6px 0 10px' }, invChk, 'Enviarle también una invitación por Google Calendar (le llega por correo)');
+  function actualizaInv() { var hayEmp = op1.value && op1.value !== d.nombre; filaInv.style.display = hayEmp ? 'flex' : 'none'; if (!hayEmp) invChk.checked = false; }
+  op1.addEventListener('change', actualizaInv);
   var bloque2 = el('div', { style: 'display:none' }, el('div', { class: 'row2' }, field('Inicio empleado 2', i2), field('Fin empleado 2', f2)));
   op2.addEventListener('change', function () { bloque2.style.display = op2.value ? '' : 'none'; });
   var n = el('div', null,
     field('Cliente', cliente),
-    el('div', { class: 'row2' }, field('Empleado', op1), field('Empleado 2', op2)),
+    el('div', { class: 'row2' }, field('Quién lo hace', op1), field('Empleado 2', op2)),
     field('Fecha', fecha),
     el('div', { class: 'row2' }, field('Hora inicio', i1), field('Hora fin', f1)),
-    field('Aviso en el móvil', avisoT), el('p', { class: 'empty', style: 'margin:-6px 0 8px', text: 'El aviso va a tu Google Calendar (notificación en el móvil) y necesita la hora de inicio.' }),
+    field('Aviso en el móvil', avisoT), filaInv,
+    el('p', { class: 'empty', style: 'margin:-4px 0 8px', text: 'Al guardar, el empleado ya lo ve en "Trabajos por hacer" de su pantalla y lo completa desde ahí cuando termine.' }), el('p', { class: 'empty', style: 'margin:-6px 0 8px', text: 'El aviso va a tu Google Calendar (notificación en el móvil) y necesita la hora de inicio.' }),
     el('p', { class: 'empty', style: 'margin:-6px 0 8px', text: 'Si es un trabajo futuro y no sabes cuánto durará, pon solo la hora de inicio (o ninguna): el empleado pondrá las horas reales al completarlo. Tampoco hace falta elegir maquinaria ahora.' }),
     bloque2,
     field('Trabajo', trabajo), field('Incidencias', incid),
     el('div', { class: 'row2' }, field('Estado', estado), field('Materiales (€)', mat)),
-    field('Ubicación', ubic), maq.node, fotos.node,
+    field('Ubicación', ubic), maq.node, dej.node, fotos.node,
     submitBtn('Guardar trabajo', function () {
       need(cliente.value, 'Elige un cliente.'); need(op1.value, 'Elige un empleado.'); need(fecha.value, 'Elige la fecha.');
       if (avisoT.value !== '') need(i1.value, 'Para pedir un aviso indica la hora de inicio.');
+      if (estado.value === 'Completado') need(!dej.falta(), dej.falta());
       need(!fotos.isBusy(), 'Espera a que terminen de cargar las fotos.');
       return api('crearTrabajo', { reqId: reqId, cliente: cliente.value, operario: op1.value, operario2: op2.value, fecha: fecha.value,
         horaInicio: i1.value, horaFin: f1.value, horaInicio2: i2.value, horaFin2: f2.value, trabajo: trabajo.value, incidencias: incid.value,
-        estado: estado.value, materiales: mat.value, ubicacion: ubic.value, fotos: fotos.get(), maquinas: maq.get(), aviso: avisoT.value })
+        estado: estado.value, materiales: mat.value, ubicacion: ubic.value, fotos: fotos.get(), maquinas: maq.get(), aviso: avisoT.value, invitar: invChk.checked, dejadas: dej.get() })
         .then(function (r) {
-          done('Trabajo guardado', 'Ya está en la hoja de cálculo.' + (r.aviso === 'ok' ? ' Aviso creado en tu Google Calendar.' : '') + (r.aviso === 'error' ? ' ⚠️ El trabajo se guardó, pero no pude crear el aviso: ' + r.avisoError : ''));
+          done('Trabajo guardado', 'Ya está en la hoja de cálculo.' + (r.invitacion === 'ok' ? ' Invitación enviada al empleado por Google Calendar.' : '') + (r.invitacion === 'error' ? ' ⚠️ El trabajo se guardó, pero no pude enviar la invitación: ' + r.invitacionError : '') + (r.aviso === 'ok' ? ' Aviso creado en tu Google Calendar.' : '') + (r.aviso === 'error' ? ' ⚠️ El trabajo se guardó, pero no pude crear el aviso: ' + r.avisoError : ''));
         });
     }));
   show('Nuevo trabajo', n);
@@ -897,12 +908,13 @@ function empHome() {
     el('button', { class: 'big', onclick: function () { go(viewParte, null); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Registrar mi parte de hoy'),
     el('button', { class: 'big', onclick: function () { go(viewMaquinas); } }, el('span', { style: 'font-size:26px', text: '🛠️' }), 'Maquinaria: ver y registrar uso'),
     el('button', { class: 'big', onclick: function () { go(viewMisNotas); } }, el('span', { style: 'font-size:26px', text: '📝' }), 'Notas compartidas conmigo'),
-    el('h2', { text: 'Mis trabajos asignados' }));
+    el('h2', { text: 'Trabajos por hacer' }),
+    el('p', { class: 'empty', style: 'margin:-4px 0 6px', text: 'Los que te asigna Álvaro. Toca uno para completarlo cuando lo termines.' }));
   if (!d.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes trabajos pendientes.' }));
   var l = el('div', { class: 'list' });
   d.trabajos.forEach(function (t) {
     l.appendChild(el('div', { class: 'it', onclick: function () { go(viewParte, t); } },
-      el('div', { class: 'grow' }, el('b', { text: t.cliente }), el('span', { text: [t.trabajo || 'Sin descripción', t.fecha].filter(Boolean).join(' · ') })),
+      el('div', { class: 'grow' }, el('b', { text: t.cliente }), el('span', { text: [t.trabajo || 'Sin descripción', t.fecha, t.hora, t.maq && t.maq.length ? '🛠️ ' + t.maq.map(function (m) { return m.nombre; }).join(', ') : ''].filter(Boolean).join(' · ') })),
       el('span', { class: 'pill ' + (t.estado === 'En curso' ? 'p-acc' : 'p-warn'), text: t.estado })));
   });
   n.appendChild(l);
@@ -924,18 +936,23 @@ function viewParte(t) {
   var estado = sel(d.estadosParte, 'Completado'), mat = inp('number', '0');
   mat.setAttribute('inputmode', 'decimal'); mat.setAttribute('step', '0.01'); mat.setAttribute('min', '0');
   var fotos = photoPicker(5, 'Añadir fotos');
-  var maq = maqChips(d.maquinas, true);
+  var dej;
+  var maq = maqChips(d.maquinas, true, { pre: ((t && t.maq) || []).map(function (m) { return m.id; }), onChange: function () { dej.pinta(); } });
+  dej = dejadasUI(maq, function () { return estado.value === 'Completado'; });
+  estado.addEventListener('change', function () { dej.pinta(); });
+  dej.pinta();
   var n = el('div', null, field('Cliente', cliente),
     el('div', { class: 'row2' }, field('Hora inicio', i), field('Hora fin', f)),
     field('Qué has hecho', trabajo), field('Incidencias', incid),
     el('div', { class: 'row2' }, field('Estado', estado), field('Materiales (€)', mat)),
-    maq.node, fotos.node,
+    maq.node, dej.node, fotos.node,
     submitBtn('Enviar parte', function () {
       need(t || cliente.value, 'Elige un cliente.'); need(i.value && f.value, 'Escribe la hora de inicio y la de fin.');
       need(trabajo.value.trim(), 'Cuenta qué has hecho.'); need(!fotos.isBusy(), 'Espera a que terminen de cargar las fotos.');
+      if (estado.value === 'Completado') need(!dej.falta(), dej.falta());
       return api('enviarParte', { reqId: reqId, idTrabajo: t ? t.id : '', cliente: t ? t.cliente : cliente.value, horaInicio: i.value, horaFin: f.value,
-        trabajo: trabajo.value, incidencias: incid.value, estado: estado.value, materiales: mat.value, fotos: fotos.get(), maquinas: maq.get() })
-        .then(function () { done('Parte enviado', 'Álvaro ya lo puede ver.'); });
+        trabajo: trabajo.value, incidencias: incid.value, estado: estado.value, materiales: mat.value, fotos: fotos.get(), maquinas: maq.get(), dejadas: dej.get() })
+        .then(function () { done(estado.value === 'Completado' ? 'Trabajo cerrado' : 'Parte enviado', d.rol === 'admin' ? 'Queda guardado en la hoja de cálculo.' : 'Álvaro ya lo puede ver.'); });
     }));
   show(t ? 'Completar trabajo' : 'Mi parte de hoy', n);
 }
@@ -965,8 +982,9 @@ function maqThumb(m) {
 function maqRota(m) { return m.estado === 'Rota' || m.estado === 'En reparación'; }
 
 /* Selector múltiple de maquinaria para trabajos (solo las utilizables) y partes (todas). */
-function maqChips(lista, todas) {
-  var marcadas = {};
+function maqChips(lista, todas, opt) {
+  opt = opt || {};
+  var marcadas = {}; (opt.pre || []).forEach(function (id) { marcadas[id] = true; });
   var disp = (lista || []).filter(function (m) { return todas || !maqRota(m); });
   if (!disp.length) return { node: null, get: function () { return []; } };
   var box = el('div', { class: 'chips' });
@@ -975,12 +993,50 @@ function maqChips(lista, todas) {
     disp.forEach(function (m) {
       box.appendChild(el('button', { type: 'button', class: 'chip' + (marcadas[m.id] ? ' on' : ''),
         text: (marcadas[m.id] ? '✓ ' : '') + m.nombre + (maqRota(m) ? ' (' + m.estado.toLowerCase() + ')' : ''),
-        onclick: function () { marcadas[m.id] = !marcadas[m.id]; pintar(); } }));
+        onclick: function () { marcadas[m.id] = !marcadas[m.id]; pintar(); if (opt.onChange) opt.onChange(); } }));
     });
   }
   pintar();
   return { node: el('div', null, el('label', { text: 'Maquinaria usada' }), box),
     get: function () { return Object.keys(marcadas).filter(function (k) { return marcadas[k]; }); } };
+}
+
+/* Para cerrar un trabajo con maquinaria hay que decir dónde se ha dejado cada máquina. */
+var DEJADAS = ['Sigo usándola yo', 'En casa del cliente', 'En la camioneta', 'En el depósito', 'En otro sitio'];
+function dejadasUI(maq, requerido) {
+  var caja = el('div'), est = {};
+  function nombreDe(id) { var m = (S.init.maquinas || []).filter(function (x) { return x.id === id; })[0]; return m ? m.nombre : id; }
+  function pinta() {
+    caja.innerHTML = '';
+    var ids = maq.get();
+    if (!ids.length) return;
+    caja.appendChild(el('label', { text: '¿Dónde has dejado la maquinaria?' + (requerido() ? ' (obligatorio para cerrar el trabajo)' : '') }));
+    ids.forEach(function (id) {
+      var st = est[id] || (est[id] = { dejada: '', lugar: '' });
+      var cajas = el('div', { class: 'choices' }), lugar = inp('text', 'Dónde: por ejemplo "Prestada a Juan"', st.lugar);
+      var cajaLugar = el('div', { style: 'display:' + (st.dejada === 'En otro sitio' ? 'block' : 'none') }, lugar);
+      lugar.addEventListener('input', function () { st.lugar = lugar.value; });
+      DEJADAS.forEach(function (o) {
+        var b = el('button', { type: 'button', class: 'choice' + (st.dejada === o ? ' on' : ''), text: o });
+        b.addEventListener('click', function () { st.dejada = o; cajaLugar.style.display = o === 'En otro sitio' ? 'block' : 'none'; [].forEach.call(cajas.children, function (c) { c.classList.toggle('on', c === b); }); });
+        cajas.appendChild(b);
+      });
+      caja.appendChild(el('div', { style: 'background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0' }, el('b', { text: nombreDe(id) }), cajas, cajaLugar));
+    });
+  }
+  return {
+    node: caja, pinta: pinta,
+    get: function () { var o = {}; maq.get().forEach(function (id) { var st = est[id]; if (st && st.dejada) o[id] = { dejada: st.dejada, lugar: st.lugar }; }); return o; },
+    falta: function () {
+      var ids = maq.get();
+      for (var i = 0; i < ids.length; i++) {
+        var st = est[ids[i]];
+        if (!st || !st.dejada) return 'Para cerrar el trabajo indica dónde has dejado "' + nombreDe(ids[i]) + '".';
+        if (st.dejada === 'En otro sitio' && st.lugar.trim().length < 3) return 'Escribe dónde has dejado "' + nombreDe(ids[i]) + '".';
+      }
+      return '';
+    }
+  };
 }
 
 /* QR sobre fondo blanco con zona de silencio, listo para imprimir. */
