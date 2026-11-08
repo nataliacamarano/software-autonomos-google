@@ -33,7 +33,7 @@ var WA_ = {
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
-  VERSION:         '51'
+  VERSION:         '52'
 };
 
 // ---- Entrada web ----
@@ -128,7 +128,11 @@ function _wa_actions_() {
     notaMover:        { roles: AE,  fn: wa_notaMover_, write: true },
     agDia:            { roles: AE,  fn: wa_agDia_ },
     agCrear:          { roles: AE,  fn: wa_agCrear_, write: true },
-    agHecho:          { roles: AE,  fn: wa_agHecho_, write: true },
+    agHecho:          { roles: AE, fn: wa_agHecho_, write: true },
+    agMarcar:         { roles: AE, fn: wa_agMarcar_, write: true },
+    notaMarcar:       { roles: AE, fn: wa_notaMarcar_, write: true },
+    marcadoresGet:    { roles: AE, fn: wa_marcadoresGet_ },
+    marcadoresGuardar: { roles: AE, fn: wa_marcadoresGuardar_, write: true },
     agBorrar:         { roles: AE,  fn: wa_agBorrar_, write: true },
     libretaGet:       { roles: AE,  fn: wa_libretaGet_ },
     libretaGuardar:   { roles: AE,  fn: wa_libretaGuardar_, write: true },
@@ -447,6 +451,7 @@ function _wa_init_(user, p) {
     base.maquinas = _maq_activasCorto_();
     base.estadosMaq = MAQ_.ESTADOS;
     base.combustibles = MAQ_.COMBUSTIBLES;
+    try { base.leyenda = _marc_leyenda_(user); } catch (e) { base.leyenda = {}; }
     base.estadosParte = WA_.ESTADOS_PARTE;   // Álvaro también puede cerrar sus propios trabajos
     try { base.atrasados = _ag_cuentaAtrasados_(user); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
     base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
@@ -455,6 +460,7 @@ function _wa_init_(user, p) {
   base.clientes = _wa_listaClientesActivos_();
   base.estadosParte = WA_.ESTADOS_PARTE;
   base.maquinas = _maq_activasCorto_();
+  try { base.leyenda = _marc_leyenda_(user); } catch (e) { base.leyenda = {}; }
   base.equipo = _wa_listaOperariosActivos_().filter(function(o) { return _wa_norm_(o) !== _wa_norm_(user.nombre); });
   try { base.atrasados = _ag_cuentaAtrasados_(user); } catch (e) { base.atrasados = 0; logEvent('WARN', '_wa_init_', 'atrasados: ' + e.message, ''); }
   var mi = _wa_miInicio_(user, {});

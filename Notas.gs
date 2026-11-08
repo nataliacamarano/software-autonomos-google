@@ -12,8 +12,8 @@
 
 var NOT_ = {
   SHEET: 'NOTAS',
-  HEAD: ['ID_Nota', 'Fecha', 'Titulo', 'Texto', 'Items', 'Compartida_Con', 'Hecha', 'Aviso_Hora', 'Aviso_Min', 'ID_Evento', 'Creada', 'Actualizada', 'Autor'],
-  COL: { ID: 1, FECHA: 2, TITULO: 3, TEXTO: 4, ITEMS: 5, COMP: 6, HECHA: 7, HORA: 8, AVISO: 9, EVENTO: 10, CREADA: 11, ACT: 12, AUTOR: 13 },
+  HEAD: ['ID_Nota', 'Fecha', 'Titulo', 'Texto', 'Items', 'Compartida_Con', 'Hecha', 'Aviso_Hora', 'Aviso_Min', 'ID_Evento', 'Creada', 'Actualizada', 'Autor', 'Marcador'],
+  COL: { ID: 1, FECHA: 2, TITULO: 3, TEXTO: 4, ITEMS: 5, COMP: 6, HECHA: 7, HORA: 8, AVISO: 9, EVENTO: 10, CREADA: 11, ACT: 12, AUTOR: 13, MARCADOR: 14 },
   MAX_ITEMS: 40,
   ID_RE: /^NOT-\d{3,6}$/,
   FILTROS: ['pendientes', 'todas', 'compartidas', 'hechas']
@@ -23,6 +23,7 @@ function _not_hoja_() {
   var sh = getOrCreateSheet(NOT_.SHEET);
   if (sh.getLastRow() === 0) { sh.appendRow(NOT_.HEAD); applyHeaderStyle_(sh, NOT_.HEAD.length); return sh; }
   _ag_aseguraColumna_(sh, NOT_.COL.AUTOR, 'Autor');   // hojas anteriores a que cada persona tuviera sus notas
+  _ag_aseguraColumna_(sh, NOT_.COL.MARCADOR, 'Marcador');
   return sh;
 }
 
@@ -51,7 +52,8 @@ function _not_todas_() {
       items: items, compartida: _not_comp_(r[C.COMP - 1]), hecha: hecha,
       hora: _wa_horaTxt_(r[C.HORA - 1]), aviso: (aviso === '' || aviso == null || isNaN(Number(aviso))) ? '' : Number(aviso),
       evento: String(r[C.EVENTO - 1] || '').trim(),
-      autor: String(r[C.AUTOR - 1] || '').trim() || 'Álvaro'
+      autor: String(r[C.AUTOR - 1] || '').trim() || 'Álvaro',
+      marcador: _marc_limpio_(r[C.MARCADOR - 1])
     };
     n.pendiente = items.length ? items.some(function(x) { return !x.h; }) : !hecha;
     n.atrasado = n.pendiente && _ag_vencido_(n.fecha, n.hora, ahora);
@@ -66,7 +68,8 @@ function _not_pub_(n, user) {
     id: n.id, fecha: n.fecha, titulo: n.titulo, texto: n.texto, items: n.items, compartida: n.compartida, hecha: n.hecha,
     hora: mia ? n.hora : '', aviso: mia ? n.aviso : '', calendario: mia ? !!n.evento : false, pendiente: n.pendiente, atrasado: n.atrasado,
     nItems: n.items.length, nHechos: n.items.filter(function(x) { return x.h; }).length,
-    autor: n.autor, mia: mia
+    autor: n.autor, mia: mia,
+    marcador: mia ? n.marcador : ''   // el color es de quien la escribió: no tiene el mismo significado para los demás
   };
 }
 
@@ -148,6 +151,7 @@ function wa_notaGuardar_(user, p) {
     if (comp.indexOf(ok) === -1) comp.push(ok);
   });
   var hecha = p.hecha === true;
+  var marcadorNuevo = p.marcador === undefined ? null : _marc_valido_(p.marcador);
   var hora = _wa_hora_(p.hora), aviso = '';
   if (p.aviso !== '' && p.aviso != null) {
     if (user.rol !== 'admin') _wa_fail_('Los avisos en el móvil solo los puede pedir Álvaro (se envían a su Google Calendar).');
@@ -168,7 +172,8 @@ function wa_notaGuardar_(user, p) {
     try {
       var d = _parseReportDate_(_wa_fechaDMY_(fecha)), ahora = new Date();
       var fila = [id, d, titulo, texto, JSON.stringify(items), comp.length ? '|' + comp.join('|') + '|' : '', hecha, '', aviso, evento,
-                  antes ? '' : ahora, ahora, antes ? antes.autor : user.nombre];
+                  antes ? '' : ahora, ahora, antes ? antes.autor : user.nombre,
+                  marcadorNuevo === null ? (antes ? antes.marcador : '') : marcadorNuevo];
       var row = esNueva ? sh.getLastRow() + 1 : antes.row;
       if (esNueva) sh.appendRow(fila);
       else {
@@ -179,6 +184,16 @@ function wa_notaGuardar_(user, p) {
     } catch (e) { _ag_borraEvento_(evento); throw e; }
     logEvent('INFO', 'wa_notaGuardar', id + (esNueva ? ' creada' : ' editada') + ' ' + fecha, titulo);
     return { id: id, calendario: !!evento };
+  });
+}
+
+/** Pone, cambia o quita el marcador de color de una nota propia. */
+function wa_notaMarcar_(user, p) {
+  var marcador = _marc_valido_(p.marcador);
+  return _wa_withLock_(function() {
+    var n = _not_buscar_(p.id, user, true);
+    _not_hoja_().getRange(n.row, NOT_.COL.MARCADOR).setValue(marcador);
+    return { ok: true, marcador: marcador };
   });
 }
 
@@ -299,5 +314,62 @@ function wa_libretaGuardar_(user, p) {
     sh.getRange(row, 3).setValue(ahora);
     sh.getRange(row, 4).setValue(user.nombre);
     return { ok: true, guardado: _maq_fecha_(ahora) };
+  });
+}
+
+// =============================================================
+// Marcadores de color: 5 colores para notas y tareas; cada persona escribe qué significa cada uno
+// (hoja MARCADORES, una fila por persona).
+// =============================================================
+
+var MARC_ = { SHEET: 'MARCADORES', COLORES: ['rojo', 'naranja', 'amarillo', 'verde', 'azul'], HEAD: ['Autor', 'Rojo', 'Naranja', 'Amarillo', 'Verde', 'Azul'], MAX: 30 };
+
+function _marc_limpio_(v) {
+  v = String(v == null ? '' : v).trim().toLowerCase();
+  return MARC_.COLORES.indexOf(v) !== -1 ? v : '';
+}
+
+/** Vacío o uno de los 5 colores; cualquier otra cosa se rechaza. */
+function _marc_valido_(v) {
+  v = String(v == null ? '' : v).trim().toLowerCase();
+  if (v && MARC_.COLORES.indexOf(v) === -1) _wa_fail_('El marcador no es válido.');
+  return v;
+}
+
+function _marc_hoja_() {
+  var sh = getOrCreateSheet(MARC_.SHEET);
+  if (sh.getLastRow() === 0) { sh.appendRow(MARC_.HEAD); applyHeaderStyle_(sh, MARC_.HEAD.length); }
+  return sh;
+}
+
+function _marc_fila_(user) {
+  var sh = _marc_hoja_(), last = sh.getLastRow();
+  if (last < 2) return null;
+  var vals = sh.getRange(2, 1, last - 1, MARC_.HEAD.length).getValues();
+  for (var i = 0; i < vals.length; i++) if (_wa_norm_(vals[i][0]) === _wa_norm_(user.nombre)) return { row: i + 2, vals: vals[i] };
+  return null;
+}
+
+/** Qué significa cada color para esta persona: { rojo: 'urgente', ... } */
+function _marc_leyenda_(user) {
+  var f = _marc_fila_(user), out = {};
+  MARC_.COLORES.forEach(function(c, i) { out[c] = f ? String(f.vals[i + 1] || '') : ''; });
+  return out;
+}
+
+function wa_marcadoresGet_(user, p) {
+  return { colores: MARC_.COLORES, leyenda: _marc_leyenda_(user) };
+}
+
+function wa_marcadoresGuardar_(user, p) {
+  var ley = p.leyenda && typeof p.leyenda === 'object' ? p.leyenda : {};
+  var fila = [user.nombre];
+  MARC_.COLORES.forEach(function(c) { fila.push(_wa_s_(ley[c], MARC_.MAX)); });
+  return _wa_withLock_(function() {
+    var sh = _marc_hoja_(), f = _marc_fila_(user);
+    var row = f ? f.row : sh.getLastRow() + 1;
+    for (var c = 0; c < fila.length; c++) { var cel = sh.getRange(row, c + 1); cel.setNumberFormat('@'); cel.setValue(fila[c]); }
+    var out = {}; MARC_.COLORES.forEach(function(c, i) { out[c] = fila[i + 1]; });
+    return { ok: true, leyenda: out };
   });
 }

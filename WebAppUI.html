@@ -83,6 +83,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .prevlib{white-space:pre-wrap;background:#fffef8;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px;max-height:180px;overflow:hidden;position:relative}
 .cal .dia .l{background:#f3efe0;color:#6b5a1a}
 #nueva{position:fixed;top:0;left:0;right:0;z-index:40;background:var(--acc);color:#fff;text-align:center;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}#nueva small{display:block;font-weight:400;font-size:12px;opacity:.9}
+.mk{display:inline-block;width:16px;height:16px;min-width:16px;border-radius:50%;margin:0 6px 0 0;padding:0;border:2px solid transparent;vertical-align:middle;flex:none;background:none}
+button.mk{cursor:pointer}.mk.rojo{background:#d93025}.mk.naranja{background:#f29900}.mk.amarillo{background:#f6c026}.mk.verde{background:#1e8e3e}.mk.azul{background:#1a73e8}.mk.vacio{border-color:#b9b7ae}
+.mkfila{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 2px}.mkop{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:54px;max-width:70px;padding:6px 4px;border:2px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:11px;color:var(--mut);cursor:pointer;line-height:1.15;text-align:center}.mkop.on{border-color:var(--acc);background:var(--accbg);color:var(--txt)}.mkop .mk{width:22px;height:22px;margin:0}
+.mkley{display:flex;align-items:center;gap:10px;margin:8px 0}.mkley .mk{width:22px;height:22px}.mkley input{flex:1}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -264,6 +268,60 @@ function adminHome() {
   show('Álvaro Gestión', n, { noBack: true });
 }
 
+/* ---------- MARCADORES DE COLOR (5 colores; cada persona les pone su significado) ---------- */
+var COLORES = ['rojo', 'naranja', 'amarillo', 'verde', 'azul'];
+function leyendaDe(c) { return (S.init && S.init.leyenda && S.init.leyenda[c]) || ''; }
+function nombreColor(c) { return c.charAt(0).toUpperCase() + c.slice(1); }
+/* Punto de color. Con alPulsar es un botón (para poner o cambiar el color); sin él, solo se ve. */
+function puntoMk(c, alPulsar) {
+  var txt = c ? 'Marcador ' + c + (leyendaDe(c) ? ': ' + leyendaDe(c) : '') : 'Poner un marcador de color';
+  if (!alPulsar) return c ? el('span', { class: 'mk ' + c, title: txt, 'aria-label': txt }) : null;
+  var b = el('button', { type: 'button', class: 'mk ' + (c || 'vacio'), title: txt, 'aria-label': txt });
+  b.addEventListener('click', function (ev) { ev.stopPropagation(); alPulsar(); });
+  return b;
+}
+/* Selector para los formularios: sin marcador + los 5 colores, con su significado debajo. */
+function selectorMk(inicial) {
+  var cur = inicial || '', fila = el('div', { class: 'mkfila' });
+  function pinta() {
+    fila.innerHTML = '';
+    [''].concat(COLORES).forEach(function (c) {
+      var b = el('button', { type: 'button', class: 'mkop' + (cur === c ? ' on' : ''), onclick: function () { cur = c; pinta(); } },
+        el('span', { class: 'mk ' + (c || 'vacio') }), c ? (leyendaDe(c) || nombreColor(c)) : 'Ninguno');
+      fila.appendChild(b);
+    });
+  }
+  pinta();
+  return { node: fila, get: function () { return cur; } };
+}
+/* Ventana para cambiar el color de algo al momento (alElegir devuelve la llamada al servidor). */
+function hojaMarcador(actual, alElegir) {
+  var ov = el('div', { class: 'ov', onclick: function (e) { if (e.target === ov) ov.remove(); } });
+  var fila = el('div', null);
+  [''].concat(COLORES).forEach(function (c) {
+    fila.appendChild(el('button', { type: 'button', class: 'btn' + (actual === c ? ' pri' : ''), style: 'display:flex;align-items:center;gap:10px;text-align:left',
+      onclick: function () { ov.remove(); alElegir(c); } },
+      el('span', { class: 'mk ' + (c || 'vacio'), style: 'margin:0' }), c ? nombreColor(c) + (leyendaDe(c) ? ' · ' + leyendaDe(c) : '') : 'Sin marcador'));
+  });
+  ov.appendChild(el('div', { class: 'sheet' }, el('b', { text: 'Marcador de color' }), fila,
+    el('button', { class: 'btn', text: '🎨 Cambiar qué significa cada color', onclick: function () { ov.remove(); go(viewLeyenda); } }),
+    el('button', { class: 'btn', text: 'Cerrar', onclick: function () { ov.remove(); } })));
+  document.body.appendChild(ov);
+}
+function viewLeyenda() {
+  var campos = {};
+  var n = el('div', null, el('p', { class: 'empty', style: 'margin-top:0', text: 'Escribe qué significa cada color para ti (por ejemplo, rojo = urgente). Es solo tuyo: nadie más ve tus significados.' }));
+  COLORES.forEach(function (c) {
+    var t = inp('text', nombreColor(c) + ': qué significa', leyendaDe(c)); t.setAttribute('maxlength', '30'); campos[c] = t;
+    n.appendChild(el('div', { class: 'mkley' }, el('span', { class: 'mk ' + c }), t));
+  });
+  n.appendChild(submitBtn('Guardar', function () {
+    var ley = {}; COLORES.forEach(function (c) { ley[c] = campos[c].value; });
+    return api('marcadoresGuardar', { reqId: rid(), leyenda: ley }).then(function () { return refreshInit(); }).then(function () { toast('Significados guardados'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; t.fn(t.arg); });
+  }));
+  show('Mis colores', n);
+}
+
 /* ---------- ADMIN: calendario ---------- */
 var AG = { mes: '' };
 var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -345,7 +403,7 @@ function viewDia(fecha) {
       });
       n.appendChild(el('div', { class: 'tarea' + (x.hecho ? ' hecha' : '') + (x.atrasado ? ' atras' : '') }, chk,
         el('div', { class: 'grow' },
-          el('div', { class: 'tt' }, x.titulo, el('small', { text: [x.atrasado ? '⚠️ Atrasada' : '', x.hora, x.calendario ? '🔔 aviso ' + avisoTxt(x.aviso) : ''].filter(Boolean).join(' · ') })),
+          el('div', { class: 'tt' }, puntoMk(x.marcador, function () { hojaMarcador(x.marcador, function (c) { api('agMarcar', { reqId: rid(), id: x.id, marcador: c }).then(function () { viewDia(fecha); }).catch(function (e) { toast((e && e.error) || 'No se pudo.', true); }); }); }), x.titulo, el('small', { text: [x.atrasado ? '⚠️ Atrasada' : '', x.hora, x.calendario ? '🔔 aviso ' + avisoTxt(x.aviso) : ''].filter(Boolean).join(' · ') })),
           x.detalle ? el('div', { style: 'color:var(--mut);font-size:13px', text: x.detalle }) : null, borrar)));
     });
     n.appendChild(el('button', { class: 'btn pri', text: '+ Añadir tarea o recordatorio', onclick: function () { go(viewAgNueva, { fecha: fecha }); } }));
@@ -359,14 +417,15 @@ function viewAgNueva(pre) {
   var titulo = inp('text', 'Por ejemplo: llamar al proveedor', pre.titulo || ''), detalle = el('textarea', { placeholder: 'Opcional', value: pre.detalle || '' });
   var fecha = inp('date', '', pre.fecha || S.init.hoy), hora = inp('time'); if (pre.hora) hora.value = pre.hora;
   var esAdmin = S.init.rol === 'admin';
+  var mk = selectorMk('');
   var aviso = sel(AVISOS_TXT, '');
   var nota = el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso se crea en tu Google Calendar: te llegará la notificación al móvil (con la app de Google Calendar) aunque esta app esté cerrada. Necesita indicar la hora.' });
-  var n = el('div', null, field('¿Qué hay que hacer o recordar?', titulo), field('Detalle', detalle),
+  var n = el('div', null, field('¿Qué hay que hacer o recordar?', titulo), field('Detalle', detalle), field('Marcador de color', mk.node),
     el('div', { class: 'row2' }, field('Fecha', fecha), field('Hora', hora)), esAdmin ? field('Aviso', aviso) : null, esAdmin ? nota : null,
     submitBtn('Guardar', function () {
       need(titulo.value.trim().length >= 2, 'Escribe qué hay que hacer o recordar.'); need(fecha.value, 'Elige la fecha.');
       if (aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
-      return api('agCrear', { reqId: reqId, titulo: titulo.value, detalle: detalle.value, fecha: fecha.value, hora: hora.value, aviso: esAdmin ? aviso.value : '' })
+      return api('agCrear', { reqId: reqId, titulo: titulo.value, detalle: detalle.value, fecha: fecha.value, hora: hora.value, aviso: esAdmin ? aviso.value : '', marcador: mk.get() })
         .then(function (r) { toast(r.calendario ? 'Guardado con aviso en Google Calendar' : 'Guardado'); AG.mes = fecha.value.slice(0, 7); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) { t.arg = fecha.value; } t.fn(t.arg); });
     }));
   show('Tarea o recordatorio', n);
@@ -437,7 +496,7 @@ function viewAtrasos() {
       var cuando = x.fecha === r.hoy ? 'Hoy' : fechaLarga(x.fecha).replace(/ de \d{4}$/, '');
       return el('div', { class: 'pen' + (x.atrasado ? ' atras' : ''), onclick: function () { go(viewDia, x.fecha); } },
         el('span', { class: 'ic', text: ICONO_TIPO[x.tipo] || '•' }),
-        el('div', { class: 'grow' }, el('b', { text: x.titulo }), x.detalle ? el('small', { text: x.detalle }) : null, x.puede ? el('div', null, mover(x), quitar(x)) : null),
+        el('div', { class: 'grow' }, el('b', null, puntoMk(x.marcador), x.titulo), x.detalle ? el('small', { text: x.detalle }) : null, x.puede ? el('div', null, mover(x), quitar(x)) : null),
         el('span', { class: 'cuando', text: [cuando, x.hora].filter(Boolean).join(' · ') }));
     }
     function bloque(titulo, lista, vacio) {
@@ -534,7 +593,7 @@ function notaTarjeta(x, o) {
   var tit = el('b', { text: x.titulo });
   var puede = x.mia !== false;   // las notas de otros (compartidas contigo) no se editan: solo se marcan
   var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') + (x.atrasado ? ' atras' : '') });
-  var cab = el('div', { class: 'nt' }, tit);
+  var cab = el('div', { class: 'nt' }, puede ? puntoMk(x.marcador, function () { hojaMarcador(x.marcador, function (c) { api('notaMarcar', { reqId: rid(), id: x.id, marcador: c }).then(function () { if (o.alCambiar) o.alCambiar(); }).catch(function (e) { toast((e && e.error) || 'No se pudo.', true); }); }); }) : null, tit);
   if (puede) { tit.style.cursor = 'pointer'; tit.addEventListener('click', function () { go(viewNotaForm, x); }); cab.appendChild(el('button', { type: 'button', class: 'btn', style: 'width:auto;flex:none;margin:0;padding:4px 12px;font-size:12px', text: 'Editar', onclick: function () { go(viewNotaForm, x); } })); }
   card.appendChild(cab);
   var meta = [x.atrasado ? '⚠️ Atrasada' : '', fechaLarga(x.fecha).replace(/ de \d{4}$/, ''), x.nItems ? x.nHechos + '/' + x.nItems : '',
@@ -577,6 +636,7 @@ function viewNotas() {
     if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: NF.filtro === 'pendientes' ? 'No tienes notas pendientes. 🎉' : 'No hay notas en este filtro.' }));
     r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { alCambiar: viewNotas })); });
     n.appendChild(el('button', { class: 'btn pri', text: S.init.rol === 'admin' ? '+ Nueva nota (con lista, aviso o para compartir)' : '+ Nueva nota (con lista o para compartir)', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
+    n.appendChild(el('button', { class: 'btn', text: '🎨 Mis colores: qué significa cada uno', onclick: function () { go(viewLeyenda); } }));
     n.appendChild(libretasAnteriores());
     show('Notas diarias', n);
   }).catch(function (e) { toast(e.error, true); back(); });
@@ -613,7 +673,8 @@ function viewNotaForm(x) {
   pintaComp();
   var hora = inp('time'); if (x.hora) hora.value = x.hora;
   var aviso = sel(AVISOS_TXT, x.calendario ? String(x.aviso) : '');
-  var n = el('div', null, field('Título', titulo), field('Fecha', fecha), field('Texto', texto),
+  var mk = selectorMk(x.marcador || '');
+  var n = el('div', null, field('Título', titulo), field('Marcador de color', mk.node), field('Fecha', fecha), field('Texto', texto),
     el('label', { text: 'Lista (opcional)' }), caja,
     el('button', { type: 'button', class: 'btn', text: '+ Añadir punto', onclick: function () { puntos.push({ t: '', h: false }); pinta(puntos.length - 1); } }), filaHecha);
   n.appendChild(el('label', { text: 'Compartir con' })); n.appendChild(chips); n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'Elige a todo el equipo' + (esAdmin ? '' : ', a Álvaro') + ' o a personas concretas. Lo verán en sus notas y podrán marcar los puntos; solo tú puedes editarla o borrarla.' }));
@@ -626,7 +687,7 @@ function viewNotaForm(x) {
     if (esAdmin && aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
     var items = puntos.filter(function (p) { return p.t.trim(); });
     return api('notaGuardar', { reqId: reqId, id: x.id || '', titulo: titulo.value, texto: texto.value, fecha: fecha.value, items: items, hecha: !items.length && hechaChk.checked,
-      compartida: Object.keys(comp).filter(function (k) { return comp[k]; }), hora: esAdmin ? hora.value : '', aviso: esAdmin ? aviso.value : '' })
+      compartida: Object.keys(comp).filter(function (k) { return comp[k]; }), hora: esAdmin ? hora.value : '', aviso: esAdmin ? aviso.value : '', marcador: mk.get() })
       .then(function (r) { toast(r.calendario ? 'Nota guardada con aviso en Google Calendar' : 'Nota guardada'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) t.arg = fecha.value; t.fn(t.arg); });
   }));
   if (esEdicion) {

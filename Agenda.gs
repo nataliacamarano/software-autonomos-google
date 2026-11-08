@@ -14,8 +14,8 @@
 
 var AG_ = {
   SHEET: 'AGENDA',
-  HEAD: ['ID_Item', 'Fecha', 'Hora', 'Titulo', 'Detalle', 'Hecho', 'Aviso_Min', 'ID_Evento', 'Creado', 'Autor'],
-  COL: { ID: 1, FECHA: 2, HORA: 3, TITULO: 4, DETALLE: 5, HECHO: 6, AVISO: 7, EVENTO: 8, CREADO: 9, AUTOR: 10 },
+  HEAD: ['ID_Item', 'Fecha', 'Hora', 'Titulo', 'Detalle', 'Hecho', 'Aviso_Min', 'ID_Evento', 'Creado', 'Autor', 'Marcador'],
+  COL: { ID: 1, FECHA: 2, HORA: 3, TITULO: 4, DETALLE: 5, HECHO: 6, AVISO: 7, EVENTO: 8, CREADO: 9, AUTOR: 10, MARCADOR: 11 },
   AVISOS: [0, 5, 10, 15, 30, 60, 120, 1440],   // minutos antes
   DURACION_MIN: 30,
   ID_RE: /^AGE-\d{3,6}$/
@@ -32,6 +32,7 @@ function _ag_hoja_() {
   var sh = getOrCreateSheet(AG_.SHEET);
   if (sh.getLastRow() === 0) { sh.appendRow(AG_.HEAD); applyHeaderStyle_(sh, AG_.HEAD.length); return sh; }
   _ag_aseguraColumna_(sh, AG_.COL.AUTOR, 'Autor');   // hojas anteriores a que cada persona tuviera su agenda
+  _ag_aseguraColumna_(sh, AG_.COL.MARCADOR, 'Marcador');
   return sh;
 }
 
@@ -91,7 +92,8 @@ function _ag_todos_() {
       hecho: _wa_bool_(r[C.HECHO - 1]),
       aviso: (aviso === '' || aviso == null || isNaN(Number(aviso))) ? '' : Number(aviso),
       evento: String(r[C.EVENTO - 1] || '').trim(),
-      autor: String(r[C.AUTOR - 1] || '').trim() || 'Álvaro'
+      autor: String(r[C.AUTOR - 1] || '').trim() || 'Álvaro',
+      marcador: _marc_limpio_(r[C.MARCADOR - 1])
     });
   });
   return out;
@@ -99,7 +101,7 @@ function _ag_todos_() {
 
 function _ag_pub_(x) {
   return { id: x.id, fecha: x.fecha, hora: x.hora, titulo: x.titulo, detalle: x.detalle, hecho: x.hecho, aviso: x.aviso, calendario: !!x.evento,
-           atrasado: !x.hecho && _ag_vencido_(x.fecha, x.hora, _ag_ahora_()) };
+           atrasado: !x.hecho && _ag_vencido_(x.fecha, x.hora, _ag_ahora_()), marcador: x.marcador };
 }
 
 function _ag_fechaIso_(v) {
@@ -212,12 +214,12 @@ function _ag_pendientesTodos_(user) {
   });
   _ag_misTareas_(user).forEach(function(x) {
     if (x.hecho || !x.fecha) return;
-    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, horaIni: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora), puede: true });
+    out.push({ tipo: 'tarea', id: x.id, titulo: x.titulo, detalle: x.detalle, fecha: x.fecha, hora: x.hora, horaIni: x.hora, orden: x.hora, atrasado: _ag_vencido_(x.fecha, x.hora, ahora), puede: true, marcador: x.marcador });
   });
   _not_todas_().filter(function(n) { return _not_visible_(n, user); }).forEach(function(n) {
     if (!n.pendiente || !n.fecha) return;
     var pend = n.items.filter(function(i) { return !i.h; }).length;
-    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: _not_esMia_(n, user) ? n.hora : '', horaIni: _not_esMia_(n, user) ? n.hora : '', orden: n.hora, atrasado: n.atrasado, puede: _not_esMia_(n, user) });
+    out.push({ tipo: 'nota', id: n.id, titulo: n.titulo, detalle: n.items.length ? pend + ' de ' + n.items.length + ' puntos por hacer' : n.texto, fecha: n.fecha, hora: _not_esMia_(n, user) ? n.hora : '', horaIni: _not_esMia_(n, user) ? n.hora : '', orden: n.hora, atrasado: n.atrasado, puede: _not_esMia_(n, user), marcador: _not_esMia_(n, user) ? n.marcador : '' });
   });
   return { ahora: ahora, items: out };
 }
@@ -315,6 +317,7 @@ function wa_agCrear_(user, p) {
   if (titulo.trim().length < 2) _wa_fail_('Escribe qué hay que hacer o recordar.');
   var detalle = _wa_s_(p.detalle, 500);
   var hora = _wa_hora_(p.hora);
+  var marcador = _marc_valido_(p.marcador);
   var aviso = '';
   if (p.aviso !== '' && p.aviso != null) {
     if (user.rol !== 'admin') _wa_fail_('Los avisos en el móvil solo los puede pedir Álvaro (se envían a su Google Calendar).');
@@ -330,7 +333,7 @@ function wa_agCrear_(user, p) {
       var f = _wa_fechaDMY_(fecha), d = _parseReportDate_(f);
       var fila = new Array(AG_.HEAD.length).fill('');
       fila[C.ID - 1] = id; fila[C.FECHA - 1] = d; fila[C.HORA - 1] = ''; fila[C.TITULO - 1] = titulo; fila[C.DETALLE - 1] = detalle;
-      fila[C.HECHO - 1] = false; fila[C.AVISO - 1] = aviso; fila[C.EVENTO - 1] = evento; fila[C.CREADO - 1] = new Date(); fila[C.AUTOR - 1] = user.nombre;
+      fila[C.HECHO - 1] = false; fila[C.AVISO - 1] = aviso; fila[C.EVENTO - 1] = evento; fila[C.CREADO - 1] = new Date(); fila[C.AUTOR - 1] = user.nombre; fila[C.MARCADOR - 1] = marcador;
       sh.appendRow(fila);
       var row = sh.getLastRow();
       sh.getRange(row, C.FECHA).setNumberFormat('dd/MM/yyyy');
@@ -338,6 +341,19 @@ function wa_agCrear_(user, p) {
     } catch (e) { _ag_borraEvento_(evento); throw e; }   // sin fila no debe quedar un aviso suelto
     logEvent('INFO', 'wa_agCrear', id + ' ' + fecha + (hora ? ' ' + hora : ''), titulo);
     return { id: id, calendario: !!evento };
+  });
+}
+
+/** Pone, cambia o quita el marcador de color de una tarea propia. */
+function wa_agMarcar_(user, p) {
+  var id = String(p.id || '');
+  if (!AG_.ID_RE.test(id)) _wa_fail_('Esa tarea no existe.');
+  var marcador = _marc_valido_(p.marcador);
+  return _wa_withLock_(function() {
+    var x = _ag_misTareas_(user).filter(function(y) { return y.id === id; })[0];
+    if (!x) _wa_fail_('Esa tarea no existe.');
+    _ag_hoja_().getRange(x.row, AG_.COL.MARCADOR).setValue(marcador);
+    return { ok: true, marcador: marcador };
   });
 }
 
