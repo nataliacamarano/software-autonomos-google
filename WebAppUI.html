@@ -250,7 +250,7 @@ function viewTrabajo() {
 /* ---------- ADMIN: nuevo cliente / empleado ---------- */
 function viewCliente() {
   var reqId = rid();
-  var nom = inp('text', 'Laura'), ape = inp('text', 'Ferrer Ribas'), emp = inp('text', 'Opcional'), tel = inp('tel', '600 123 456'),
+  var nom = inp('text', 'Laura'), ape = inp('text', 'Ferrer Ribas'), emp = inp('text', 'Opcional'), tel = inp('tel', '+34 600 123 456'),
       cif = inp('text', 'Opcional'), mail = inp('email', 'laura@correo.com'), dir = el('textarea', { placeholder: 'Calle, número, localidad' });
   mail.setAttribute('inputmode', 'email');
   var n = el('div', null,
@@ -268,22 +268,35 @@ function viewCliente() {
 }
 function viewEmpleado() {
   var reqId = rid();
-  var nom = inp('text', 'Marc'), ape = inp('text', 'Torres'), tel = inp('tel', '611 222 333'), mail = inp('email', 'marc@correo.com');
+  var nom = inp('text', 'Marc'), ape = inp('text', 'Torres'), tel = inp('tel', '+34 611 222 333'), mail = inp('email', 'marc@correo.com');
   var n = el('div', null,
     el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
-    field('Teléfono', tel), field('Email', mail),
+    field('Teléfono (móvil de WhatsApp)', tel), el('p', { class: 'empty', style: 'margin:4px 0 0', text: AYUDA_TEL }), field('Email', mail),
     el('div', { class: 'note', text: 'Al guardarlo se crea su enlace personal y te lo muestro al momento para que se lo envíes.' }),
     submitBtn('Guardar empleado', function () {
       need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.'); need(tel.value.trim(), 'Escribe el teléfono.');
       var nombre = nom.value.trim() + ' ' + ape.value.trim();
       return api('crearEmpleado', { reqId: reqId, nombre: nom.value, apellidos: ape.value, telefono: tel.value, email: mail.value })
         .then(function (r) {
-          if (r && r.enlace) doneEmpleado(nombre, r.enlace);
+          if (r && r.enlace) doneEmpleado(nombre, r.enlace, tel.value);
           else done('Empleado guardado', 'Entra en Gestión para compartirle su enlace personal.');
         });
     }));
   show('Nuevo empleado', n);
 }
+
+/* Teléfonos de cualquier país: con "+prefijo" o "00prefijo" se usa tal cual; un número español de 9 cifras
+   sin prefijo se entiende como +34; cualquier otro caso abre WhatsApp sin número para elegir el contacto. */
+var PAIS_DEFECTO = '34';
+function waUrl(tel, texto) {
+  var s = String(tel || '').replace(/^[\s(]+/, ''), d = s.replace(/\D/g, ''), num = '';
+  if (s.charAt(0) === '+') num = d;
+  else if (s.slice(0, 2) === '00') num = d.slice(2);
+  else if (/^[6-9]\d{8}$/.test(d)) num = PAIS_DEFECTO + d;
+  if (num.length < 8 || num.length > 15) num = '';
+  return 'https://wa.me/' + num + '?text=' + encodeURIComponent(texto);
+}
+var AYUDA_TEL = 'Si es de otro país, escribe el prefijo: +44, +351, +212… Sin prefijo se entiende que es de España (+34).';
 
 function copiarEnlace(box, enlace) {
   box.focus(); box.select();
@@ -291,7 +304,7 @@ function copiarEnlace(box, enlace) {
   if (!ok && navigator.clipboard) { navigator.clipboard.writeText(enlace).then(function () { toast('Enlace copiado'); }, function () { toast('Selecciónalo y cópialo a mano', true); }); }
   else toast(ok ? 'Enlace copiado' : 'Selecciónalo y cópialo a mano', !ok);
 }
-function doneEmpleado(nombre, enlace) {
+function doneEmpleado(nombre, enlace, tel) {
   var box = el('input', { type: 'text', readonly: true, value: enlace });
   box.addEventListener('focus', function () { box.select(); });
   var n = el('div', null,
@@ -300,7 +313,7 @@ function doneEmpleado(nombre, enlace) {
     box,
     el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }),
     el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
-      href: 'https://wa.me/?text=' + encodeURIComponent('Tu enlace para registrar partes de trabajo: ' + enlace) }),
+      href: waUrl(tel, 'Tu enlace para registrar partes de trabajo: ' + enlace) }),
     el('p', { class: 'empty', text: 'Si lo pierdes, lo tienes siempre en Gestión → su ficha → Enlace personal.' }),
     el('button', { class: 'btn', text: 'Volver al inicio', onclick: function () { refreshInit().then(home); } }));
   show('Listo', n, { noBack: true });
@@ -475,6 +488,7 @@ function viewEditar(x) {
   var n = el('div', null, el('div', { class: 'row2' }, field('Nombre', nom), field('Apellidos', ape)),
     esE ? null : field('Empresa', emp),
     el('div', { class: 'row2' }, field('Teléfono', tel), esE ? field('Email', mail) : field('CIF / NIF', cif)),
+    el('p', { class: 'empty', style: 'margin:4px 0 0', text: AYUDA_TEL }),
     esE ? null : field('Email', mail), esE ? null : field('Dirección', dir),
     submitBtn('Guardar cambios', function () {
       need(nom.value.trim() && ape.value.trim(), 'Escribe nombre y apellidos.'); need(mail.value.trim(), 'Escribe el email.'); need(tel.value.trim(), 'Escribe el teléfono.');
@@ -501,7 +515,7 @@ function verEnlace(x) {
     cont.appendChild(box);
     cont.appendChild(el('button', { class: 'btn pri', text: 'Copiar enlace', onclick: function () { copiarEnlace(box, enlace); } }));
     cont.appendChild(el('a', { class: 'btn', style: 'display:block;text-align:center;text-decoration:none', target: '_blank', rel: 'noopener', text: 'Enviar por WhatsApp',
-      href: 'https://wa.me/?text=' + encodeURIComponent('Tu enlace para registrar partes de trabajo: ' + enlace) }));
+      href: waUrl(x.tel, 'Tu enlace para registrar partes de trabajo: ' + enlace) }));
     var regen = el('button', { class: 'btn bad', text: 'Generar enlace nuevo' }), armado = false;
     regen.addEventListener('click', function () {
       if (!armado) {

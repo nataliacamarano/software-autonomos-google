@@ -159,6 +159,27 @@ function _wa_num_(v, max) {
   return Math.min(n, max || 1000000);
 }
 
+/**
+ * Valida y normaliza un teléfono de cualquier país.
+ * - Admite "+prefijo" o "00prefijo" (00 se convierte en +); entre 6 y 15 cifras (E.164).
+ * - Sin prefijo se guarda tal cual (la app asume España solo al enviar por WhatsApp).
+ * - Si empieza por "+", "0", "-" o son solo cifras, se guarda como TEXTO (apóstrofo inicial,
+ *   que Sheets no muestra) para que no lo convierta en fórmula ni pierda ceros.
+ */
+function _wa_tel_(v) {
+  var bruto = String(v == null ? '' : v).trim();
+  if (!bruto) _wa_fail_('Escribe un teléfono.');
+  var s = bruto.replace(/[^\d+()\-.\s]/g, '').replace(/\s+/g, ' ').trim();
+  if (s.replace(/^\(\s*/, '').indexOf('+', 1) !== -1) _wa_fail_('El teléfono no es válido: el "+" solo puede ir al principio.');
+  if (s.slice(0, 2) === '00') s = '+' + s.slice(2).trim();
+  var digitos = s.replace(/\D/g, '');
+  if (digitos.length < 6 || digitos.length > 15) {
+    _wa_fail_('El teléfono no es válido. Si es de otro país, escribe el prefijo (por ejemplo +44 7700 900123).');
+  }
+  if (/^[+0\-(]/.test(s) || /^\d+$/.test(s)) s = "'" + s;
+  return s;
+}
+
 function _wa_hora_(v, etiqueta) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return '';
@@ -442,12 +463,12 @@ function _wa_horasEquipo_(user, p) {
 function _wa_crearCliente_(user, p) {
   var d = {
     nombre: _wa_s_(p.nombre, 80), apellidos: _wa_s_(p.apellidos, 120), empresa: _wa_s_(p.empresa, 120),
-    email: _wa_s_(p.email, 120).toLowerCase(), telefono: _wa_s_(p.telefono, 30),
+    email: _wa_s_(p.email, 120).toLowerCase(), telefono: p.telefono,
     direccion: _wa_s_(p.direccion, 250), cifNif: _wa_s_(p.cifNif, 20)
   };
   if (!d.nombre || !d.apellidos) _wa_fail_('Escribe nombre y apellidos.');
   if (!_wa_emailOk_(d.email)) _wa_fail_('El email no es válido.');
-  if (!d.telefono) _wa_fail_('Escribe un teléfono.');
+  d.telefono = _wa_tel_(d.telefono);
   if (!d.direccion) _wa_fail_('Escribe la dirección.');
 
   return _wa_withLock_(function() {
@@ -464,11 +485,11 @@ function _wa_crearCliente_(user, p) {
 function _wa_crearEmpleado_(user, p) {
   var d = {
     nombre: _wa_s_(p.nombre, 80), apellidos: _wa_s_(p.apellidos, 120),
-    email: _wa_s_(p.email, 120).toLowerCase(), telefono: _wa_s_(p.telefono, 30)
+    email: _wa_s_(p.email, 120).toLowerCase(), telefono: p.telefono
   };
   if (!d.nombre || !d.apellidos) _wa_fail_('Escribe nombre y apellidos.');
   if (!_wa_emailOk_(d.email)) _wa_fail_('El email no es válido.');
-  if (!d.telefono) _wa_fail_('Escribe un teléfono.');
+  d.telefono = _wa_tel_(d.telefono);
 
   return _wa_withLock_(function() {
     var nuevo = _wa_norm_(_wa_label_(d.nombre, d.apellidos));
@@ -699,21 +720,22 @@ function _wa_editarPersona_(user, p) {
   var tipo = String(p.tipo || ''), id = String(p.id || ''), d = p.datos || {};
   return _wa_withLock_(function() {
     if (tipo === 'e') {
-      var dat = { nombre: _wa_s_(d.nombre, 80), apellidos: _wa_s_(d.apellidos, 120), email: _wa_s_(d.email, 120).toLowerCase(), telefono: _wa_s_(d.telefono, 30) };
+      var dat = { nombre: _wa_s_(d.nombre, 80), apellidos: _wa_s_(d.apellidos, 120), email: _wa_s_(d.email, 120).toLowerCase(), telefono: d.telefono };
       if (!dat.nombre || !dat.apellidos) _wa_fail_('Escribe nombre y apellidos.');
       if (!_wa_emailOk_(dat.email)) _wa_fail_('El email no es válido.');
-      if (!dat.telefono) _wa_fail_('Escribe un teléfono.');
+      dat.telefono = _wa_tel_(dat.telefono);
       var r = updateOperario(id, dat);
       if (!r.success) _wa_fail_(r.error);
     } else if (tipo === 'c') {
       var dc = {
         nombre: _wa_s_(d.nombre, 80), apellidos: _wa_s_(d.apellidos, 120), empresa: _wa_s_(d.empresa, 120),
-        email: _wa_s_(d.email, 120).toLowerCase(), telefono: _wa_s_(d.telefono, 30),
+        email: _wa_s_(d.email, 120).toLowerCase(), telefono: d.telefono,
         direccion: _wa_s_(d.direccion, 250), cifNif: _wa_s_(d.cifNif, 20).toUpperCase()
       };
       if (!dc.nombre || !dc.apellidos) _wa_fail_('Escribe nombre y apellidos.');
       if (!_wa_emailOk_(dc.email)) _wa_fail_('El email no es válido.');
-      if (!dc.telefono || !dc.direccion) _wa_fail_('Teléfono y dirección son obligatorios.');
+      if (!dc.direccion) _wa_fail_('Escribe la dirección.');
+      dc.telefono = _wa_tel_(dc.telefono);
       var rc = updateCliente(id, dc);
       if (!rc.success) _wa_fail_(rc.error);
     } else {
