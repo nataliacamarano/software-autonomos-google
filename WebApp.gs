@@ -121,6 +121,12 @@ function _wa_actions_() {
     agCrear:          { roles: A,  fn: wa_agCrear_, write: true },
     agHecho:          { roles: A,  fn: wa_agHecho_, write: true },
     agBorrar:         { roles: A,  fn: wa_agBorrar_, write: true },
+    notaLista:        { roles: A,  fn: wa_notaLista_ },
+    notaGuardar:      { roles: A,  fn: wa_notaGuardar_, write: true },
+    notaItem:         { roles: AE, fn: wa_notaItem_, write: true },
+    notaHecha:        { roles: AE, fn: wa_notaHecha_, write: true },
+    notaBorrar:       { roles: A,  fn: wa_notaBorrar_, write: true },
+    miNotas:          { roles: E,  fn: wa_miNotas_ },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
     enviarParte:      { roles: E,  fn: _wa_enviarParte_,   write: true }
   };

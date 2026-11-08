@@ -67,6 +67,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .cal .dia i{font-style:normal;font-size:10px;line-height:1.2;padding:1px 5px;border-radius:6px}.cal .dia .t{background:var(--accbg);color:var(--acc)}.cal .dia .a{background:var(--warnbg);color:var(--warn)}.cal .dia .h{background:var(--okbg);color:var(--ok)}
 .mes{display:flex;align-items:center;gap:8px}.mes b{flex:1;text-align:center;font-size:17px;text-transform:capitalize}.mes button{border:1px solid var(--line);background:#fff;border-radius:10px;font-size:20px;line-height:1;padding:6px 14px;cursor:pointer;color:var(--acc)}
 .tarea{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}.tarea input[type=checkbox]{width:22px;height:22px;margin-top:2px;flex:none}.tarea.hecha .tt{text-decoration:line-through;color:var(--mut)}.tarea .tt{font-weight:600}.tarea small{display:block;color:var(--mut);font-size:12px;font-weight:400}
+.cal .dia .n{background:#efe9fb;color:#5b3fa0}
+.nota{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin:8px 0}.nota .nt{display:flex;gap:8px;align-items:flex-start}.nota .nt b{flex:1;font-size:15px}
+.nota .meta{font-size:12px;color:var(--mut);margin-top:2px}.nota .txt{font-size:14px;margin-top:6px;white-space:pre-wrap}
+.nota .pt{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:15px}.nota .pt input{width:22px;height:22px;flex:none}.nota .pt.h span{text-decoration:line-through;color:var(--mut)}
+.nota.hecha{opacity:.7}.pbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:8px}.pbar i{display:block;height:100%;background:var(--ok)}
+.fila-pt{display:flex;gap:8px;align-items:center;margin:6px 0}.fila-pt input[type=checkbox]{width:22px;height:22px;flex:none}.fila-pt input[type=text]{flex:1}.fila-pt button{border:1px solid var(--line);background:#fff;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;color:var(--bad)}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
 .label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
@@ -238,7 +244,8 @@ function adminHome() {
       tile('🧾', 'Apuntar gasto', function () { go(viewGasto); }),
       tile('⏳', 'Trabajos por hacer' + (r.trabajosPendientes ? ' (' + r.trabajosPendientes + ')' : ''), function () { go(viewPendientes, 'trabajos'); }),
       tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
-      tile('📅', 'Calendario y recordatorios', function () { go(viewCalendario); }, true),
+      tile('📅', 'Calendario y recordatorios', function () { go(viewCalendario); }),
+      tile('📝', 'Notas diarias', function () { go(viewNotas); }),
       tile('🛠️', textoMaq(r.maq), function () { go(viewMaquinas); }, true),
       tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
   show('Álvaro Gestión', n, { noBack: true });
@@ -269,12 +276,13 @@ function viewCalendario() {
         el('span', { text: d }),
         info.t ? el('i', { class: 't', text: '📋 ' + info.t }) : null,
         info.a ? el('i', { class: 'a', text: '⏰ ' + info.a }) : null,
+        info.n ? el('i', { class: 'n', text: '📝 ' + info.n }) : null,
         info.h && !info.a ? el('i', { class: 'h', text: '✓ ' + info.h }) : null));
     })(d);
     var n2 = el('div', null,
       el('div', { class: 'mes' }, el('button', { type: 'button', 'aria-label': 'Mes anterior', text: '‹', onclick: function () { mover(-1); } }), el('b', { text: MESES[m] + ' ' + y }), el('button', { type: 'button', 'aria-label': 'Mes siguiente', text: '›', onclick: function () { mover(1); } })),
       grid,
-      el('p', { class: 'empty', text: '📋 trabajos · ⏰ tareas o recordatorios pendientes · ✓ hechas. Toca un día para ver y añadir.' }),
+      el('p', { class: 'empty', text: '📋 trabajos · ⏰ tareas pendientes · 📝 notas pendientes · ✓ hechas. Toca un día para ver y añadir.' }),
       el('button', { class: 'btn', text: 'Ir a hoy', onclick: function () { AG.mes = S.init.hoy.slice(0, 7); viewCalendario(); } }));
     show('Calendario', n2);
   }).catch(function (e) { toast(e.error, true); back(); });
@@ -296,6 +304,10 @@ function viewDia(fecha) {
           onclick: function () { go(viewAgNueva, { fecha: fecha, hora: t.hIni, titulo: 'Trabajo: ' + t.cliente, detalle: t.trabajo }); } })));
     });
     n.appendChild(el('button', { class: 'btn', text: '+ Añadir un trabajo este día', onclick: function () { go(viewTrabajo, fecha); } }));
+    n.appendChild(el('h2', { text: '📝 Notas del día' }));
+    if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: 'No hay notas este día.' }));
+    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: function () { viewDia(fecha); } })); });
+    n.appendChild(el('button', { class: 'btn', text: '+ Añadir una nota este día', onclick: function () { go(viewNotaForm, { fecha: fecha }); } }));
     n.appendChild(el('h2', { text: '⏰ Tareas y recordatorios' }));
     if (!r.items.length) n.appendChild(el('p', { class: 'empty', text: 'No hay tareas ni recordatorios este día.' }));
     r.items.forEach(function (x) {
@@ -336,6 +348,125 @@ function viewAgNueva(pre) {
         .then(function (r) { toast(r.calendario ? 'Guardado con aviso en Google Calendar' : 'Guardado'); AG.mes = fecha.value.slice(0, 7); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) { t.arg = fecha.value; } t.fn(t.arg); });
     }));
   show('Tarea o recordatorio', n);
+}
+
+/* ---------- NOTAS DIARIAS ---------- */
+var NF = { filtro: 'pendientes' };
+function progreso(x) { return x.nItems ? el('div', { class: 'pbar' }, el('i', { style: 'width:' + Math.round(100 * x.nHechos / x.nItems) + '%' })) : null; }
+
+/* Tarjeta de una nota: casillas que se marcan al momento; en Álvaro, tocar el título la abre para editar. */
+function notaTarjeta(x, o) {
+  o = o || {};
+  var tit = el('b', { text: x.titulo });
+  var card = el('div', { class: 'nota' + (x.pendiente ? '' : ' hecha') });
+  var cab = el('div', { class: 'nt' }, tit);
+  if (o.admin) { tit.style.cursor = 'pointer'; tit.addEventListener('click', function () { go(viewNotaForm, x); }); cab.appendChild(el('button', { type: 'button', class: 'btn', style: 'width:auto;flex:none;margin:0;padding:4px 12px;font-size:12px', text: 'Editar', onclick: function () { go(viewNotaForm, x); } })); }
+  card.appendChild(cab);
+  var meta = [o.admin ? fechaLarga(x.fecha).replace(/ de \d{4}$/, '') : '', x.nItems ? x.nHechos + '/' + x.nItems : '',
+    o.admin && x.compartida.length ? '👥 ' + x.compartida.join(', ') : '', x.calendario ? '🔔 ' + x.hora + ' (' + avisoTxt(x.aviso) + ')' : ''].filter(Boolean).join(' · ');
+  if (meta) card.appendChild(el('div', { class: 'meta', text: meta }));
+  if (x.texto) card.appendChild(el('div', { class: 'txt', text: x.texto }));
+  function cambia() { if (o.alCambiar) o.alCambiar(); }
+  if (x.items.length) {
+    x.items.forEach(function (it, i) {
+      var chk = el('input', { type: 'checkbox', 'aria-label': it.t }); chk.checked = it.h;
+      chk.addEventListener('change', function () {
+        chk.disabled = true;
+        api('notaItem', { reqId: rid(), id: x.id, idx: i, hecho: chk.checked }).then(cambia).catch(function (e) { chk.checked = !chk.checked; chk.disabled = false; toast(e.error, true); });
+      });
+      card.appendChild(el('label', { class: 'pt' + (it.h ? ' h' : '') }, chk, el('span', { text: it.t })));
+    });
+    card.appendChild(progreso(x));
+  } else {
+    var chk = el('input', { type: 'checkbox', 'aria-label': 'Hecha' }); chk.checked = x.hecha;
+    chk.addEventListener('change', function () {
+      chk.disabled = true;
+      api('notaHecha', { reqId: rid(), id: x.id, hecho: chk.checked }).then(cambia).catch(function (e) { chk.checked = !chk.checked; chk.disabled = false; toast(e.error, true); });
+    });
+    card.appendChild(el('label', { class: 'pt' + (x.hecha ? ' h' : '') }, chk, el('span', { text: 'Hecha' })));
+  }
+  return card;
+}
+
+function viewNotas() {
+  loading('Notas diarias');
+  api('notaLista', { filtro: NF.filtro }).then(function (r) {
+    var chips = el('div', { class: 'chips' });
+    [['pendientes', 'Pendientes'], ['todas', 'Todas'], ['compartidas', 'Compartidas'], ['hechas', 'Hechas']].forEach(function (f) {
+      chips.appendChild(el('button', { type: 'button', class: 'chip' + (NF.filtro === f[0] ? ' on' : ''), text: f[1] + ' (' + r.cuenta[f[0]] + ')', onclick: function () { NF.filtro = f[0]; viewNotas(); } }));
+    });
+    var n = el('div', null, chips);
+    if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: NF.filtro === 'pendientes' ? 'No tienes notas pendientes. 🎉' : 'No hay notas en este filtro.' }));
+    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: true, alCambiar: viewNotas })); });
+    n.appendChild(el('button', { class: 'btn pri', text: '+ Nueva nota', onclick: function () { go(viewNotaForm, { fecha: S.init.hoy }); } }));
+    show('Notas diarias', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
+}
+
+function viewNotaForm(x) {
+  x = x || {};
+  var esEdicion = !!x.id, reqId = rid(), d = S.init;
+  var titulo = inp('text', 'Por ejemplo: material para la obra', x.titulo || ''), texto = el('textarea', { placeholder: 'Opcional', value: x.texto || '' });
+  var fecha = inp('date', '', x.fecha || d.hoy);
+  var puntos = (x.items || []).map(function (i) { return { t: i.t, h: i.h }; });
+  var caja = el('div'), hechaChk = el('input', { type: 'checkbox', style: 'width:auto' }); hechaChk.checked = !!x.hecha;
+  var filaHecha = el('label', { style: 'display:none;align-items:center;gap:10px;color:var(--txt);font-size:14px;margin:8px 0' }, hechaChk, 'Nota hecha');
+  function pinta(enfoca) {
+    caja.innerHTML = '';
+    puntos.forEach(function (p, i) {
+      var c = el('input', { type: 'checkbox', 'aria-label': 'Hecho' }); c.checked = p.h; c.addEventListener('change', function () { p.h = c.checked; });
+      var t = inp('text', 'Punto de la lista', p.t); t.addEventListener('input', function () { p.t = t.value; });
+      t.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); puntos.splice(i + 1, 0, { t: '', h: false }); pinta(i + 1); } });
+      caja.appendChild(el('div', { class: 'fila-pt' }, c, t, el('button', { type: 'button', 'aria-label': 'Quitar', text: '×', onclick: function () { puntos.splice(i, 1); pinta(); } })));
+      if (enfoca === i) setTimeout(function () { t.focus(); }, 0);
+    });
+    filaHecha.style.display = puntos.length ? 'none' : 'flex';
+  }
+  pinta();
+  var comp = {}; (x.compartida || []).forEach(function (c) { comp[c] = true; });
+  var chips = el('div', { class: 'chips' });
+  function pintaComp() {
+    chips.innerHTML = '';
+    (d.operarios || []).forEach(function (o) { chips.appendChild(el('button', { type: 'button', class: 'chip' + (comp[o] ? ' on' : ''), text: (comp[o] ? '✓ ' : '') + o, onclick: function () { comp[o] = !comp[o]; pintaComp(); } })); });
+  }
+  pintaComp();
+  var hora = inp('time'); if (x.hora) hora.value = x.hora;
+  var aviso = sel(AVISOS_TXT, x.calendario ? String(x.aviso) : '');
+  var n = el('div', null, field('Título', titulo), field('Fecha', fecha), field('Texto', texto),
+    el('label', { text: 'Lista (opcional)' }), caja,
+    el('button', { type: 'button', class: 'btn', text: '+ Añadir punto', onclick: function () { puntos.push({ t: '', h: false }); pinta(puntos.length - 1); } }), filaHecha);
+  if ((d.operarios || []).length) { n.appendChild(el('label', { text: 'Compartir con' })); n.appendChild(chips); n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El empleado la verá en su pantalla y podrá marcar los puntos.' })); }
+  n.appendChild(el('div', { class: 'row2' }, field('Recordar a las', hora), field('Aviso', aviso)));
+  n.appendChild(el('p', { class: 'empty', style: 'margin:4px 0 0', text: 'El aviso va a tu Google Calendar (notificación en el móvil). Necesita la hora.' }));
+  n.appendChild(submitBtn(esEdicion ? 'Guardar cambios' : 'Guardar nota', function () {
+    need(titulo.value.trim().length >= 2, 'Ponle un título a la nota.'); need(fecha.value, 'Elige la fecha.');
+    if (aviso.value !== '') need(hora.value, 'Para pedir un aviso indica la hora.');
+    var items = puntos.filter(function (p) { return p.t.trim(); });
+    return api('notaGuardar', { reqId: reqId, id: x.id || '', titulo: titulo.value, texto: texto.value, fecha: fecha.value, items: items, hecha: !items.length && hechaChk.checked,
+      compartida: Object.keys(comp).filter(function (k) { return comp[k]; }), hora: hora.value, aviso: aviso.value })
+      .then(function (r) { toast(r.calendario ? 'Nota guardada con aviso en Google Calendar' : 'Nota guardada'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; if (t.fn === viewDia) t.arg = fecha.value; t.fn(t.arg); });
+  }));
+  if (esEdicion) {
+    var borrar = el('button', { type: 'button', class: 'btn bad', text: 'Borrar nota' }), armado = false;
+    borrar.addEventListener('click', function () {
+      if (!armado) { armado = true; borrar.textContent = 'Pulsa otra vez para borrarla'; setTimeout(function () { armado = false; borrar.textContent = 'Borrar nota'; }, 5000); return; }
+      borrar.disabled = true;
+      api('notaBorrar', { reqId: rid(), id: x.id }).then(function () { toast('Nota borrada'); S.stack.pop(); var t = S.stack[S.stack.length - 1]; t.fn(t.arg); }).catch(function (e) { borrar.disabled = false; toast(e.error, true); });
+    });
+    n.appendChild(borrar);
+  }
+  show(esEdicion ? 'Editar nota' : 'Nueva nota', n);
+}
+
+/* Empleado: notas que Álvaro le ha compartido. */
+function viewMisNotas() {
+  loading('Notas compartidas');
+  api('miNotas').then(function (r) {
+    var n = el('div', null, el('p', { class: 'empty', style: 'margin-top:0', text: 'Notas que Álvaro ha compartido contigo. Marca lo que vayas haciendo.' }));
+    if (!r.notas.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes notas compartidas.' }));
+    r.notas.forEach(function (x) { n.appendChild(notaTarjeta(x, { admin: false, alCambiar: viewMisNotas })); });
+    show('Notas compartidas', n);
+  }).catch(function (e) { toast(e.error, true); back(); });
 }
 
 /* ---------- ADMIN: nuevo trabajo ---------- */
@@ -662,6 +793,7 @@ function empHome() {
     el('p', { style: 'margin:0 0 12px;font-size:20px;font-weight:600', text: 'Hola, ' + d.nombre.split(' ')[0] }),
     el('button', { class: 'big', onclick: function () { go(viewParte, null); } }, el('span', { style: 'font-size:26px', text: '📋' }), 'Registrar mi parte de hoy'),
     el('button', { class: 'big', onclick: function () { go(viewMaquinas); } }, el('span', { style: 'font-size:26px', text: '🛠️' }), 'Maquinaria: ver y registrar uso'),
+    el('button', { class: 'big', onclick: function () { go(viewMisNotas); } }, el('span', { style: 'font-size:26px', text: '📝' }), 'Notas compartidas conmigo'),
     el('h2', { text: 'Mis trabajos asignados' }));
   if (!d.trabajos.length) n.appendChild(el('p', { class: 'empty', text: 'No tienes trabajos pendientes.' }));
   var l = el('div', { class: 'list' });

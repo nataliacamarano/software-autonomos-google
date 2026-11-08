@@ -68,9 +68,9 @@ function _ag_inicio_(fechaISO, hora) {
   return new Date(+p[0], +p[1] - 1, +p[2], +hm[0], +hm[1], 0);
 }
 
-function _ag_crearEvento_(titulo, detalle, fechaISO, hora, aviso) {
+function _ag_crearEvento_(titulo, detalle, fechaISO, hora, aviso, icono) {
   var ini = _ag_inicio_(fechaISO, hora), fin = new Date(ini.getTime() + AG_.DURACION_MIN * 60000);
-  var ev = CalendarApp.getDefaultCalendar().createEvent('⏰ ' + titulo, ini, fin,
+  var ev = CalendarApp.getDefaultCalendar().createEvent((icono || '⏰') + ' ' + titulo, ini, fin,
     { description: (detalle ? detalle + '\n\n' : '') + 'Creado desde Álvaro Gestión.' });
   ev.removeAllReminders();
   ev.addPopupReminder(aviso);
@@ -92,13 +92,16 @@ function wa_agMes_(user, p) {
   var mes = String(p.mes || '');
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) _wa_fail_('El mes no es válido.');
   var dias = {};
-  function dia(k) { return dias[k] || (dias[k] = { t: 0, a: 0, h: 0 }); }
+  function dia(k) { return dias[k] || (dias[k] = { t: 0, a: 0, h: 0, n: 0 }); }
   _wa_trabajos_().forEach(function(t) {
     var k = _ag_iso_(t.fecha);
     if (k && k.indexOf(mes) === 0) dia(k).t++;
   });
   _ag_todos_().forEach(function(x) {
     if (x.fecha && x.fecha.indexOf(mes) === 0) { if (x.hecho) dia(x.fecha).h++; else dia(x.fecha).a++; }
+  });
+  _not_todas_().forEach(function(n) {
+    if (n.fecha && n.fecha.indexOf(mes) === 0 && n.pendiente) dia(n.fecha).n++;
   });
   return { mes: mes, dias: dias };
 }
@@ -120,7 +123,9 @@ function wa_agDia_(user, p) {
     if (a.hecho !== b.hecho) return a.hecho ? 1 : -1;
     return (a.hora || '99:99') < (b.hora || '99:99') ? -1 : ((a.hora || '99:99') > (b.hora || '99:99') ? 1 : 0);
   });
-  return { fecha: fecha, trabajos: trabajos, items: items };
+  var notas = _not_todas_().filter(function(n) { return n.fecha === fecha; });
+  notas.sort(function(a, b) { return a.pendiente !== b.pendiente ? (a.pendiente ? -1 : 1) : (a.id < b.id ? -1 : 1); });
+  return { fecha: fecha, trabajos: trabajos, items: items, notas: notas.map(_not_pub_) };
 }
 
 function wa_agCrear_(user, p) {
