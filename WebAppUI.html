@@ -718,11 +718,20 @@ function viewMaquinas() {
 }
 
 /* Historial de reparaciones: fecha, qué se reparó y quién la reparó. */
-function repLista(lista) {
+function repLista(lista, alBorrar) {
   var box = el('div');
   if (!lista || !lista.length) { box.appendChild(el('p', { class: 'empty', text: 'Todavía no hay reparaciones anotadas.' })); return box; }
   lista.forEach(function (x) {
-    box.appendChild(el('div', { class: 'hist' }, el('b', { text: '🔧 ' + x.fecha + ' · ' + x.quien }), el('div', { class: 'why', text: x.que })));
+    var fila = el('div', { class: 'hist' }, el('b', { text: '🔧 ' + x.fecha + ' · ' + x.quien }), el('div', { class: 'why', text: x.que }));
+    if (alBorrar) {
+      var b = el('button', { type: 'button', class: 'btn bad', style: 'margin-top:6px;padding:6px 12px;font-size:13px', text: 'Borrar' }), armado = false;
+      b.addEventListener('click', function () {
+        if (!armado) { armado = true; b.textContent = 'Pulsa otra vez para borrarla'; setTimeout(function () { armado = false; b.textContent = 'Borrar'; }, 5000); return; }
+        b.disabled = true; alBorrar(x, b);
+      });
+      fila.appendChild(b);
+    }
+    box.appendChild(fila);
   });
   return box;
 }
@@ -870,8 +879,12 @@ function repSeccion(m) {
     filaChk.style.display = rota ? 'flex' : 'none';
     if (rota && !marcadoUnaVez) { chk.checked = true; marcadoUnaVez = true; }
   }
+  function borrar(x, b) {
+    api('maqReparacionBorrar', { reqId: rid(), id: x.id }).then(function () { toast('Reparación borrada'); carga(); })
+      .catch(function (e) { b.disabled = false; toast((e && e.error) || 'No se pudo borrar.', true); });
+  }
   function carga() {
-    api('maqFicha', { id: m.id }).then(function (r) { lista.innerHTML = ''; lista.appendChild(repLista(r.reparaciones)); estadoActual = r.maquina.estado; opcionDisponible(); })
+    api('maqFicha', { id: m.id }).then(function (r) { lista.innerHTML = ''; lista.appendChild(repLista(r.reparaciones, borrar)); estadoActual = r.maquina.estado; opcionDisponible(); })
       .catch(function () { lista.textContent = 'No se pudo cargar el historial.'; });
   }
   var rq = rid();

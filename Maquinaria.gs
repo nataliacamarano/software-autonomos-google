@@ -345,6 +345,25 @@ function wa_maqReparacion_(user, p) {
   });
 }
 
+/** Álvaro borra una reparación anotada por error (queda constancia en LOGS). */
+function wa_maqReparacionBorrar_(user, p) {
+  var id = String(p.id || '');
+  if (!/^REP-\d{3,6}$/.test(id)) _wa_fail_('Esa reparación no existe.');
+  return _wa_withLock_(function() {
+    var sh = _maq_hojaRep_(), last = sh.getLastRow();
+    if (last < 2) _wa_fail_('Esa reparación no existe.');
+    var vals = sh.getRange(2, 1, last - 1, MAQ_.HEAD_REP.length).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      if (String(vals[i][0]) === id) {
+        sh.deleteRow(i + 2);
+        logEvent('INFO', 'wa_maqReparacionBorrar', id + ' borrada (' + vals[i][2] + ')', String(vals[i][4]) + ' · ' + String(vals[i][5]) + ' · ' + user.nombre);
+        return { ok: true };
+      }
+    }
+    _wa_fail_('Esa reparación no existe.');
+  });
+}
+
 /** Álvaro cambia el estado a mano (p. ej. "ya está reparada") y, si quiere, su ubicación. Queda en el historial. */
 function wa_maqEstado_(user, p) {
   var estado = String(p.estado || '');

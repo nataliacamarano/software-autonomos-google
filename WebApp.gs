@@ -114,6 +114,7 @@ function _wa_actions_() {
     maqEditar:        { roles: A,  fn: wa_maqEditar_, write: true },
     maqEstado:        { roles: A,  fn: wa_maqEstado_, write: true },
     maqReparacion:    { roles: A,  fn: wa_maqReparacion_, write: true },
+    maqReparacionBorrar: { roles: A, fn: wa_maqReparacionBorrar_, write: true },
     maqBaja:          { roles: A,  fn: wa_maqBaja_,   write: true },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
     enviarParte:      { roles: E,  fn: _wa_enviarParte_,   write: true }
