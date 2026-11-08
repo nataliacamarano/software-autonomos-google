@@ -63,7 +63,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 .choice.on{background:var(--accbg);border-color:var(--acc);color:var(--acc);font-weight:600}
 .labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .label{border:1px dashed #9a9890;border-radius:12px;padding:10px;text-align:center;background:#fff;break-inside:avoid}
-.label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
+.label canvas{max-width:100%;height:auto}.label b{display:block;font-size:14px}.label .emp{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#000;font-family:inherit;margin-bottom:6px}.label span{display:block;font-size:12px;color:var(--mut);font-family:monospace}
 .hist{padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}.hist b{font-size:13px}.hist .why{margin-top:3px;padding:6px 8px;border-radius:8px;background:var(--warnbg);color:var(--warn)}
 @media print{html,body{background:#fff}.bar,#toast,.noprint,.ov{display:none!important}main{padding:0}#app{max-width:none;background:#fff}.labels{grid-template-columns:repeat(3,1fr)}}
 .center{padding:60px 24px;text-align:center;color:var(--mut)}
@@ -648,6 +648,7 @@ function maqChips(lista, todas) {
 }
 
 /* QR sobre fondo blanco con zona de silencio, listo para imprimir. */
+var EMPRESA = 'Álvaro Mantenimiento';
 function qrCanvas(texto, px) {
   var q = qrcode(0, 'M'); q.addData(texto); q.make();
   var n = q.getModuleCount(), quiet = 4, cell = Math.max(2, Math.floor(px / (n + quiet * 2))), size = (n + quiet * 2) * cell;
@@ -658,10 +659,12 @@ function qrCanvas(texto, px) {
 }
 function imprimir() { try { window.print(); } catch (e) { toast('Este navegador no deja imprimir desde aquí. Usa "Guardar imagen".', true); } }
 function descargarQR(canvas, x) {
-  var out = document.createElement('canvas'); out.width = canvas.width + 40; out.height = canvas.height + 90;
-  var g = out.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, out.width, out.height); g.drawImage(canvas, 20, 20);
-  g.fillStyle = '#000'; g.textAlign = 'center'; g.font = 'bold 22px Arial'; g.fillText(x.nombre, out.width / 2, canvas.height + 56);
-  g.font = '16px monospace'; g.fillStyle = '#555'; g.fillText(x.id, out.width / 2, canvas.height + 80);
+  var out = document.createElement('canvas'); out.width = canvas.width + 40; out.height = canvas.height + 130;
+  var g = out.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, out.width, out.height);
+  g.fillStyle = '#000'; g.textAlign = 'center'; g.font = 'bold 20px Arial'; g.fillText(EMPRESA.toUpperCase(), out.width / 2, 32);
+  g.drawImage(canvas, 20, 46);
+  g.font = 'bold 22px Arial'; g.fillText(x.nombre, out.width / 2, canvas.height + 96);
+  g.font = '16px monospace'; g.fillStyle = '#555'; g.fillText(x.id, out.width / 2, canvas.height + 120);
   var a = document.createElement('a'); a.href = out.toDataURL('image/png'); a.download = x.id + '.png';
   document.body.appendChild(a); a.click(); a.remove();
 }
@@ -923,7 +926,7 @@ function viewMaqQR(x) {
   var c = qrCanvas(x.qr, 280); c.style.width = '100%'; c.style.maxWidth = '280px'; c.style.height = 'auto';
   var n = el('div', null,
     x.nuevo ? el('div', { class: 'note noprint', style: 'background:var(--okbg);color:var(--ok)', text: 'Máquina guardada. Imprime esta etiqueta y pégala en la máquina: al escanearla con el móvil se abre su pantalla.' }) : null,
-    el('div', { class: 'label', style: 'max-width:340px;margin:0 auto;padding:16px' }, c, el('b', { style: 'font-size:18px;margin-top:8px', text: x.nombre }), el('span', { text: x.id })),
+    el('div', { class: 'label', style: 'max-width:340px;margin:0 auto;padding:16px' }, el('span', { class: 'emp', text: EMPRESA }), c, el('b', { style: 'font-size:18px;margin-top:8px', text: x.nombre }), el('span', { text: x.id })),
     el('button', { class: 'btn pri noprint', text: '🖨️ Imprimir etiqueta', onclick: imprimir }),
     el('button', { class: 'btn noprint', text: 'Guardar imagen', onclick: function () { descargarQR(c, x); } }),
     el('p', { class: 'empty noprint', style: 'word-break:break-all', text: 'Dirección del QR: ' + x.qr }));
@@ -936,7 +939,7 @@ function viewMaqEtiquetas() {
     var act = r.maquinas.filter(function (m) { return m.activo; });
     if (!act.length) { toast('Todavía no hay máquinas.', true); back(); return; }
     var grid = el('div', { class: 'labels' });
-    act.forEach(function (m) { grid.appendChild(el('div', { class: 'label' }, qrCanvas(m.qr, 220), el('b', { text: m.nombre }), el('span', { text: m.id }))); });
+    act.forEach(function (m) { grid.appendChild(el('div', { class: 'label' }, el('span', { class: 'emp', text: EMPRESA }), qrCanvas(m.qr, 220), el('b', { text: m.nombre }), el('span', { text: m.id }))); });
     show('Etiquetas QR', el('div', null,
       el('button', { class: 'btn pri noprint', text: '🖨️ Imprimir todas (' + act.length + ')', onclick: imprimir }),
       el('p', { class: 'empty noprint', text: 'Recórtalas por la línea de puntos y pégalas; mejor con cinta transparente por encima para que aguanten el agua y el sol.' }), grid));
