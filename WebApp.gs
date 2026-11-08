@@ -38,8 +38,11 @@ var WA_ = {
 function doGet(e) {
   var t = (e && e.parameter && e.parameter.t) ? String(e.parameter.t) : '';
   if (!WA_.TOKEN_RE.test(t)) t = '';
+  var m = (e && e.parameter && e.parameter.m) ? String(e.parameter.m) : '';   // código de máquina (QR)
+  if (!MAQ_.ID_RE.test(m)) m = '';
   var tpl = HtmlService.createTemplateFromFile('WebAppUI');
   tpl.tokenJson = JSON.stringify(t);
+  tpl.maqJson = JSON.stringify(m);
   return tpl.evaluate()
     .setTitle('Álvaro Gestión')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -100,6 +103,13 @@ function _wa_actions_() {
     editarPersona:    { roles: A,  fn: _wa_editarPersona_, write: true },
     enlaceEmpleado:   { roles: A,  fn: _wa_enlaceEmpleado_ },
     regenerarEnlace:  { roles: A,  fn: _wa_regenerarEnlace_, write: true },
+    maqLista:         { roles: AE, fn: wa_maqLista_ },
+    maqFicha:         { roles: AE, fn: wa_maqFicha_ },
+    maqUso:           { roles: AE, fn: wa_maqUso_,    write: true },
+    maqCrear:         { roles: A,  fn: wa_maqCrear_,  write: true },
+    maqEditar:        { roles: A,  fn: wa_maqEditar_, write: true },
+    maqEstado:        { roles: A,  fn: wa_maqEstado_, write: true },
+    maqBaja:          { roles: A,  fn: wa_maqBaja_,   write: true },
     miInicio:         { roles: E,  fn: _wa_miInicio_ },
     enviarParte:      { roles: E,  fn: _wa_enviarParte_,   write: true }
   };
@@ -306,7 +316,7 @@ function _wa_trabajos_() {
   var sheet = getSheet('TRABAJOS');
   var last = sheet.getLastRow();
   if (last < 2) return [];
-  var ncol = Math.min(COL_TRA.HORA_FIN_2, sheet.getMaxColumns());
+  var ncol = Math.min(MAQ_.COL_TRA, sheet.getMaxColumns());   // incluye la columna "Maquinaria" si existe
   var vals = sheet.getRange(2, 1, last - 1, ncol).getValues();
   var out = [];
   vals.forEach(function(r, i) {
@@ -314,6 +324,7 @@ function _wa_trabajos_() {
     if (!id) return;
     out.push({
       row: i + 2, id: id,
+      maq: ncol >= MAQ_.COL_TRA ? String(r[MAQ_.COL_TRA - 1] || '').trim() : '',
       cliente: String(r[COL_TRA.CLIENTE - 1] || '').trim(),
       operario: String(r[COL_TRA.OPERARIO - 1] || '').trim(),
       fecha: _parseTrabajosDate_(r[COL_TRA.FECHA_TRABAJO - 1]),
@@ -397,10 +408,14 @@ function _wa_init_(user, p) {
     base.estadosGasto = ESTADOS_PAGO_GASTO;
     base.estadosTrabajo = ESTADOS_TRABAJO;
     base.resumen = _wa_resumenAdmin_(user, {});
+    base.maquinas = _maq_activasCorto_();
+    base.estadosMaq = MAQ_.ESTADOS;
+    base.tiposMaq = ['Desbrozadora', 'Cortacésped', 'Motosierra', 'Soplador', 'Cortasetos', 'Hidrolimpiadora', 'Taladro', 'Otra'];
     return base;
   }
   base.clientes = _wa_listaClientesActivos_();
   base.estadosParte = WA_.ESTADOS_PARTE;
+  base.maquinas = _maq_activasCorto_();
   var mi = _wa_miInicio_(user, {});
   base.trabajos = mi.trabajos; base.recientes = mi.recientes; base.horasMes = mi.horasMes;
   return base;
@@ -420,7 +435,7 @@ function _wa_resumenAdmin_(user, p) {
     if (t.estado === 'Pendiente' || t.estado === 'En curso') pend++;
   });
   var fac = _wa_facturasPendientes_();
-  return { trabajosSemana: semana, trabajosPendientes: pend, pendienteCobro: fac.total, facturasPendientes: fac.n };
+  return { trabajosSemana: semana, trabajosPendientes: pend, pendienteCobro: fac.total, facturasPendientes: fac.n, maq: _maq_resumen_() };
 }
 
 function _wa_pendientes_(user, p) {
@@ -429,7 +444,7 @@ function _wa_pendientes_(user, p) {
   var fac = _wa_facturasPendientes_();
   return {
     trabajos: trabajos.slice(0, 60).map(function(t) {
-      return { id: t.id, cliente: t.cliente, operario: t.operario, op2: t.op2, fecha: _wa_fechaTxt_(t.fecha), trabajo: t.trabajo, estado: t.estado };
+      return { id: t.id, cliente: t.cliente, operario: t.operario, op2: t.op2, fecha: _wa_fechaTxt_(t.fecha), trabajo: t.trabajo, estado: t.estado, maq: t.maq };
     }),
     facturas: fac.lista, totalFacturas: fac.total
   };
@@ -533,6 +548,7 @@ function _wa_crearTrabajo_(user, p) {
   var estado = String(p.estado || 'Pendiente');
   if (ESTADOS_TRABAJO.indexOf(estado) === -1) _wa_fail_('El estado no es válido.');
   var fotos = _wa_validaFotos_(p.fotos);
+  var maqs = _maq_resolver_(p.maquinas, true);   // las rotas o en reparación no se pueden asignar
 
   return _wa_withLock_(function() {
     var id = nextId('TRABAJOS', 'TRA');
@@ -546,6 +562,7 @@ function _wa_crearTrabajo_(user, p) {
       foto4: f.urls[3] || '', foto5: f.urls[4] || '', carpetaFotos: f.carpeta
     });
     if (!r.success) _wa_fail_(r.error || 'No se pudo guardar el trabajo.');
+    _maq_ponerEnTrabajo_(id, maqs);
     return { id: id };
   });
 }
@@ -821,6 +838,7 @@ function _wa_enviarParte_(user, p) {
   var incid = _wa_s_(p.incidencias, 2000);
   var materiales = _wa_num_(p.materiales, 100000);
   var fotos = _wa_validaFotos_(p.fotos);
+  var maqs = _maq_resolver_(p.maquinas, false);   // en un parte se admite cualquiera: pudo romperse mientras se usaba
   var miNorm = _wa_norm_(user.nombre);
 
   // Rellenar un trabajo ya asignado
@@ -855,6 +873,7 @@ function _wa_enviarParte_(user, p) {
         sheet.getRange(row, COL_TRA.FOTOS).setValue((previas ? previas + ', ' : '') + f.urls.join(', '));
         if (f.carpeta) sheet.getRange(row, COL_TRA.CARPETA_FOTOS).setValue(f.carpeta);
       }
+      _maq_ponerEnTrabajo_(id, maqs);
       logEvent('INFO', 'wa_enviarParte', 'Parte completado: ' + id, user.nombre);
       return { id: id };
     });
@@ -873,6 +892,7 @@ function _wa_enviarParte_(user, p) {
       foto3: f.urls[2] || '', foto4: f.urls[3] || '', foto5: f.urls[4] || '', carpetaFotos: f.carpeta
     });
     if (!r.success) _wa_fail_(r.error || 'No se pudo guardar el parte.');
+    _maq_ponerEnTrabajo_(id, maqs);
     logEvent('INFO', 'wa_enviarParte', 'Parte nuevo: ' + id, user.nombre);
     return { id: id };
   });
