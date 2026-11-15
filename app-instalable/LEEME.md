@@ -20,8 +20,12 @@
 ## Si cambia la dirección del programa de Google
 Editar la constante `EXEC` en `index.html` (misma dirección `.../exec` de la implementación).
 
-## Publicación (pendiente)
-Pensada para GitHub Pages (gratis, requiere repositorio público). Esta carpeta vive dentro del repositorio del programa (`app-instalable/`), pero `.claspignore` hace que `clasp push` nunca la suba a Google. La dirección actual (`https://nataliacamarano.github.io/alvaro-gestion-app/`) la sigue sirviendo el repositorio antiguo `alvaro-gestion-app`; si se cambia la publicación, hay que actualizar `URL_APP` en `WebApp.gs`.
+## Publicación
+Este repositorio (`software-autonomos-google`) es la **única fuente de verdad** de la app. Se edita solo aquí, en `app-instalable/`.
+- Al fusionar un cambio en `main`, un proceso automático (`.github/workflows/publicar-app.yml`) publica la carpeta en GitHub Pages: `https://nataliacamarano.github.io/software-autonomos-google/`.
+- Esa misma dirección está en `URL_APP` de `WebApp.gs` (los enlaces personales la usan). Si cambia, hay que cambiar las dos cosas y hacer `clasp push`.
+- `.claspignore` impide que `clasp push` suba esta carpeta a Google.
+- El repositorio antiguo `alvaro-gestion-app` ya no se debe editar: solo sigue sirviendo la dirección vieja para quien ya tenga la app instalada de antes.
 
 
 

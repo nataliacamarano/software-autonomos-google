@@ -32,8 +32,8 @@ var WA_ = {
   URL_RE:          /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/,
   URL_BASE:        'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec',
   // App instalable (puerta de entrada en GitHub Pages): los enlaces personales apuntan aquí y ella abre
-  // la web app de Google (URL_BASE) dentro. Repositorio: nataliacamarano/alvaro-gestion-app
-  URL_APP:         'https://nataliacamarano.github.io/alvaro-gestion-app/',
+  // la web app de Google (URL_BASE) dentro. Código: carpeta app-instalable/ de este repositorio (nataliacamarano/software-autonomos-google)
+  URL_APP:         'https://nataliacamarano.github.io/software-autonomos-google/',
   ESTADOS_PARTE:   ['Pendiente', 'En curso', 'Completado'],
   // Número de versión de la app. SUBIRLO en cada publicación: las pantallas abiertas comparan el suyo con este
   // y avisan de que hay una versión nueva.
