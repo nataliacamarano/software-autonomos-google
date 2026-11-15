@@ -1,0 +1,10 @@
+# Lo mismo que clasp ignora por defecto: solo se suben .gs, .js, .html y appsscript.json
+**/**
+!appsscript.json
+!*.gs
+!*.html
+!*.js
+!*.ts
+
+# IMPORTANTE (debe ir al final): la app instalable (GitHub Pages) NO es parte del programa de Google.
+app-instalable/**

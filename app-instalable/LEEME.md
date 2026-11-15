@@ -21,7 +21,7 @@
 Editar la constante `EXEC` en `index.html` (misma dirección `.../exec` de la implementación).
 
 ## Publicación (pendiente)
-Pensada para GitHub Pages (gratis, requiere repositorio público). Esta carpeta es independiente del repositorio del programa para que `clasp push` nunca la suba a Google.
+Pensada para GitHub Pages (gratis, requiere repositorio público). Esta carpeta vive dentro del repositorio del programa (`app-instalable/`), pero `.claspignore` hace que `clasp push` nunca la suba a Google. La dirección actual (`https://nataliacamarano.github.io/alvaro-gestion-app/`) la sigue sirviendo el repositorio antiguo `alvaro-gestion-app`; si se cambia la publicación, hay que actualizar `URL_APP` en `WebApp.gs`.
 
 
 
