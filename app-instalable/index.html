@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Álvaro Gestión</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Álvaro">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  html, body { margin: 0; height: 100%; background: #f5f5f2; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1e1e1c; }
+  #marco { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #f5f5f2; }
+  .pantalla { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #f5f5f2; overflow-y: auto; }
+  .pantalla.on { display: flex; }
+  #ajustes { z-index: 10; }
+  #bloqueo { z-index: 20; }
+  .caja { width: 100%; max-width: 360px; margin: auto; }
+  .pantalla img { width: 84px; height: 84px; border-radius: 20px; }
+  .pantalla h1 { font-size: 20px; margin: 16px 0 8px; }
+  .pantalla h2 { font-size: 16px; margin: 22px 0 6px; text-align: left; }
+  .pantalla p { color: #6a6a64; margin: 0 0 12px; }
+  .pantalla .izq { text-align: left; }
+  .pantalla input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 12px; margin-bottom: 8px; border: 1px solid #cfcdc5; border-radius: 10px; background: #fff; color: #1e1e1c; }
+  .pantalla input:focus { outline: 2px solid #1b5fb0; border-color: #1b5fb0; }
+  .pantalla button { width: 100%; margin-top: 10px; padding: 13px; border: 1px solid #cfcdc5; border-radius: 12px; background: #fff; color: #1e1e1c; font: inherit; font-size: 16px; cursor: pointer; }
+  .pantalla button.pri { background: #1b5fb0; border-color: #1b5fb0; color: #fff; font-weight: 600; }
+  .pantalla button.mal { color: #b3261e; border-color: #e2b4b0; }
+  .pantalla button.enlace { border: 0; background: none; color: #1b5fb0; font-size: 15px; }
+  .msg { color: #b3261e; min-height: 20px; margin: 6px 0 0; font-size: 14px; }
+  .msg.ok { color: #1d7a45; }
+  .oculto { display: none !important; }
+  #sinred { position: fixed; left: 0; right: 0; bottom: 0; display: none; padding: 10px 16px; background: #8a5700; color: #fff; text-align: center; font-size: 14px; z-index: 30; }
+  #sinred.on { display: block; }
+</style>
+</head>
+<body>
+<iframe id="marco" title="Álvaro Gestión" allow="camera; microphone; geolocation; clipboard-write; fullscreen" hidden></iframe>
+
+<!-- Primera vez: pegar el enlace personal -->
+<div id="aviso" class="pantalla">
+  <form class="caja" id="form" autocomplete="off">
+    <img src="icon-192.png" alt="">
+    <h1>Álvaro Gestión</h1>
+    <p>Pega aquí el enlace personal que te envió Álvaro y toca <b>Entrar</b>. Solo hace falta la primera vez.</p>
+    <input id="enlace" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Pega tu enlace personal" aria-label="Enlace personal">
+    <div id="error" class="msg" role="alert"></div>
+    <button type="submit" class="pri">Entrar</button>
+  </form>
+</div>
+
+<!-- Ajustes de la app (se abren con el botón ⚙️ del programa) -->
+<div id="ajustes" class="pantalla">
+  <div class="caja">
+    <h1>Ajustes de la app</h1>
+
+    <div id="bloquePin">
+      <h2>Bloqueo con PIN</h2>
+      <p class="izq" id="pinEstado"></p>
+      <form id="formPin" autocomplete="off">
+        <input id="pinNuevo" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="PIN nuevo (de 4 a 8 números)" aria-label="PIN nuevo">
+        <input id="pinNuevo2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Repite el PIN" aria-label="Repite el PIN">
+        <div id="msgPin" class="msg" role="alert"></div>
+        <button type="submit" class="pri" id="btnPin">Activar PIN</button>
+      </form>
+      <button type="button" id="btnQuitarPin" class="oculto">Quitar el PIN</button>
+    </div>
+
+    <h2>Sesión</h2>
+    <p class="izq">Si cierras la sesión, esta app olvida tu enlace personal y habrá que pegarlo otra vez para entrar.</p>
+    <button type="button" id="btnCerrar" class="mal">Cerrar sesión en este móvil</button>
+
+    <button type="button" id="btnVolver" style="margin-top:22px">Volver a la app</button>
+  </div>
+</div>
+
+<!-- Bloqueo con PIN -->
+<div id="bloqueo" class="pantalla">
+  <form class="caja" id="formBloqueo" autocomplete="off">
+    <img src="icon-192.png" alt="">
+    <h1>Álvaro Gestión</h1>
+    <p>Escribe tu PIN para entrar.</p>
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="PIN" aria-label="PIN">
+    <div id="errorPin" class="msg" role="alert"></div>
+    <button type="submit" class="pri">Abrir</button>
+    <button type="button" id="btnOlvide" class="enlace">Olvidé mi PIN</button>
+  </form>
+</div>
+
+<div id="sinred">Sin conexión a internet</div>
+
+<script>
+(function () {
+  // Dirección del programa en Google. Es la misma que ya usan los enlaces actuales.
+  var EXEC = 'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec';
+  var TOKEN_RE = /^[A-Za-z0-9]{16,128}$/;
+  var K_ENLACE = 'alvaro_gestion_t', K_PIN = 'alvaro_gestion_pin', K_SAL = 'alvaro_gestion_sal';
+  var SEGUNDOS_BLOQUEO = 60;   // si la app estuvo fuera más de esto, vuelve a pedir el PIN
+  var $ = function (id) { return document.getElementById(id); };
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (_) {} }
+
+  var p = new URLSearchParams(location.search);
+  var t = p.get('t') || '';
+  var m = p.get('m') || '';
+  if (!TOKEN_RE.test(t)) t = '';
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(m)) m = '';
+  if (t) lsSet(K_ENLACE, t); else t = lsGet(K_ENLACE);
+
+  // "w=1" le dice al programa que está dentro de la app instalable (así muestra el botón de Ajustes).
+  function urlPrograma(extra) { return EXEC + '?t=' + t + (m ? '&m=' + m : '') + '&w=1' + (extra || ''); }
+
+  function abrir() {
+    // Deja el enlace personal en la barra de direcciones (en iPhone, "Añadir a pantalla de inicio" lo recuerda así).
+    try { history.replaceState(null, '', location.pathname + '?t=' + t + (m ? '&m=' + m : '')); } catch (_) {}
+    $('aviso').className = 'pantalla';
+    var marco = $('marco');
+    marco.src = urlPrograma();
+    marco.hidden = false;
+  }
+
+  function pedirEnlace(mensaje) {
+    var marco = $('marco');
+    marco.hidden = true;
+    marco.removeAttribute('src');
+    $('error').textContent = mensaje || '';
+    $('aviso').className = 'pantalla on';
+  }
+
+  // De lo que pegue la persona (enlace entero, con o sin "https://", o solo la clave) saca la clave.
+  function sacarClave(texto) {
+    texto = String(texto || '').trim();
+    var r = /[?&]t=([A-Za-z0-9]{16,128})(?![A-Za-z0-9])/.exec(texto);
+    if (r) return r[1];
+    if (TOKEN_RE.test(texto)) return texto;
+    return '';
+  }
+
+  $('form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var k = sacarClave($('enlace').value);
+    if (!k) { $('error').textContent = 'Ese enlace no parece correcto. Cópialo entero desde el mensaje de Álvaro y vuelve a pegarlo.'; return; }
+    t = k; lsSet(K_ENLACE, t); $('enlace').value = ''; $('error').textContent = '';
+    abrir();
+  });
+
+  /* ---------------- PIN (opcional, solo guarda un resumen cifrado en este móvil) ---------------- */
+  var CRIPTO = !!(window.crypto && crypto.subtle && window.TextEncoder);
+  function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }
+  function resumen(pin, sal) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(sal + ':' + pin)).then(hex); }
+  function hayPin() { return !!lsGet(K_PIN); }
+  function guardarPin(pin) {
+    var sal = hex(crypto.getRandomValues(new Uint8Array(12)));
+    return resumen(pin, sal).then(function (h) { lsSet(K_SAL, sal); lsSet(K_PIN, h); });
+  }
+  function pinOk(pin) { return resumen(pin, lsGet(K_SAL)).then(function (h) { return h === lsGet(K_PIN); }); }
+
+  var bloqueado = false, fallos = 0, esperaHasta = 0, fuera = 0;
+
+  function bloquear() {
+    if (!hayPin() || !TOKEN_RE.test(t)) return;
+    bloqueado = true;
+    $('marco').style.visibility = 'hidden';
+    $('ajustes').className = 'pantalla';
+    $('bloqueo').className = 'pantalla on';
+    $('pin').value = ''; $('errorPin').textContent = '';
+    setTimeout(function () { try { $('pin').focus(); } catch (_) {} }, 80);
+  }
+  function desbloquear() {
+    bloqueado = false;
+    $('bloqueo').className = 'pantalla';
+    $('marco').style.visibility = '';
+  }
+
+  $('formBloqueo').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var falta = Math.ceil((esperaHasta - Date.now()) / 1000);
+    if (falta > 0) { $('errorPin').textContent = 'Demasiados intentos. Espera ' + falta + ' segundos.'; return; }
+    pinOk($('pin').value).then(function (ok) {
+      if (ok) { fallos = 0; desbloquear(); return; }
+      fallos++; $('pin').value = '';
+      if (fallos >= 5) { fallos = 0; esperaHasta = Date.now() + 30000; $('errorPin').textContent = 'PIN incorrecto. Espera 30 segundos para volver a probar.'; }
+      else $('errorPin').textContent = 'PIN incorrecto.';
+    });
+  });
+
+  function cerrarSesion() {
+    lsDel(K_ENLACE); lsDel(K_PIN); lsDel(K_SAL);
+    t = ''; bloqueado = false; fallos = 0;
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    $('bloqueo').className = 'pantalla'; $('ajustes').className = 'pantalla';
+    $('marco').style.visibility = '';
+    pedirEnlace('Sesión cerrada. Para volver a entrar, pega tu enlace personal.');
+  }
+  var AVISO_CIERRE = 'Se cerrará tu sesión en este móvil: la app olvidará tu enlace personal y tu PIN, y tendrás que pegar el enlace otra vez para entrar. ¿Seguir?';
+  $('btnOlvide').addEventListener('click', function () { if (confirm(AVISO_CIERRE)) cerrarSesion(); });
+  $('btnCerrar').addEventListener('click', function () { if (confirm(AVISO_CIERRE)) cerrarSesion(); });
+
+  /* ---------------- Ajustes ---------------- */
+  function pintaAjustes() {
+    $('bloquePin').className = CRIPTO ? '' : 'oculto';
+    var con = hayPin();
+    $('pinEstado').textContent = con
+      ? 'El PIN está activado: la app lo pedirá al abrirla y cuando vuelvas a ella pasado un minuto.'
+      : 'Sin PIN, cualquiera que coja tu móvil desbloqueado puede abrir la app. Si quieres, pon un PIN.';
+    $('btnPin').textContent = con ? 'Cambiar el PIN' : 'Activar PIN';
+    $('btnQuitarPin').className = con ? '' : 'oculto';
+    $('pinNuevo').value = ''; $('pinNuevo2').value = '';
+    $('msgPin').textContent = ''; $('msgPin').className = 'msg';
+  }
+  function abrirAjustes() { if (bloqueado) return; pintaAjustes(); $('ajustes').className = 'pantalla on'; }
+  $('btnVolver').addEventListener('click', function () { $('ajustes').className = 'pantalla'; });
+
+  $('formPin').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var a = $('pinNuevo').value, b = $('pinNuevo2').value, msg = $('msgPin');
+    msg.className = 'msg';
+    if (!/^[0-9]{4,8}$/.test(a)) { msg.textContent = 'El PIN debe tener entre 4 y 8 números.'; return; }
+    if (a !== b) { msg.textContent = 'Los dos PIN no son iguales. Escríbelos otra vez.'; return; }
+    guardarPin(a).then(function () { pintaAjustes(); $('msgPin').className = 'msg ok'; $('msgPin').textContent = 'PIN guardado.'; });
+  });
+  $('btnQuitarPin').addEventListener('click', function () {
+    if (!confirm('¿Quitar el PIN? La app volverá a abrirse sin pedirlo.')) return;
+    lsDel(K_PIN); lsDel(K_SAL); pintaAjustes();
+  });
+
+  /* ---------------- Arranque ---------------- */
+  if (TOKEN_RE.test(t)) { abrir(); if (hayPin()) bloquear(); } else pedirEnlace('');
+
+  // Mensajes que manda el programa desde dentro.
+  addEventListener('message', function (ev) {
+    if (ev.data === 'ag-recargar' && TOKEN_RE.test(t)) {
+      // Hay una versión nueva ("Toca aquí para actualizar").
+      $('marco').src = urlPrograma('&r=' + Date.now());
+    } else if (ev.data === 'ag-ajustes') {
+      abrirAjustes();
+    } else if (ev.data === 'ag-enlace-invalido') {
+      // El programa no reconoce el enlace (cambiado o dado de baja): se olvida y se pide otro.
+      lsDel(K_ENLACE); t = '';
+      try { history.replaceState(null, '', location.pathname); } catch (_) {}
+      pedirEnlace('Ese enlace ya no es válido. Pide uno nuevo a Álvaro y pégalo aquí.');
+    }
+  });
+
+  // Al salir de la app se oculta lo que hay en pantalla; al volver pasado un minuto se pide el PIN.
+  document.addEventListener('visibilitychange', function () {
+    if (!hayPin() || !TOKEN_RE.test(t)) return;
+    if (document.hidden) { fuera = Date.now(); $('marco').style.visibility = 'hidden'; }
+    else if (bloqueado) { /* sigue bloqueado */ }
+    else if (fuera && Date.now() - fuera > SEGUNDOS_BLOQUEO * 1000) bloquear();
+    else $('marco').style.visibility = '';
+  });
+
+  function red() { $('sinred').className = navigator.onLine ? '' : 'on'; }
+  addEventListener('online', red); addEventListener('offline', red); red();
+
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
