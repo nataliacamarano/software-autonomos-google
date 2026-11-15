@@ -22,3 +22,8 @@ Programa de Google Apps Script para gestionar el negocio de autónomos de Álvar
 
 - `git pull` (rama `main`) y `clasp.cmd status` para comprobar que todo está en orden.
 - clasp tiene sesión iniciada como alvaro.mantenimiento.ibiza@gmail.com. Natalia decidió dejarlo así.
+
+## App instalable
+- La carpeta `app-instalable/` es la app instalable del móvil (GitHub Pages). **Este repositorio es su única fuente de verdad**; el repositorio antiguo `alvaro-gestion-app` ya no se edita.
+- Se publica sola al fusionar en `main` (`.github/workflows/publicar-app.yml`). `.claspignore` evita que `clasp push` la suba a Google.
+- Si cambia su dirección, hay que cambiar también `URL_APP` en `WebApp.gs` (y eso requiere `clasp push`, con las normas de arriba).
