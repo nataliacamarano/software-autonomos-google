@@ -96,6 +96,14 @@ button.mk{cursor:pointer}.mk.rojo{background:#d93025}.mk.naranja{background:#f29
 .center b{display:block;color:var(--txt);font-size:18px;margin-bottom:6px}
 .empty{color:var(--mut);font-size:14px;padding:12px 0}
 .spin{display:inline-block;width:18px;height:18px;border:2px solid #ccc;border-top-color:var(--acc);border-radius:50%;animation:s .8s linear infinite;vertical-align:-3px}@keyframes s{to{transform:rotate(360deg)}}
+.chat{display:flex;flex-direction:column;gap:6px;padding-bottom:10px}
+.cm{max-width:84%;padding:7px 11px;border-radius:14px;background:var(--card);border:1px solid var(--line);align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.cm.yo{align-self:flex-end;background:var(--accbg);border-color:#c9dcf3}
+.cm small{display:block;font-size:11px;color:var(--mut);margin-bottom:2px}
+.cdia{align-self:center;font-size:12px;color:var(--mut);background:#efeee9;border-radius:10px;padding:2px 10px;margin:6px 0 2px}
+.chatbox{position:sticky;bottom:0;background:var(--bg);padding:8px 0 10px;display:flex;gap:8px;align-items:flex-end}
+.chatbox textarea{flex:1;min-height:44px;max-height:120px;resize:none}
+.chatbox .btn{width:auto;margin:0;padding:12px 16px}
 </style>
 </head>
 <body>
@@ -266,6 +274,7 @@ function adminHome() {
       tile('🕒', 'Horas del equipo', function () { go(viewHoras); }),
       tile('📅', 'Calendario y recordatorios', function () { go(viewCalendario); }),
       tile('📝', 'Notas diarias', function () { go(viewNotas); }),
+      tile('💬', chatEtiqueta(), function () { go(viewChat); }, true),
       (function () { var b = tile('⚠️', d.atrasados ? 'Pendientes: ' + d.atrasados + (d.atrasados === 1 ? ' atrasado' : ' atrasados') : 'Pendientes', function () { go(viewAtrasos); }, true); if (d.atrasados) b.className += ' alerta'; return b; })(),
       tile('🛠️', textoMaq(r.maq), function () { go(viewMaquinas); }, true),
       tile('🗂️', 'Gestionar empleados y clientes', function () { go(viewGestion); }, true)));
@@ -1187,6 +1196,7 @@ function empHome() {
     el('button', { class: 'big', onclick: function () { go(viewCalendario); } }, el('span', { style: 'font-size:26px', text: '📅' }), 'Calendario'),
     (function () { var b = el('button', { class: 'big', onclick: function () { go(viewAtrasos); }, style: d.atrasados ? 'background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:600' : '' }, el('span', { style: 'font-size:26px', text: '⚠️' }), d.atrasados ? 'Pendientes: ' + d.atrasados + (d.atrasados === 1 ? ' atrasado' : ' atrasados') : 'Pendientes'); return b; })(),
     el('button', { class: 'big', onclick: function () { go(viewNotas); } }, el('span', { style: 'font-size:26px', text: '📝' }), 'Notas y libreta'),
+    el('button', { class: 'big', onclick: function () { go(viewChat); } }, el('span', { style: 'font-size:26px', text: '💬' }), chatEtiqueta()),
     el('button', { class: 'big', onclick: function () { go(viewMaquinas); } }, el('span', { style: 'font-size:26px', text: '🛠️' }), 'Maquinaria: ver y registrar uso'),
     el('h2', { text: 'Trabajos por hacer' }),
     el('p', { class: 'empty', style: 'margin:-4px 0 6px', text: 'Los que te asigna Álvaro. Toca uno para completarlo cuando lo termines.' }));
@@ -1206,6 +1216,84 @@ function empHome() {
     n.appendChild(r);
   }
   show('Álvaro Gestión', n, { noBack: true });
+}
+
+/* ---------- CHAT DEL EQUIPO (una sala, solo texto; se consulta cada pocos segundos mientras está abierto) ---------- */
+function chatVistoGet() { try { return Number(localStorage.getItem('chat_visto')) || 0; } catch (e) { return 0; } }
+function chatVistoSet(id) { try { localStorage.setItem('chat_visto', String(id)); } catch (e) {} }
+function chatEtiqueta() {
+  var nuevos = S.init && S.init.chatUltimo > chatVistoGet();
+  return 'Chat del equipo' + (nuevos ? ' · mensajes nuevos' : '');
+}
+function chatDiaTxt(f) {   // f = 'yyyy-MM-dd HH:mm'
+  var d = f.slice(0, 10), h = new Date(), p = function (n) { return ('0' + n).slice(-2); };
+  var hoy = h.getFullYear() + '-' + p(h.getMonth() + 1) + '-' + p(h.getDate());
+  h.setDate(h.getDate() - 1);
+  var ayer = h.getFullYear() + '-' + p(h.getMonth() + 1) + '-' + p(h.getDate());
+  return d === hoy ? 'Hoy' : d === ayer ? 'Ayer' : d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+}
+function viewChat() {
+  var desde = 0, vistos = {}, diaActual = '', ultimoNuevo = Date.now(), timer = null, leyendo = false;
+  var lista = el('div', { class: 'chat', 'aria-live': 'polite' });
+  var caja = el('textarea', { rows: 1, maxlength: 1000, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
+  var boton = el('button', { type: 'button', class: 'btn pri', text: 'Enviar' });
+  var vacio = el('p', { class: 'empty', text: 'Cargando…' });
+  var n = el('div', null, vacio, lista, el('div', { class: 'chatbox' }, caja, boton));
+
+  function pinta(msgs) {
+    var abajo = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 120);
+    var propio = false;
+    msgs.forEach(function (m) {
+      if (vistos[m.id]) return;
+      vistos[m.id] = true;
+      if (m.id > desde) desde = m.id;
+      if (m.mio) propio = true;
+      var dia = m.fecha.slice(0, 10);
+      if (dia && dia !== diaActual) { diaActual = dia; lista.appendChild(el('div', { class: 'cdia', text: chatDiaTxt(m.fecha) })); }
+      lista.appendChild(el('div', { class: 'cm' + (m.mio ? ' yo' : '') },
+        el('small', { text: (m.mio ? 'Tú' : m.autor) + ' · ' + m.fecha.slice(11) }), m.texto));
+    });
+    vacio.style.display = desde ? 'none' : '';
+    vacio.textContent = 'Todavía no hay mensajes. Escribe el primero.';
+    if (S.init && desde > (S.init.chatUltimo || 0)) S.init.chatUltimo = desde;
+    chatVistoSet(desde);
+    if (msgs.length && (abajo || propio || Object.keys(vistos).length === msgs.length)) window.scrollTo(0, document.body.scrollHeight);
+  }
+  function viva() { return document.body.contains(lista); }
+  function programa() {
+    clearTimeout(timer);
+    if (!viva()) return;
+    timer = setTimeout(leer, (Date.now() - ultimoNuevo > 120000) ? 20000 : 8000);   // más despacio si hace rato que no hay nada nuevo
+  }
+  function leer() {
+    if (!viva()) return;
+    if (document.hidden || leyendo) { programa(); return; }
+    leyendo = true;
+    api('chatLeer', { desde: desde }).then(function (r) {
+      if (!viva()) return;
+      if (r.mensajes.length) { ultimoNuevo = Date.now(); pinta(r.mensajes); }
+      else if (!desde) pinta([]);
+    }).catch(function (e) {
+      if (e && (e.code === 'AUTH' || e.code === 'BLOQ')) { fatal(e.code === 'BLOQ' ? 'Acceso desactivado' : 'Enlace no válido', e.error || ''); return; }
+      if (!desde) vacio.textContent = (e && e.error) || 'No se pudo cargar el chat.';
+    }).then(function () { leyendo = false; programa(); });
+  }
+  function envia() {
+    var t = caja.value.trim();
+    if (!t || boton.disabled) return;
+    boton.disabled = true;
+    api('chatEnviar', { texto: t, reqId: rid() }).then(function () {
+      caja.value = ''; ultimoNuevo = Date.now(); clearTimeout(timer); leyendo = false; leer();
+    }).catch(function (e) { toast((e && e.error) || 'No se pudo enviar. Inténtalo otra vez.', true); })
+      .then(function () { boton.disabled = false; caja.focus(); });
+  }
+  boton.addEventListener('click', envia);
+  document.addEventListener('visibilitychange', function f() {
+    if (!viva()) { document.removeEventListener('visibilitychange', f); return; }
+    if (!document.hidden) { clearTimeout(timer); leer(); }
+  });
+  show('Chat del equipo', n);
+  leer();
 }
 
 function viewParte(t) {
